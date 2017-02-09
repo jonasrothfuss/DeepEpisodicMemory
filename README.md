@@ -3,6 +3,6 @@ Learning new skills from sensorimotor experi- ences in varying contexts and tran
 
 
 
-- Implementing an episodic memory from multimodal sensorimotor experiences → enable basis for robots to learn from various forms of demonstration
-- Action planning based on cognitive experiences in the past
+- Implementing an episodic memory from multimodal sensorimotor experiences enables basis for robots to learn from various forms of demonstration
 - Because symbolic approaches are restricted to pre-defined contexts, we generate meaningful subsymbolic representations of cognitive experiences
+- Action planning based on cognitive experiences in the past

@@ -2,6 +2,7 @@ import pafy, json, sys, os, os.path, moviepy, imageio
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pathlib import Path
 from moviepy.editor import *
+import pprint
 
 #returns activity net database as dict given the corresponding json file
 def activity_net_db_from_json(json_file_location):
@@ -20,33 +21,58 @@ def extract_subclip(file_location, t1, t2, target_location):
         imageio.plugins.ffmpeg.download()
 
 
-def download_activity_net(activity_net_dict, destination_directory, metadata_file_name = "metadata.json"):
+def meta_already_downloaded(destination_directory, metadata_file_name):
+    if os.path.isfile(destination_directory + metadata_file_name):  # dump metadata dict already exists
+        with open(destination_directory + metadata_file_name, 'r') as f:
+            already_downloaded_dict = json.load(f)
+        return already_downloaded_dict
+    else:
+        return {}
+
+
+def remove_downloaded_videos_from_dict(activity_net_dict, metadata_dict):
+    if len(metadata_dict) == 0:  # no videos downloaded yet
+        return activity_net_dict
+    else:  # some of the videos in activity net dict were already downloaded
+        for video_key in metadata_dict.keys():
+            if video_key in activity_net_dict:
+                del activity_net_dict[video_key]
+        return activity_net_dict
+
+
+def download_activity_net(activity_net_dict, destination_directory, metadata_file_name="metadata.json"):
     success_count = 0
     fail_count = 0
+    metadata_dict = meta_already_downloaded(destination_directory, metadata_file_name)
+    activity_net_dict = remove_downloaded_videos_from_dict(activity_net_dict, metadata_dict)
     video_count = len(activity_net_dict.keys())
-    metadata_dict = {}
     for video_key, video_meta in activity_net_dict.items():
         try:
-            #attempt to download and store video
+            # attempt to download and store video
             file_path = download_video(video_meta['url'], destination_directory, file_name=str(video_key))
-
-            #extend metadata dict
+            # extend metadata dict
             metadata_dict[video_key] = video_meta
             metadata_dict[video_key]['path'] = file_path
 
-            #report success
-            print('video ' + str(success_count + fail_count) + ' of ' + str(video_count) + ' (' + str(fail_count) + 'fails): ' + file_path)
+            # report success
+            print(str(success_count + fail_count) + ' of ' + str(video_count) + ': ' + file_path)
             success_count += 1
+
         except Exception as e:
             fail_count += 1
-            try: print('Failed to download: ' + video_meta['url'] + ' --- Message: ' + str(e))
-            except: print('Failed to download')
-        if success_count > 4:
-            break
+            try:
+                print(str(success_count + fail_count) + ' of ' + str(video_count) + ': Failed to download video:' + str(e))
+            except:
+                print(str(success_count + fail_count) + ' of ' + str(video_count) + ': Failed to download video:')
 
-    #dump metadata dict as json file
-    with open(destination_directory + metadata_file_name, 'w') as f:
-        json.dump(metadata_dict, f)
+
+        # dump metadata dict as json file
+        if (success_count % 20 == 0) or (success_count + fail_count == video_count):
+            with open(destination_directory + metadata_file_name, 'w') as f:
+                json.dump(metadata_dict, f)
+            print('Dumped metadata file to: ' + str(destination_directory + metadata_file_name))
+
+    # dump metadata dict as json file
     return metadata_dict
 
 
@@ -118,7 +144,9 @@ def create_directories_if_necessary(activity_net_target_dir):
 
 
 if __name__ == '__main__':
-    activity_net_db_location, activity_net_target_dir = handle_prompt_input()
+    #activity_net_db_location, activity_net_target_dir = handle_prompt_input()
+    activity_net_db_location = '/common/homes/students/rothfuss/Downloads/metadata.json'
+    activity_net_target_dir = '/common/homes/students/rothfuss/Downloads/'
     print(activity_net_db_location, activity_net_target_dir)
     download_dir, subclip_dir = create_directories_if_necessary(activity_net_target_dir)
 

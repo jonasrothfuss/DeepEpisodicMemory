@@ -125,16 +125,18 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder')
   return frame_gen
 
 
-def composite_model(frames, encoder_sequence_length=5, decoder_sequence_length=5, num_channels=3):
+def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst_len=5, num_channels=3):
   """
   Args:
     frames: 5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)
-    encoder_sequence_length: number of frames that shall be encoded
-    decoder_sequence_length: number of frames that shall be decoded from the hidden_repr
+    encoder_len: number of frames that shall be encoded
+    decoder_future_sequence_length: number of frames that shall be decoded from the hidden_repr
     num_channels: number of channels for generated frames
   Returns:
     frame_gen: array of generated frames (Tensors)
   """
-  hidden_repr = encoder_model(frames, encoder_sequence_length)
-  frame_gen = decoder_model(hidden_repr, decoder_sequence_length, num_channels=num_channels)
-  return frame_gen
+  assert all([len > 0 for len in [encoder_len, decoder_future_len, decoder_reconst_len]])
+  hidden_repr = encoder_model(frames, encoder_len)
+  frames_pred = decoder_model(hidden_repr, decoder_future_len, num_channels=num_channels, scope='decoder_pred')
+  frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, num_channels=num_channels, scope='decoder_reconst')
+  return frames_pred, frames_reconst

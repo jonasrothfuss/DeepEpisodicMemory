@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import dircache
 import warnings
+import glob
 from math import floor
 
 
@@ -16,6 +17,7 @@ numChannels = 1 #depth of images
 warnings.warn("using gray scale images")
 frameSize = 128
 numberOfVideos = 3
+fileType = "*.avi"
 
 
 withDescriptionFiles = False #is there a file with video file names? -> True
@@ -56,7 +58,8 @@ if withDescriptionFiles:
             w = f[i].split()
             allFiles.append(w[0])
 else:
-    allFiles = dircache.listdir(inputPath)
+    allFiles = glob.glob(inputPath + "/" + fileType)
+    #allFiles = dircache.listdir(inputPath)
 
 
 
@@ -95,7 +98,7 @@ if equallyDistributed == False:
 else:
     for i in range(numberOfVideos):
         print str(i) + " of " + str(numberOfVideos) + " videos processed"
-        cap = getVideoCapture(inputPath + allFiles[i])
+        cap = getVideoCapture(allFiles[i])
 
         #compute meta data of video
         frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
@@ -120,7 +123,7 @@ else:
                         steps -= 1
                         j = 0
                         cap.release()
-                        cap = getVideoCapture(inputPath + allFiles[i])
+                        cap = getVideoCapture(allFiles[i])
                         video.fill(0)
                         break
                     else:
@@ -137,7 +140,7 @@ else:
                                 resizedImage = cv2.resize(frame[:, :, k], (frameSize, frameSize))
                             image[k,:,:] = resizedImage
 
-                        video[j, :, :, :] = image
+                        video[j, :, :, :] = image.astype(np.uint8)
                         #image counter
                         j += 1
                         print 'total frames: ' + str(j) + " frame in video: " + str(f)
@@ -149,7 +152,7 @@ else:
 
     #non-equally distributed solution
     if train:
-        np.save(outputPath + filename, data);
+        np.save(outputPath + filename, data)
     else:
-        np.save(outputPath + filename, data);
+        np.save(outputPath + filename, data)
 

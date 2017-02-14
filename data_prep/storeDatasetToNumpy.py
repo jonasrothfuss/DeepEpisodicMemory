@@ -1,4 +1,4 @@
-"""Displays reconstruction and future predictions for trained models."""
+"""Stores a dataset into numpy ndarray format"""
 import numpy as np
 import cv2
 import dircache
@@ -75,9 +75,9 @@ assert len(allFiles) >= numberOfVideos
 #let's do the resizing here:
 
 
-image = np.zeros((numChannels, frameSize, frameSize))
-video = np.zeros((numFrames, numChannels, frameSize, frameSize))
-data = np.zeros((numberOfVideos, numFrames, numChannels, frameSize, frameSize))
+image = np.zeros((frameSize, frameSize, numChannels))
+video = np.zeros((numFrames, frameSize, frameSize, numChannels))
+data = np.zeros((numberOfVideos, numFrames, frameSize, frameSize, numChannels))
 
 # --- Sample the frames from each video ---
 if equallyDistributed == False:
@@ -91,13 +91,13 @@ if equallyDistributed == False:
 
             for k in range(numChannels):
                 resizedImage = cv2.resize(frame[:,:,k], (frameSize, frameSize))
-                data[i,j,k,:,:] = resizedImage
+                data[i,j,:,:,k] = resizedImage
 
 
 #algorithm chooses frame step size automatically for a equal separation distribution
 else:
     for i in range(numberOfVideos):
-        print str(i) + " of " + str(numberOfVideos) + " videos processed"
+        print (str(i) + " of " + str(numberOfVideos) + " videos processed")
         cap = getVideoCapture(allFiles[i])
 
         #compute meta data of video
@@ -138,7 +138,7 @@ else:
                                 resizedImage = cv2.resize(frame[:,:], (frameSize, frameSize))
                             else:
                                 resizedImage = cv2.resize(frame[:, :, k], (frameSize, frameSize))
-                            image[k,:,:] = resizedImage
+                            image[:,:,k] = resizedImage
 
                         video[j, :, :, :] = image.astype(np.uint8)
                         #image counter

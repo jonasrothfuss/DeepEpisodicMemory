@@ -7,6 +7,7 @@ from __future__ import print_function
 import argparse
 import os
 import sys
+import math
 import numpy as np
 
 import tensorflow as tf
@@ -23,11 +24,12 @@ def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-def convert_to(data, name):
-    """Converts a dataset to tfrecords.
-    :param data: ndarray(uint8) of shape (v,i,c,h,w) with v=number of videos, i=number of images, c=number of image
+def save_to_tfrecord(data, name, fragmentSize):
+    """Converts an entire dataset into x tfrecords where x=videos/fragmentSize.
+    :param data: ndarray(uint8) of shape (v,i,h,w,c) with v=number of videos, i=number of images, c=number of image
     channels, h=image height, w=image width
     :param name: filename; data samples type (train|valid|test)
+    ;param fragmentSize: specifies how many videos are stored in one tfrecords file
     """
     num_videos = data.shape[0]
     num_images = data.shape[1]
@@ -35,31 +37,43 @@ def convert_to(data, name):
     height = data.shape[3]
     width = data.shape[4]
 
-    filename = os.path.join(FLAGS.outputPath, name + '.tfrecords')
-    print('Writing', filename)
-    writer = tf.python_io.TFRecordWriter(filename)
+    i=0
+    writer = None
+    feature = {}
+
 
     for videoCount in range(num_videos):
+
+        if videoCount % fragmentSize == 0:
+            if writer is not None:
+                writer.close()
+            i += 1
+            filename = os.path.join(FLAGS.outputPath, name + str(i) + '-of-' + str(int(math.ceil(num_videos/fragmentSize))) + '.tfrecords')
+            print('Writing', filename)
+            writer = tf.python_io.TFRecordWriter(filename)
+
         for imageCount in range(num_images):
-            for depthCount in range(num_channels):
-                # more compatible than tobytes()
-                image_raw = data[videoCount, imageCount, depthCount, :, :].tostring()
-                print("Processing of video: " + str(videoCount) + " image: " + str(imageCount))
-                example = tf.train.Example(features=tf.train.Features(feature={
-                    'videoNumber': _int64_feature(videoCount),
-                    'imageNumber': _int64_feature(imageCount),
-                    'height': _int64_feature(height),
-                    'width': _int64_feature(width),
-                    'depth': _int64_feature(depthCount),
-                    'image_raw': _bytes_feature(image_raw)}))
-                #image_back = np.fromstring(image_raw, dtype='uint8')
-                writer.write(example.SerializeToString())
+            path = 'blob' + '/' + str(imageCount)
+            image = data[videoCount, imageCount, :, :, :]
+            # more compatible than tobytes()
+            image_raw = image.tostring()
+            print("Processing of video: " + str(videoCount) + " image: " + str(imageCount))
+
+            feature[path]= _bytes_feature(image_raw)
+            feature['height'] = _int64_feature(height)
+            feature['width'] = _int64_feature(width)
+            feature['depth'] =_int64_feature(num_channels)
+
+
+        example = tf.train.Example(features=tf.train.Features(feature=feature))
+        writer.write(example.SerializeToString())
     writer.close()
+
 
 def main(args):
     # Get the data.
     data_train = np.load(FLAGS.filePath)
-    convert_to(data_train, FLAGS.type)
+    save_to_tfrecord(data_train, FLAGS.type, 2)
 
 
 if __name__ == '__main__':

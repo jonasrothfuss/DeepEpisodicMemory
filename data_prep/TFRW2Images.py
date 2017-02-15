@@ -1,36 +1,22 @@
 from PIL import Image
-#from Image import Image
-#import PIL.Image
+import argparse
+import PIL.Image
 import os
+import sys
 import numpy as np
 import tensorflow as tf
 
 
 
 from tensorflow.python.platform import flags
+from tensorflow.python.platform import gfile
 
 FLAGS = flags.FLAGS
 
 generateGif = True
 storeSingle = False
 numVideos = 5
-
-def main():
-  filenames = (['/Users/fabioferreira/Downloads/push_testnovel.tfrecord-00000-of-00005'])# list of files to read
-  path = '/Users/fabioferreira/Downloads/PushExtracted/'
-
-  train_image_tensor = createImages(filenames)
-  sess = tf.InteractiveSession()
-  tf.train.start_queue_runners(sess)
-  sess.run(tf.initialize_all_variables())
-  train_videos = sess.run(train_image_tensor)
-
-  if storeSingle:
-    storeSingleImages(numVideos, train_videos, path)
-
-  if generateGif:
-    createGif(numVideos, train_videos, path)
-
+BATCH_SIZE = 25
 
 def createImages(filenames):
     if not filenames:
@@ -41,25 +27,26 @@ def createImages(filenames):
 
     image_seq = []
 
-
-    for i in range(25):
-        image_name = 'move/' + str(i) + '/image/encoded'
-        features = {image_name: tf.FixedLenFeature([1], tf.string)}
+    for i in range(20):
+        #image_name = 'move/' + str(i) + '/image/encoded'
+        image_name = 'blob' + '/' + str(i)
+        features = {image_name: tf.FixedLenFeature([], tf.string)}
         features = tf.parse_single_example(serialized_example, features=features)
 
+        #image = tf.image.decode_png(features[image_name], channels=0)
 
-        image_buffer = tf.reshape(features[image_name], shape=[])
-        image = tf.image.decode_jpeg(image_buffer, channels=3)
-        image.set_shape([512, 640, 3])
-
-        image = tf.reshape(image, [1, 512, 640, 3])
+        # save some storage through uint8 as [0, 255] is sufficient
+        image_data = tf.decode_raw(features[image_name], out_type=tf.uint8)
+        # oe dimension on top of the extra dimension given by tf.pack for the batch size
+        image = tf.reshape(image_data, tf.pack([1, 128, 128, 3]))
         image_seq.append(image)
 
     image_seq = tf.concat(0, image_seq)
 
+    # create the batch
     image_batch = tf.train.batch(
         [image_seq],
-        25, #batch size
+        BATCH_SIZE,
         num_threads=1,
         capacity=1)
     return image_batch
@@ -91,5 +78,41 @@ def storeSingleImages(numVideos, videos, path):
     coord.join(threads)
 
 
+def main(unparsed):
+    inputPath = os.path.abspath(FLAGS.input)
+    inputPath += '/'
+    outputPath = os.path.abspath(FLAGS.output)
+    outputPath += '/'
+    filenames = gfile.Glob(os.path.join(inputPath, '*.tfrecords'))
+
+    train_image_tensor = createImages(filenames)
+    sess = tf.InteractiveSession()
+    tf.train.start_queue_runners(sess)
+    sess.run(tf.initialize_all_variables())
+    train_videos = sess.run(train_image_tensor)
+
+    if storeSingle:
+        storeSingleImages(numVideos, train_videos, outputPath)
+
+    if generateGif:
+        createGif(numVideos, train_videos, outputPath)
+
+
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+      '--input',
+      type=str,
+      default='/tmp/data',
+      help='Directory with .tfrecords files'
+    )
+    parser.add_argument(
+        '--output',
+        type=str,
+        default='/tmp/data',
+        help='Directory where new files should be stored.'
+    )
+
+    FLAGS, unparsed = parser.parse_known_args()
+    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+

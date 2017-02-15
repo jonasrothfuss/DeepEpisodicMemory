@@ -117,7 +117,13 @@ def createInputs(directory, modus='train', batch_size=BATCH_SIZE, num_epochs=NUM
 
 def main(args):
     #test run
-    createInputs(FLAGS.input, True)
+    path = os.path.abspath(FLAGS.input)
+    filenames = gfile.Glob(os.path.join(path, TRAIN_FILES))
+    filename_queue = tf.train.string_input_producer(
+        filenames, num_epochs='None')
+
+    image_seq_tensor = read_and_decode(filenames)
+    #createInputs(FLAGS.input, True)
 
 
 

@@ -1,7 +1,6 @@
 """Stores a dataset into numpy ndarray format"""
 import numpy as np
 import cv2
-import dircache
 import warnings
 import glob
 from math import floor
@@ -13,8 +12,8 @@ cap = cv2.VideoCapture()
 equallyDistributed = True #do you want to have equally distributed step sizes between images? -> True
 allFiles = []
 numFrames = 20 #number of frames to capture
-numChannels = 1 #depth of images
-warnings.warn("using gray scale images")
+numChannels = 3 #depth of images
+if numChannels == 1: warnings.warn("using gray scale images")
 frameSize = 128
 numberOfVideos = 3
 fileType = "*.avi"
@@ -43,11 +42,11 @@ def getNextFrame(cap):
     if ret == False:
         return None
 
-    if numChannels == 1:
+   # if numChannels == 1:
             #convert to gray image
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    #        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    return frame
+    return np.asarray(frame)
 
 if withDescriptionFiles:
 # --- Parse description files ---
@@ -74,10 +73,9 @@ assert len(allFiles) >= numberOfVideos
 
 #let's do the resizing here:
 
-
-image = np.zeros((frameSize, frameSize, numChannels))
-video = np.zeros((numFrames, frameSize, frameSize, numChannels))
-data = np.zeros((numberOfVideos, numFrames, frameSize, frameSize, numChannels))
+image = np.zeros((frameSize, frameSize, numChannels), dtype=np.uint8)
+video = np.zeros((numFrames, frameSize, frameSize, numChannels), dtype=np.uint16)
+data = np.zeros((numberOfVideos, numFrames, frameSize, frameSize, numChannels), dtype=np.uint16)
 
 # --- Sample the frames from each video ---
 if equallyDistributed == False:
@@ -88,7 +86,6 @@ if equallyDistributed == False:
         for j in range(numFrames):
             ret, frame = cap.read()
 
-
             for k in range(numChannels):
                 resizedImage = cv2.resize(frame[:,:,k], (frameSize, frameSize))
                 data[i,j,:,:,k] = resizedImage
@@ -97,7 +94,6 @@ if equallyDistributed == False:
 #algorithm chooses frame step size automatically for a equal separation distribution
 else:
     for i in range(numberOfVideos):
-        print (str(i) + " of " + str(numberOfVideos) + " videos processed")
         cap = getVideoCapture(allFiles[i])
 
         #compute meta data of video
@@ -140,13 +136,14 @@ else:
                                 resizedImage = cv2.resize(frame[:, :, k], (frameSize, frameSize))
                             image[:,:,k] = resizedImage
 
-                        video[j, :, :, :] = image.astype(np.uint8)
+                        video[j, :, :, :] = image
                         #image counter
                         j += 1
                         print 'total frames: ' + str(j) + " frame in video: " + str(f)
                 else:
                     getNextFrame(cap)
 
+        print (str(i+1) + " of " + str(numberOfVideos) + " videos processed")
         data[i,:,:,:,:] = video
         cap.release()
 

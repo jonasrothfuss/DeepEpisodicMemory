@@ -9,9 +9,9 @@ import os
 import sys
 import math
 import numpy as np
-
+from PIL import Image
+import matplotlib.pyplot as plt
 import tensorflow as tf
-
 
 FLAGS = None
 
@@ -33,9 +33,9 @@ def save_to_tfrecord(data, name, fragmentSize):
     """
     num_videos = data.shape[0]
     num_images = data.shape[1]
-    num_channels = data.shape[2]
-    height = data.shape[3]
-    width = data.shape[4]
+    num_channels = data.shape[4]
+    height = data.shape[2]
+    width = data.shape[3]
 
     i=0
     writer = None
@@ -55,15 +55,21 @@ def save_to_tfrecord(data, name, fragmentSize):
         for imageCount in range(num_images):
             path = 'blob' + '/' + str(imageCount)
             image = data[videoCount, imageCount, :, :, :]
-            # more compatible than tobytes()
+
+            #test = tf.image.encode_png(image)
+            #plt.imshow(image_new)
+            #plt.show()
+            image = image.astype(np.uint8)
             image_raw = image.tostring()
+
+
             print("Processing of video: " + str(videoCount) + " image: " + str(imageCount))
 
             feature[path]= _bytes_feature(image_raw)
+            #feature[path] = _bytes_feature(test)
             feature['height'] = _int64_feature(height)
             feature['width'] = _int64_feature(width)
-            feature['depth'] =_int64_feature(num_channels)
-
+            feature['depth'] = _int64_feature(num_channels)
 
         example = tf.train.Example(features=tf.train.Features(feature=feature))
         writer.write(example.SerializeToString())
@@ -73,7 +79,7 @@ def save_to_tfrecord(data, name, fragmentSize):
 def main(args):
     # Get the data.
     data_train = np.load(FLAGS.filePath)
-    save_to_tfrecord(data_train, FLAGS.type, 2)
+    save_to_tfrecord(data_train, FLAGS.type, 1)
 
 
 if __name__ == '__main__':

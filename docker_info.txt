@@ -1,0 +1,10 @@
+Container content: TensorFlow r0.12.0 rc1 CUDA8.0 cuDNN 5 Python 3.4.3
+
+Run command:
+nvidia-docker run --rm -ti ferreirafabio/deepepisodicmemory
+
+Run command with ~/Downloads directory of host OS attached
+nvidia-docker run -v ~Downloads:/Downloads --rm -ti ferreirafabio/deepepisodicmemory
+
+Explicit command to origin:
+nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py3

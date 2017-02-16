@@ -67,7 +67,6 @@ def save_numpy_to_tfrecords(data, name, fragmentSize):
           #print("Processing of video: " + str(videoCount) + " image: " + str(imageCount))
 
           feature[path]= _bytes_feature(image_raw)
-          #feature[path] = _bytes_feature(test)
           feature['height'] = _int64_feature(height)
           feature['width'] = _int64_feature(width)
           feature['depth'] = _int64_feature(num_channels)
@@ -78,7 +77,9 @@ def save_numpy_to_tfrecords(data, name, fragmentSize):
 
 
 def convert_avi_to_numpy(filenames):
-  """Generates an ndarray from multiple avi files given by filenames
+  """Generates an ndarray from multiple avi files given by filenames.
+  Implementation chooses frame step size automatically for a equal separation distribution of the avi images.
+
   :param filenames
   :return ndarray(uint32) of shape (v,i,h,w,c) with v=number of videos, i=number of images, c=number of image"""
   if not filenames:
@@ -125,16 +126,15 @@ def convert_avi_to_numpy(filenames):
               break
 
             # iterate over channels
-            for k in range(NUM_CHANNELS_VIDEO):
+            if frame.ndim == 2:
               # cv returns 2 dim array if gray
-              if frame.ndim == 2:
-                resizedImage = cv2.resize(frame[:, :], (HEIGHT_VIDEO, WIDTH_VIDEO))
-              else:
+              resizedImage = cv2.resize(frame[:, :], (HEIGHT_VIDEO, WIDTH_VIDEO))
+            else:
+              for k in range(NUM_CHANNELS_VIDEO):
                 resizedImage = cv2.resize(frame[:, :, k], (HEIGHT_VIDEO, WIDTH_VIDEO))
-              image[:, :, k] = resizedImage
+                image[:, :, k] = resizedImage
 
             video[j, :, :, :] = image
-            # image counter
             j += 1
             #print('total frames: ' + str(j) + " frame in video: " + str(f))
         else:
@@ -185,10 +185,6 @@ def getNextFrame(cap):
   ret, frame = cap.read()
   if ret == False:
     return None
-
-    # if numChannels == 1:
-    # convert to gray image
-  #        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
   return np.asarray(frame)
 

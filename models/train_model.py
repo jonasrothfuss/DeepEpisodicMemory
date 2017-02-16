@@ -40,6 +40,7 @@ def difference_gradient(image, vertical=True):
   """computes pixel difference gradient in an image (Tensor)
   Args:
     image: 4D tensor corresponding to to image shape=(batch size, frame_height, frame_width, num_channels)
+    vertical: boolean indicating whether pixel gradient shall be computed vertically or horizontally
   Returns:
     reduced tensor corresponding to the gradient difference loss between ground truth and predicted image.
   """
@@ -56,8 +57,8 @@ def difference_gradient(image, vertical=True):
 
   slice0 = tf.slice(image[:, :, :, :], begin0, size)
   slice1 = tf.slice(image[:, :, :, :], begin1, size)
-  return tf.abs(tf.sub(slice0, slice1))
 
+  return tf.abs(tf.sub(slice0, slice1))
 
 def mean_squared_error(true, pred):
   """L2 distance between tensors true and pred.
@@ -69,7 +70,6 @@ def mean_squared_error(true, pred):
   """
   return tf.reduce_sum(tf.square(true - pred)) / tf.to_float(tf.size(pred))
 
-
 def peak_signal_to_noise_ratio(true, pred):
   """Image quality metric based on maximal signal power vs. power of the noise.
   Args:
@@ -79,7 +79,6 @@ def peak_signal_to_noise_ratio(true, pred):
     peak signal to noise ratio (PSNR)
   """
   return 10.0 * tf.log(1.0 / mean_squared_error(true, pred)) / tf.log(10.0)
-
 
 def decoder_loss(frames_gen, frames_original, loss_fun):
   """Sum of parwise loss between frames of frames_gen and frames_original
@@ -100,7 +99,6 @@ def decoder_loss(frames_gen, frames_original, loss_fun):
       loss += gradient_difference_loss(frames_original[:, i, :, :, :], frames_gen[i])
   return loss
 
-
 def decoder_psnr(frames_gen, frames_original, loss_fun):
   """Sum of peak_signal_to_noise_ratio loss between frames of frames_gen and frames_original
      Args:
@@ -115,21 +113,31 @@ def decoder_psnr(frames_gen, frames_original, loss_fun):
     psnr += peak_signal_to_noise_ratio(frames_original[:, i, :, :, :], frames_gen[i])
   return psnr
 
-
-def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
+def composite_loss(frames_original, frames_pred, frames_reconst, loss_fun='mse',
                    encoder_length=ENCODER_LENGTH, decoder_future_length=DECODER_FUTURE_LENGTH,
                    decoder_reconst_length=DECODER_RECONST_LENGTH):
+  """Composite loss for both decoders (reconstruction and prediction)
+     Args:
+       frames_original: 5D Tensor corresponding to original videos with shape=(batch size, sequence_length, frame_height, frame_width, num_channels)
+       frames_pred: array of predicted frames (future) which each frame having the shape=(batch size, frame_height, frame_width, num_channels)
+       frames_reconst: array of reconstructed frames (past) which each frame having the shape=(batch size, frame_height, frame_width, num_channels)
+       loss_fun: loss function type ['mse', 'gdl', ...]
+       encoder_length: length of frame sequence that is recurrently fed into the encoder part
+       decoder_future_length: sequence length of generated future frames in decoder_future
+       decoder_reconst_length: sequence length of reconstructed past frames in decoder_reconst
+     Returns:
+       loss: sum of mean squared error between ground truth and predicted frames of provided sequence.
+  """
   assert encoder_length <= decoder_reconst_length
   assert loss_fun in LOSS_FUNCTIONS
-  frames_original_future = original_frames[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
-  frames_original_reconst = original_frames[:, (encoder_length - decoder_reconst_length):encoder_length, :, :, :]
+  frames_original_future = frames_original[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
+  frames_original_reconst = frames_original[:, (encoder_length - decoder_reconst_length):encoder_length, :, :, :]
   pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun)
   reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun)
   return pred_loss + reconst_loss
 
 
 def main(unused_argv):
-  # mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
   x = tf.placeholder(tf.float32, shape=[None, None, 128, 128, 1])  # 128x128 images
 

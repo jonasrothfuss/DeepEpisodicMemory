@@ -20,34 +20,42 @@ flags.DEFINE_string('loss_function', 'gdl', 'loss function to minimize')
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
-  """description here"""
+  """"Gradient differnce loss (GDL) implementation (see Mathieu et al. (2015) http://arxiv.org/abs/1511.05440)
+  Args:
+    true: the ground truth image. 4D tensor -> shape=(batch size, frame_height, frame_width, num_channels)
+    pred: the predicted image. 4D tensor -> shape=(batch size, frame_height, frame_width, num_channels)
+    alpha: parameter of alpha-norm (if 2.0 -> l2 norm between true and pred pixel gradients)
+  Returns:
+    reduced tensor corresponding to the gradient difference loss between ground truth and predicted image.
+  """
   tf.assert_equal(tf.shape(true), tf.shape(pred))
-  # vertical
+  #vertical
   true_pred_diff_vert = tf.pow(tf.abs(difference_gradient(true, vertical=True) - difference_gradient(pred, vertical=True)), alpha)
   # horizontal
   true_pred_diff_hor = tf.pow(tf.abs(difference_gradient(true, vertical=False) - difference_gradient(pred, vertical=False)), alpha)
-  # normalization over all dimensions
-  return tf.reduce_sum(true_pred_diff_vert) + tf.reduce_sum(true_pred_diff_hor) / tf.to_float(2*tf.size(pred))
-
-
+  # return mean diff
+  return (tf.reduce_sum(true_pred_diff_vert) + tf.reduce_sum(true_pred_diff_hor)) / tf.to_float(2*tf.size(pred))
 
 def difference_gradient(image, vertical=True):
-  # two dimensional tensor
-  # rank = ndim in numpy
-  #tf.assert_rank(tf.rank(image), 4)
+  """computes pixel difference gradient in an image (Tensor)
+  Args:
+    image: 4D tensor corresponding to to image shape=(batch size, frame_height, frame_width, num_channels)
+  Returns:
+    reduced tensor corresponding to the gradient difference loss between ground truth and predicted image.
+  """
 
   # careful! begin is zero-based; size is one-based
   if vertical:
-    begin0 = [0, 0, 0]
-    begin1 = [1, 0, 0]
-    size = [tf.shape(image)[1] - 1, tf.shape(image)[2], tf.shape(image)[3]]
+    begin0 = [0, 0, 0, 0]
+    begin1 = [0, 1, 0, 0]
+    size = [tf.shape(image)[0], tf.shape(image)[1] - 1, tf.shape(image)[2], tf.shape(image)[3]]
   else: # horizontal
-    begin0 = [0, 0, 0]
-    begin1 = [0, 1, 0]
-    size = [tf.shape(image)[1], tf.shape(image)[2] - 1, tf.shape(image)[3]]
+    begin0 = [0, 0, 0, 0]
+    begin1 = [0, 0, 1, 0]
+    size = [tf.shape(image)[0], tf.shape(image)[1], tf.shape(image)[2] - 1, tf.shape(image)[3]]
 
-  slice0 = tf.slice(image[0, :, :, :], begin0, size)
-  slice1 = tf.slice(image[0, :, :, :], begin1, size)
+  slice0 = tf.slice(image[:, :, :, :], begin0, size)
+  slice1 = tf.slice(image[:, :, :, :], begin1, size)
   return tf.abs(tf.sub(slice0, slice1))
 
 

@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-import model
+from models import model
 import argparse
 import os
 import data_prep.model_input as input

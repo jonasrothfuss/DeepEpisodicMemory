@@ -3,7 +3,7 @@ import tensorflow as tf
 
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.layers.python import layers as tf_layers
-from conv_lstm import basic_conv_lstm_cell
+from models.conv_lstm import basic_conv_lstm_cell
 
 # Amount to use when lower bounding tensors
 RELU_SHIFT = 1e-12

@@ -78,7 +78,7 @@ video = np.zeros((numFrames, frameSize, frameSize, numChannels), dtype=np.uint16
 data = np.zeros((numberOfVideos, numFrames, frameSize, frameSize, numChannels), dtype=np.uint16)
 
 # --- Sample the frames from each video ---
-if equallyDistributed == False:
+if not equallyDistributed:
     for i in range(numberOfVideos):
         print(i)
         cap = getVideoCapture(inputPath + allFiles[i])

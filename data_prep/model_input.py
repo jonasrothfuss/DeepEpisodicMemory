@@ -7,12 +7,10 @@ from __future__ import print_function
 import argparse
 import os
 import sys
+import tensorflow as tf
 
 from tensorflow.python.platform import gfile
 
-import numpy as np
-
-import tensorflow as tf
 
 
 FLAGS = None
@@ -24,8 +22,10 @@ WIDTH = 128
 HEIGHT = 128
 BATCH_SIZE = 25
 NUM_EPOCHS = 1000
+# specifies the number of pre-processing threads
+NUM_THREADS = 4
 
-# Constants used for dealing with the tf record files, aligned with convertToRecords.
+# Constants used for dealing with the tf records files, aligned with convertToRecords.
 TRAIN_FILES = 'train*.tfrecords'
 VALIDATION_FILES = 'valid*.tfrecords'
 TEST_FILES = 'test*.tfrecords'
@@ -63,7 +63,7 @@ def read_and_decode(filename_queue):
     return image_seq
 
 
-def createInputs(directory, modus='train', batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS):
+def create_batch(directory, mode, batch_size, num_epochs):
 
     """Reads input data num_epochs times and creates batch
 
@@ -83,12 +83,12 @@ def createInputs(directory, modus='train', batch_size=BATCH_SIZE, num_epochs=NUM
     """
 
     path = os.path.abspath(directory)
-    if modus == 'train':
-        data_filter = TRAIN_FILES
-    elif modus == 'valid':
-        data_filter = VALIDATION_FILES
-    else:
-        data_filter = 'test'
+    if mode == 'train':
+      data_filter = TRAIN_FILES
+    elif mode == 'valid':
+      data_filter = VALIDATION_FILES
+    elif mode == 'test':
+      data_filter = TEST_FILES
 
     filenames = gfile.Glob(os.path.join(path, data_filter))
 
@@ -107,7 +107,7 @@ def createInputs(directory, modus='train', batch_size=BATCH_SIZE, num_epochs=NUM
         # We run this in two threads to avoid being a bottleneck.
 
         image_seq_batch = tf.train.shuffle_batch(
-            [image_seq_tensor], batch_size=batch_size, num_threads=2,
+            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
             capacity=1000 + 3 * batch_size,
             # Ensures a minimum amount of shuffling of examples.
             min_after_dequeue=1000)
@@ -137,5 +137,5 @@ if __name__ == '__main__':
       help='Directory to tfrecord files'
     )
 
-    FLAGS, unparsed = parser.parse_known_args()
-    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+    #FLAGS, unparsed = parser.parse_known_args()
+    #tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

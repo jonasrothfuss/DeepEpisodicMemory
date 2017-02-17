@@ -2,21 +2,31 @@ from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 import numpy as np
 import model
+import argparse
+import os
+import data_prep.model_input as input
+
+
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-ENCODER_LENGTH = 5  # TODO: define sequence length as flag
-DECODER_FUTURE_LENGTH = 5
-DECODER_RECONST_LENGTH = 5
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
-flags.DEFINE_string('loss_function', 'gdl', 'loss function to minimize')
+# hyperparameters
+flags.DEFINE_integer('num_epochs', 100000, 'specify number of training iterations, defaults to 100 000')
+flags.DEFINE_string('loss_function', 'gdl', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('mode', 'train' 'specify the mode (train|valid|test), defaults to train')
+flags.DEFINE_string('path', '../data/', 'specify the path to where tfrecords are stored, defaults to "../data/"')
+
+flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
@@ -109,8 +119,9 @@ def decoder_psnr(frames_gen, frames_original, loss_fun):
 
 
 def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
-                   encoder_length=ENCODER_LENGTH, decoder_future_length=DECODER_FUTURE_LENGTH,
-                   decoder_reconst_length=DECODER_RECONST_LENGTH):
+                   encoder_length=FLAGS.encoder_length, decoder_future_length=FLAGS.decoder_future_length,
+                   decoder_reconst_length=FLAGS.decoder_reconst_length):
+
   assert encoder_length <= decoder_reconst_length
   assert loss_fun in LOSS_FUNCTIONS
   frames_original_future = original_frames[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
@@ -125,7 +136,7 @@ def main(unused_argv):
 
   x = tf.placeholder(tf.float32, shape=[None, None, 128, 128, 1])  # 128x128 images
 
-  frames_pred, frames_reconst = model.composite_model(x, ENCODER_LENGTH, DECODER_FUTURE_LENGTH, DECODER_RECONST_LENGTH,
+  frames_pred, frames_reconst = model.composite_model(x, FLAGS.encoder_length, FLAGS.decoder_future_length, FLAGS.decoder_reconst_length,
                                                       num_channels=1)
 
   # Loss Function
@@ -139,12 +150,20 @@ def main(unused_argv):
   # start session
   sess.run(tf.global_variables_initializer())
 
-  # train
-  for i in range(FLAGS.num_iterations):
-    batch = np.random.rand(50, 10, 128, 128, 1)
-    assert (batch.shape[2] >= (ENCODER_LENGTH + DECODER_FUTURE_LENGTH))
-    train_step.run(feed_dict={x: batch})
-    tf.logging.info(str(i))
+
+  # run train or test
+  #for i in range(FLAGS.num_epochs):
+  #  batch = np.random.rand(50, 10, 128, 128, 1)
+  #  assert (batch.shape[2] >= (ENCODER_LENGTH + DECODER_FUTURE_LENGTH))
+  #  train_step.run(feed_dict={x: batch})
+  #  tf.logging.info(str(i))
+
+  """Run a train or test. All files under the given path that match the RegEx "modus*.tfrecords" are used for the batch
+  generation in the train or test run. The tfrecords batch element is a video consisting of 20 images and
+  4 threads are used for pre-processing the data."""
+  batch = input.create_batch(FLAGS.path, FLAGS.modus, FLAGS.batch_size, FLAGS.num_epochs)
+  train_step.run(feed_dict={x: batch})
+  tf.logging.info() #todo check logger usage
 
 
 if __name__ == '__main__':

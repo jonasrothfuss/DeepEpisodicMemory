@@ -1,4 +1,3 @@
-from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 import numpy as np
 import model
@@ -16,17 +15,26 @@ tf.logging.set_verbosity(tf.logging.INFO)
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 FLAGS = flags.FLAGS
+DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+LOG_PATH =  '/home/jonasrothfuss/Desktop/'
 
 # hyperparameters
-flags.DEFINE_integer('num_epochs', 100000, 'specify number of training iterations, defaults to 100 000')
-flags.DEFINE_string('loss_function', 'gdl', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_integer('num_epochs', 10000, 'specify number of training iterations, defaults to 10 000')
+flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
+flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_string('mode', 'train' 'specify the mode (train|valid|test), defaults to train')
-flags.DEFINE_string('path', '../data/', 'specify the path to where tfrecords are stored, defaults to "../data/"')
+flags.DEFINE_integer('valid_interval', 2, 'number of training steps between each validation') #TODO: increase validation and summary interval
+flags.DEFINE_integer('summary_interval', 2, 'number of training steps between summary is stored')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+
+#IO specifications
+flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
+flags.DEFINE_string('event_log_dir', LOG_PATH, 'specify the path where logger files are dumped')
+flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
+
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
@@ -130,42 +138,107 @@ def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
   reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun)
   return pred_loss + reconst_loss
 
+class Model:
 
-def main(unused_argv):
-  # mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+  def __init__(self,
+               frames,
+               summary_prefix,
+               encoder_length=FLAGS.encoder_length,
+               decoder_future_length=FLAGS.decoder_future_length,
+               decoder_reconst_length=FLAGS.decoder_reconst_length,
+               loss_fun=FLAGS.loss_function,
+               reuse_scope=None):
 
-  x = tf.placeholder(tf.float32, shape=[None, None, 128, 128, 1])  # 128x128 images
+    self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
+    #self.prefix = tf.placeholder(tf.string, []) #string for summary that denotes whether train or val
+    self.iter_num = tf.placeholder(tf.float32, [])
+    summaries = []
 
-  frames_pred, frames_reconst = model.composite_model(x, FLAGS.encoder_length, FLAGS.decoder_future_length, FLAGS.decoder_reconst_length,
-                                                      num_channels=1)
+    if reuse_scope is None: #train model
+      frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
+                                                          decoder_future_length,
+                                                          decoder_reconst_length,
+                                                          num_channels=FLAGS.num_channels)
+    else: # -> validation or test model
+      with tf.variable_scope(reuse_scope, reuse=True):
+        frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
+                                                            decoder_future_length,
+                                                            decoder_reconst_length,
+                                                            num_channels=FLAGS.num_channels)
 
-  # Loss Function
-  loss = composite_loss(x, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function)
+    self.loss = composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun)
+    summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) #TODO: add more summaries
 
-  # choose optimizer
-  train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
-
-  sess = tf.InteractiveSession()
-
-  # start session
-  sess.run(tf.global_variables_initializer())
+    self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+    self.sum_op = tf.summary.merge(summaries)
 
 
-  # run train or test
-  #for i in range(FLAGS.num_epochs):
-  #  batch = np.random.rand(50, 10, 128, 128, 1)
-  #  assert (batch.shape[2] >= (ENCODER_LENGTH + DECODER_FUTURE_LENGTH))
-  #  train_step.run(feed_dict={x: batch})
-  #  tf.logging.info(str(i))
+def main(unused_argv): #TODO: add model saver
 
-  """Run a train or test. All files under the given path that match the RegEx "modus*.tfrecords" are used for the batch
-  generation in the train or test run. The tfrecords batch element is a video consisting of 20 images and
-  4 threads are used for pre-processing the data."""
-  batch = input.create_batch(FLAGS.path, FLAGS.modus, FLAGS.batch_size, FLAGS.num_epochs)
-  train_step.run(feed_dict={x: batch})
-  tf.logging.info() #todo check logger usage
+  print('Constructing train model and input')
+  with tf.variable_scope('train_model', reuse=None) as training_scope:
+    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, FLAGS.num_epochs)
+    train_batch = tf.cast(train_batch, tf.float32)
+    train_model = Model(train_batch, 'train')
+
+  print('Constructing validation model and input')
+  with tf.variable_scope('val_model', reuse=None):
+    val_set = input.create_batch(FLAGS.path, 'valid', 1000, FLAGS.num_epochs)  # TODO: ensure that validation set data doesn't change (--> Fabio)
+    val_set = tf.cast(val_set, tf.float32)
+    val_model = Model(val_set, 'valid', reuse_scope=training_scope)
+
+
+  # Start Session and initialize variables
+  init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+  sess = tf.Session()
+  sess.run(init_op)
+
+  summary_writer = tf.summary.FileWriter(FLAGS.event_log_dir, graph=sess.graph, flush_secs=10)
+
+  # Start input enqueue threads
+  coord = tf.train.Coordinator()
+  threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+  tf.logging.info(' --- Start Training --- ')
+  tf.logging.info(' Iteration, Train_Loss ')
+
+
+  ''' main training loop '''
+  try:
+    for itr in range(FLAGS.num_epochs): #TODO: epochs <--> iteration
+      if coord.should_stop():
+        break
+
+      #Training Step on batch
+      feed_dict = {train_model.learning_rate: FLAGS.learning_rate} #TODO: consider learning rate decay
+      train_loss, _, train_summary_str = sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
+      #Print Interation and loss
+      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
+
+      #validation
+      if itr % FLAGS.valid_interval == 1:
+        feed_dict = {val_model.learning_rate: 0.0}
+        #summary and log
+        val_loss, val_summary_str = sess.run([val_model.loss, val_model.sum_op], feed_dict)
+        summary_writer.add_summary(val_summary_str, itr)
+        #Print validation loss
+        tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
+
+      if (itr) % FLAGS.summary_interval == 1:
+        summary_writer.add_summary(train_summary_str, itr)
+
+  except tf.errors.OutOfRangeError:
+    tf.logging.info('Done training -- epoch limit reached')
+  finally:
+    # When done, ask the threads to stop.
+    coord.request_stop()
+
+  # Wait for threads to finish.
+  coord.join(threads)
+  sess.close()
 
 
 if __name__ == '__main__':
   app.run()
+
 

@@ -17,7 +17,7 @@ FLAGS = None
 
 #statics for data
 NUM_IMAGES = 20
-NUM_DEPTH = 1
+NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 BATCH_SIZE = 25
@@ -52,8 +52,9 @@ def read_and_decode(filename_queue):
             })
 
         image_buffer = tf.reshape(features[path], shape=[])
-        image = tf.image.decode_jpeg(image_buffer, channels=features['depth'].value_index)
-        image.set_shape([HEIGHT, WIDTH, NUM_DEPTH])
+        image = tf.decode_raw(image_buffer, tf.uint8)
+        image = tf.reshape(image, tf.pack([HEIGHT, WIDTH, NUM_DEPTH]))
+        #image.set_shape([HEIGHT, WIDTH, NUM_DEPTH])
         image = tf.reshape(image, [1, HEIGHT, WIDTH, NUM_DEPTH])
 
         image_seq.append(image)
@@ -106,6 +107,7 @@ def create_batch(directory, mode, batch_size, num_epochs):
         # (Internally uses a RandomShuffleQueue.)
         # We run this in two threads to avoid being a bottleneck.
 
+        #TODO: use shuffle
         image_seq_batch = tf.train.shuffle_batch(
             [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
             capacity=1000 + 3 * batch_size,

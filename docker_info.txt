@@ -8,3 +8,8 @@ nvidia-docker run -v ~Downloads:/Downloads --rm -ti ferreirafabio/deepepisodicme
 
 Explicit command to origin:
 nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py3
+
+newer version:
+nvidia-docker run -it tensorflow/tensorflow:1.0.0-devel-gpu-py3
+
+

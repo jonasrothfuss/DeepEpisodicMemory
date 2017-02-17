@@ -15,8 +15,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 FLAGS = flags.FLAGS
-DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-LOG_PATH =  '/home/jonasrothfuss/Desktop/'
+DATA_PATH = '~/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+LOG_PATH = '~/Desktop/'
+OUT_DIR = '~/Desktop/'
 
 # hyperparameters
 flags.DEFINE_integer('num_epochs', 10000, 'specify number of training iterations, defaults to 10 000')
@@ -25,6 +26,7 @@ flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, 
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_interval', 2, 'number of training steps between each validation') #TODO: increase validation and summary interval
 flags.DEFINE_integer('summary_interval', 2, 'number of training steps between summary is stored')
+flags.DEFINE_integer('save_interval', 2, 'number of training steps between session/model dumps')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -34,6 +36,8 @@ flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the 
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_string('event_log_dir', LOG_PATH, 'specify the path where logger files are dumped')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
+flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
+flags.DEFINE_string('pretrained_model', '', 'filepath of a pretrained model to initialize from.')
 
 
 
@@ -187,11 +191,20 @@ def main(unused_argv): #TODO: add model saver
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
+  print('Constructing saver')
+  saver = tf.train.Saver(
+    tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=0)
 
   # Start Session and initialize variables
   init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
   sess = tf.Session()
   sess.run(init_op)
+
+  #restore dumped model if provided
+  if FLAGS.pretrained_model:
+    print('Restore model from: ' + str(FLAGS.pretrained_model))
+    saver.restore(sess, FLAGS.pretrained_model)
+
 
   summary_writer = tf.summary.FileWriter(FLAGS.event_log_dir, graph=sess.graph, flush_secs=10)
 
@@ -224,14 +237,23 @@ def main(unused_argv): #TODO: add model saver
         #Print validation loss
         tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
 
-      if (itr) % FLAGS.summary_interval == 1:
+      #dump summary
+      if itr % FLAGS.summary_interval == 1:
         summary_writer.add_summary(train_summary_str, itr)
+
+      if itr % FLAGS.save_interval == 1:
+        tf.logging.info(' Saving Model ... ')
+        saver.save(sess, FLAGS.output_dir + '/model' + str(itr))
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- epoch limit reached')
   finally:
     # When done, ask the threads to stop.
     coord.request_stop()
+
+  tf.logging.info(' Saving Model ... ')
+  saver.save(sess, FLAGS.output_dir + '/model')
+  tf.logging.flush()
 
   # Wait for threads to finish.
   coord.join(threads)

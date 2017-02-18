@@ -54,7 +54,6 @@ def read_and_decode(filename_queue):
         image_buffer = tf.reshape(features[path], shape=[])
         image = tf.decode_raw(image_buffer, tf.uint8)
         image = tf.reshape(image, tf.pack([HEIGHT, WIDTH, NUM_DEPTH]))
-        #image.set_shape([HEIGHT, WIDTH, NUM_DEPTH])
         image = tf.reshape(image, [1, HEIGHT, WIDTH, NUM_DEPTH])
 
         image_seq.append(image)
@@ -76,7 +75,7 @@ def create_batch(directory, mode, batch_size, num_epochs):
 
     :returns
         A batch array of shape(s, i, h, w, c) where:
-        s: number of batches
+        s: batch size
         i: length of image sequence
         h: height of image
         w: width of image

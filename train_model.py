@@ -15,18 +15,18 @@ tf.logging.set_verbosity(tf.logging.INFO)
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 FLAGS = flags.FLAGS
-DATA_PATH = '~/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-LOG_PATH = '~/Desktop/'
-OUT_DIR = '~/Desktop/'
+DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+LOG_PATH = '/home/jonasrothfuss/Desktop/'
+OUT_DIR = '/home/jonasrothfuss/Desktop/'
 
 # hyperparameters
 flags.DEFINE_integer('num_epochs', 10000, 'specify number of training iterations, defaults to 10 000')
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_interval', 2, 'number of training steps between each validation') #TODO: increase validation and summary interval
-flags.DEFINE_integer('summary_interval', 2, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 2, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation') #TODO: increase validation and summary interval
+flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
+flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')

@@ -20,7 +20,7 @@ LOG_PATH = '/home/jonasrothfuss/Desktop/'
 OUT_DIR = '/home/jonasrothfuss/Desktop/'
 
 # hyperparameters
-flags.DEFINE_integer('num_epochs', 10000, 'specify number of training iterations, defaults to 10 000')
+flags.DEFINE_integer('num_epochs', 100000, 'specify number of training iterations, defaults to 10 000')
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
@@ -253,7 +253,6 @@ def main(unused_argv): #TODO: add model saver
 
   tf.logging.info(' Saving Model ... ')
   saver.save(sess, FLAGS.output_dir + '/model')
-  tf.logging.flush()
 
   # Wait for threads to finish.
   coord.join(threads)

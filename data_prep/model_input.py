@@ -4,31 +4,28 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import argparse
+
 import os
-import sys
 import tensorflow as tf
 
 from tensorflow.python.platform import gfile
+from tensorflow.python.platform import flags
 
-
-
-FLAGS = None
+FLAGS = flags.FLAGS
 
 #statics for data
 NUM_IMAGES = 20
 NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
-BATCH_SIZE = 25
-NUM_EPOCHS = 1000
 # specifies the number of pre-processing threads
 NUM_THREADS = 4
 
 # Constants used for dealing with the tf records files, aligned with convertToRecords.
-TRAIN_FILES = 'train*.tfrecords'
-VALIDATION_FILES = 'valid*.tfrecords'
-TEST_FILES = 'test*.tfrecords'
+flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
+flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering valid tfrecords files.')
+flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
+flags.DEFINE_string('input', '/tmp/data', 'Directory to tfrecord files')
 
 
 def read_and_decode(filename_queue):
@@ -71,7 +68,7 @@ def create_batch(directory, mode, batch_size, num_epochs):
         ;param directory: path to directory where train/valid tfrecord files are stored
         ;param modus: for differentiating data (train|valid|test)
         ;param batch_size: number of batches that will be created
-        ;param num_epochs: number of times to read the input data, or 0/None to for endless
+        ;param num_epochs: number of times to read the input data, or 0/None for endless
 
     :returns
         A batch array of shape(s, i, h, w, c) where:
@@ -84,11 +81,11 @@ def create_batch(directory, mode, batch_size, num_epochs):
 
     path = os.path.abspath(directory)
     if mode == 'train':
-      data_filter = TRAIN_FILES
+      data_filter = FLAGS.train_files
     elif mode == 'valid':
-      data_filter = VALIDATION_FILES
+      data_filter = FLAGS.valid_files
     elif mode == 'test':
-      data_filter = TEST_FILES
+      data_filter = FLAGS.test_files
 
     filenames = gfile.Glob(os.path.join(path, data_filter))
 
@@ -97,7 +94,7 @@ def create_batch(directory, mode, batch_size, num_epochs):
 
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
-            filenames, num_epochs=num_epochs)
+          filenames, num_epochs=num_epochs)
 
         # sharing the same file even when multiple reader threads used
         image_seq_tensor = read_and_decode(filename_queue)
@@ -106,37 +103,34 @@ def create_batch(directory, mode, batch_size, num_epochs):
         # (Internally uses a RandomShuffleQueue.)
         # We run this in two threads to avoid being a bottleneck.
 
-        #TODO: use shuffle
-        image_seq_batch = tf.train.shuffle_batch(
+        if mode == 'valid':
+          image_seq_batch = tf.train.batch(
             [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
-            capacity=1000 + 3 * batch_size,
-            # Ensures a minimum amount of shuffling of examples.
-            min_after_dequeue=1000)
+            capacity=1000 + 3 * batch_size)
+
+        else:
+          image_seq_batch = tf.train.shuffle_batch(
+              [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+              capacity=1000 + 3 * batch_size,
+              # Ensures a minimum amount of shuffling of examples.
+              min_after_dequeue=1000)
 
         return image_seq_batch
 
 
-def main(args):
+#def main(args):
     #test run
-    path = os.path.abspath(FLAGS.input)
-    filenames = gfile.Glob(os.path.join(path, TRAIN_FILES))
-    filename_queue = tf.train.string_input_producer(
-        filenames, num_epochs='None')
+    #path = os.path.abspath(FLAGS.input)
+    #filenames = gfile.Glob(os.path.join(path, FLAGS.train_files))
+    #filename_queue = tf.train.string_input_producer(
+    #    filenames, num_epochs='None')
 
-    image_seq_tensor = read_and_decode(filenames)
+    #image_seq_tensor = read_and_decode(filenames)
     #createInputs(FLAGS.input, True)
 
 
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-      '--input',
-      type=str,
-      default='/tmp/data',
-      help='Directory to tfrecord files'
-    )
-
-    #FLAGS, unparsed = parser.parse_known_args()
-    #tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+#if __name__ == '__main__':
+  # FLAGS, unparsed = parser.parse_known_args()
+  #tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

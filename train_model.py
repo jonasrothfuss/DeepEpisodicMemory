@@ -1,9 +1,10 @@
 import tensorflow as tf
 import numpy as np
 from models import model
-import argparse
-import os
+import math
 import data_prep.model_input as input
+import io
+import matplotlib.pyplot as plt
 
 
 
@@ -15,16 +16,19 @@ tf.logging.set_verbosity(tf.logging.INFO)
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 FLAGS = flags.FLAGS
-DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-LOG_PATH = '/home/jonasrothfuss/Desktop/'
-OUT_DIR = '/home/jonasrothfuss/Desktop/'
+#DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+#LOG_PATH = '/home/jonasrothfuss/Desktop/'
+#OUT_DIR = '/home/jonasrothfuss/Desktop/'
+DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+LOG_PATH = '/Users/fabioferreira/Desktop'
+OUT_DIR = '/Users/fabioferreira/Desktop'
 
 # hyperparameters
-flags.DEFINE_integer('num_epochs', 100000, 'specify number of training iterations, defaults to 10 000')
+flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 10 000')
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation') #TODO: increase validation and summary interval
+flags.DEFINE_integer('valid_interval', 3, 'number of training steps between each validation') #TODO: increase validation and summary interval
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
@@ -39,6 +43,16 @@ flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames'
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', '', 'filepath of a pretrained model to initialize from.')
 
+
+def gen_plot(predicted_frame):
+  """Create a pyplot plot and save to buffer."""
+  plt.figure()
+  plt.plot([1, 2])
+  plt.title("test")
+  buf = predicted_frame
+  plt.savefig(buf, format='png')
+  buf.seek(0)
+  return buf
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
@@ -170,6 +184,8 @@ class Model:
                                                             decoder_reconst_length,
                                                             num_channels=FLAGS.num_channels)
 
+    self.frames_pred = frames_pred
+    self.frames_reconst = frames_reconst
     self.loss = composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun)
     summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) #TODO: add more summaries
 
@@ -181,13 +197,13 @@ def main(unused_argv): #TODO: add model saver
 
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
-    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, FLAGS.num_epochs)
+    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
     train_batch = tf.cast(train_batch, tf.float32)
     train_model = Model(train_batch, 'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', 1000, FLAGS.num_epochs)  # TODO: ensure that validation set data doesn't change (--> Fabio)
+    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, 1)  # TODO: ensure that validation set data doesn't change (--> Fabio)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
@@ -218,12 +234,12 @@ def main(unused_argv): #TODO: add model saver
 
   ''' main training loop '''
   try:
-    for itr in range(FLAGS.num_epochs): #TODO: epochs <--> iteration
+    for itr in range(FLAGS.num_iterations):
       if coord.should_stop():
         break
 
       #Training Step on batch
-      feed_dict = {train_model.learning_rate: FLAGS.learning_rate} #TODO: consider learning rate decay
+      feed_dict = {train_model.learning_rate: FLAGS.learning_rate} #TODO: consider learning rate decay -> @Jonas: ADAM implements decay (source: http://stats.stackexchange.com/questions/200063/tensorflow-adam-optimizer-with-exponential-decay)
       train_loss, _, train_summary_str = sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
       #Print Interation and loss
       tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
@@ -231,11 +247,24 @@ def main(unused_argv): #TODO: add model saver
       #validation
       if itr % FLAGS.valid_interval == 1:
         feed_dict = {val_model.learning_rate: 0.0}
+
+        # prepare image view in TensorBoard
+        #predicted_frames = val_model.frames_pred
+        #pred_frame_batch = predicted_frames[-1] #last batch
+        #pred_frame = pred_frame_batch[-1] #last predicted image of batch
+        #pred_frame = pred_frame.eval(session=sess)
+        #plot_buf = gen_plot(pred_frame)
+        #image = tf.decode_raw(plot_buf, tf.uint8)
+        #image_summary_t = tf.image_summary("plot", pred_img)
+
         #summary and log
-        val_loss, val_summary_str = sess.run([val_model.loss, val_model.sum_op], feed_dict)
+        val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op, image_summary_t], feed_dict)
         summary_writer.add_summary(val_summary_str, itr)
+        summary_writer.add_summary(image_summary)
         #Print validation loss
         tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
+
+
 
       #dump summary
       if itr % FLAGS.summary_interval == 1:
@@ -246,7 +275,7 @@ def main(unused_argv): #TODO: add model saver
         saver.save(sess, FLAGS.output_dir + '/model' + str(itr))
 
   except tf.errors.OutOfRangeError:
-    tf.logging.info('Done training -- epoch limit reached')
+    tf.logging.info('Done training -- iterations limit reached')
   finally:
     # When done, ask the threads to stop.
     coord.request_stop()

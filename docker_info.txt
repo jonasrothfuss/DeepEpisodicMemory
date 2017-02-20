@@ -19,7 +19,9 @@ nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py
 newer version:
 nvidia-docker run -it tensorflow/tensorflow:1.0.0-devel-gpu-py3
 
+save a docker image and commit it to docker hub:
+1. run image, make changes to the image
+2. in another terminal, run "nvidia-docker ps -a"
+3. get the container_id
+4. run "nvidia-docker commit <container_id> ferreirafabio/deepepisodicmemory 
 
-install in docker image
-sudo apt-get install python-tk
-sudo apt-get install python3-tk

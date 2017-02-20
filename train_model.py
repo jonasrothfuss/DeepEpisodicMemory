@@ -203,7 +203,7 @@ def main(unused_argv):
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, 1)
+    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 

@@ -25,7 +25,6 @@ NUM_THREADS = 4
 flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
 flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering valid tfrecords files.')
 flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
-flags.DEFINE_string('input', '/tmp/data', 'Directory to tfrecord files')
 
 
 def read_and_decode(filename_queue):
@@ -102,49 +101,54 @@ def create_batch(directory, mode, batch_size, num_epochs):
         # sharing the same file even when multiple reader threads used
         image_seq_tensor = read_and_decode(filename_queue)
 
-        # -- validation -- read all validation data
         if mode == 'valid' or mode == 'test':
-          # create new session to determine batch_size for validation/test data
-          with tf.Session() as sess_valid:
-            init_op = tf.group(tf.local_variables_initializer())
-            sess_valid.run(init_op)
-            coord = tf.train.Coordinator()
-            threads = tf.train.start_queue_runners(coord=coord)
-            try:
-              num_examples = 0
-              while True:
-                sess_valid.run([image_seq_tensor])
-                num_examples += 1
-            except tf.errors.OutOfRangeError as e:
-              coord.request_stop(e)
-            finally:
-              batch_size = num_examples
-              coord.request_stop()
-              coord.join(threads)
-              image_seq_batch = tf.train.batch(
-                [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
-                capacity=1000 + 3 * batch_size)
-              return image_seq_batch
+          batch_size = get_number_of_records(filenames)
+          assert batch_size > 0
+          image_seq_batch = tf.train.batch(
+            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+            capacity=1000 + 3 * batch_size)
 
-        # -- training -- get shuffled batches
+              # -- training -- get shuffled batches
         else:
           # Shuffle the examples and collect them into batch_size batches.
           # (Internally uses a RandomShuffleQueue.)
           # We run this in two threads to avoid being a bottleneck.
           image_seq_batch = tf.train.shuffle_batch(
-              [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
-              capacity=1000 + 3 * batch_size,
-              # Ensures a minimum amount of shuffling of examples.
-              min_after_dequeue=1000)
-          return image_seq_batch
+            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+            capacity=1000 + 3 * batch_size,
+            # Ensures a minimum amount of shuffling of examples.
+            min_after_dequeue=1000)
+        return image_seq_batch
 
 
-#def main(args):
-    #test run
-    #path = os.path.abspath(FLAGS.input)
-    #filenames = gfile.Glob(os.path.join(path, FLAGS.train_files))
+def get_number_of_records(filenames):
 
+  """Iterates through the tfrecords files given by the list 'filenames'
+  and returns the number of available videos
+  :param filenames a list with absolute paths to the .tfrecords files
+  :return number of found videos (int)
+  """
 
-#if __name__ == '__main__':
-  # FLAGS, unparsed = parser.parse_known_args()
-  #tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  filename_queue_val = tf.train.string_input_producer(
+    filenames, num_epochs=1)
+  image_seq_tensor_val = read_and_decode(filename_queue_val)
+
+  num_examples = 0
+
+  # create new session to determine batch_size for validation/test data
+  with tf.Session() as sess_valid:
+    init_op = tf.group(tf.local_variables_initializer())
+    sess_valid.run(init_op)
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
+    try:
+      while True:
+        sess_valid.run([image_seq_tensor_val])
+        num_examples += 1
+    except tf.errors.OutOfRangeError as e:
+      coord.request_stop(e)
+    finally:
+      coord.request_stop()
+      coord.join(threads)
+
+  return num_examples

@@ -4,8 +4,8 @@ from models import model
 import math
 import data_prep.model_input as input
 import io
-import matplotlib.pyplot as plt
-
+import os
+import datetime as dt
 
 
 from tensorflow.python.platform import app
@@ -25,7 +25,7 @@ OUT_DIR = '/Users/fabioferreira/Desktop'
 
 
 # hyperparameters
-flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 10 000')
+flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
@@ -38,22 +38,11 @@ flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 
 #IO specifications
+
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
-flags.DEFINE_string('event_log_dir', LOG_PATH, 'specify the path where logger files are dumped')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', '', 'filepath of a pretrained model to initialize from.')
-
-
-def gen_plot(predicted_frame):
-  """Create a pyplot plot and save to buffer."""
-  plt.figure()
-  plt.plot([1, 2])
-  plt.title("test")
-  buf = predicted_frame
-  plt.savefig(buf, format='png')
-  buf.seek(0)
-  return buf
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
@@ -199,17 +188,32 @@ class Model:
   def add_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
     for i in range(decoder_future_length):
       self.summaries.append(tf.summary.image(summary_prefix + '_future_gen_' + str(i + 1),
-                                        self.frames_pred[:, i, :, :, :], max_outputs=1))
+                                        self.frames_pred[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_future_orig_' + str(i + 1),
                                         frames[:, encoder_length + i, :, :, :], max_outputs=1))
     for i in range(decoder_reconst_length):
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_gen_' + str(i + 1),
-                                        self.frames_pred[:, i, :, :, :], max_outputs=1))
+                                        self.frames_pred[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
 
+def create_session_dir():
+  assert(FLAGS.output_dir)
+  dir_name = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M"))
+  output_dir = os.path.join(FLAGS.output_dir, dir_name)
+  if not os.path.isdir(output_dir):
+    os.mkdir(output_dir)
+  print('Created custom directory for session:', dir_name)
+  return output_dir
 
 def main(unused_argv):
+  if not FLAGS.pretrained_model:
+    #create new session directory
+    output_dir = create_session_dir()
+  else:
+    output_dir = FLAGS.pretrained_model
+    print('Reusing provided session directory:', output_dir)
+
 
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
@@ -219,13 +223,12 @@ def main(unused_argv):
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
+    val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
   print('Constructing saver')
-  saver = tf.train.Saver(
-    tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=0)
+  saver = tf.train.Saver(max_to_keep=0)
 
   # Start Session and initialize variables
   init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -235,10 +238,10 @@ def main(unused_argv):
   #restore dumped model if provided
   if FLAGS.pretrained_model:
     print('Restore model from: ' + str(FLAGS.pretrained_model))
-    saver.restore(sess, FLAGS.pretrained_model)
+    saver.restore(sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
 
 
-  summary_writer = tf.summary.FileWriter(FLAGS.event_log_dir, graph=sess.graph, flush_secs=10)
+  summary_writer = tf.summary.FileWriter(output_dir, graph=sess.graph, flush_secs=10)
 
   # Start input enqueue threads
   coord = tf.train.Coordinator()
@@ -264,19 +267,7 @@ def main(unused_argv):
       if itr % FLAGS.valid_interval == 1:
         feed_dict = {val_model.learning_rate: 0.0}
 
-        # prepare image view in TensorBoard
-        #predicted_frames = val_model.frames_pred
-        #pred_frame_batch = predicted_frames[-1] #last batch
-        #pred_frame = pred_frame_batch[-1] #last predicted image of batch
-        #pred_frame = pred_frame.eval(session=sess)
-        #plot_buf = gen_plot(pred_frame)
-        #image = tf.decode_raw(plot_buf, tf.uint8)
-        #image_summary_t = tf.image_summary("plot", pred_img)
-        #TODO Add image summary
-
-
         # summary and log
-        #val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op, image_summary_t], feed_dict)
         val_loss, val_summary_str = sess.run([val_model.loss, val_model.sum_op], feed_dict)
 
         summary_writer.add_summary(val_summary_str, itr)
@@ -287,9 +278,10 @@ def main(unused_argv):
       if itr % FLAGS.summary_interval == 1:
         summary_writer.add_summary(train_summary_str, itr)
 
+      #save model checkpoint
       if itr % FLAGS.save_interval == 1:
-        tf.logging.info(' Saving Model ... ')
-        saver.save(sess, FLAGS.output_dir + '/model' + str(itr))
+        save_path = saver.save(sess, os.path.join(output_dir, 'model'), global_step=itr)
+        tf.logging.info(' Saved Model to: ' + str(save_path))
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- iterations limit reached')
@@ -298,7 +290,7 @@ def main(unused_argv):
     coord.request_stop()
 
   tf.logging.info(' Saving Model ... ')
-  saver.save(sess, FLAGS.output_dir + '/model')
+  saver.save(sess, output_dir + '/model')
 
   # Wait for threads to finish.
   coord.join(threads)

@@ -170,7 +170,7 @@ class Model:
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
     #self.prefix = tf.placeholder(tf.string, []) #string for summary that denotes whether train or val
     self.iter_num = tf.placeholder(tf.float32, [])
-    summaries = []
+    self.summaries = []
 
     if reuse_scope is None: #train model
       frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
@@ -187,10 +187,26 @@ class Model:
     self.frames_pred = frames_pred
     self.frames_reconst = frames_reconst
     self.loss = composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun)
-    summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) #TODO: add more summaries
+    self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))
+
+    if reuse_scope: # only image summary if validation or test model
+      self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
 
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
-    self.sum_op = tf.summary.merge(summaries)
+    self.sum_op = tf.summary.merge(self.summaries)
+
+
+  def add_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
+    for i in range(decoder_future_length):
+      self.summaries.append(tf.summary.image(summary_prefix + '_future_gen_' + str(i + 1),
+                                        self.frames_pred[:, i, :, :, :], max_outputs=1))
+      self.summaries.append(tf.summary.image(summary_prefix + '_future_orig_' + str(i + 1),
+                                        frames[:, encoder_length + i, :, :, :], max_outputs=1))
+    for i in range(decoder_reconst_length):
+      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_gen_' + str(i + 1),
+                                        self.frames_pred[:, i, :, :, :], max_outputs=1))
+      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
+                                        frames[:, i, :, :, :], max_outputs=1))
 
 
 def main(unused_argv):

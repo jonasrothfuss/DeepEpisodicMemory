@@ -28,7 +28,7 @@ flags.DEFINE_integer('num_iterations', 100000, 'specify number of training itera
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_interval', 3, 'number of training steps between each validation') #TODO: increase validation and summary interval
+flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
@@ -64,7 +64,6 @@ def gradient_difference_loss(true, pred, alpha=2.0):
   true_pred_diff_hor = tf.pow(tf.abs(difference_gradient(true, vertical=False) - difference_gradient(pred, vertical=False)), alpha)
   # normalization over all dimensions
   return tf.reduce_sum(true_pred_diff_vert) + tf.reduce_sum(true_pred_diff_hor) / tf.to_float(2*tf.size(pred))
-
 
 
 def difference_gradient(image, vertical=True):
@@ -193,7 +192,7 @@ class Model:
     self.sum_op = tf.summary.merge(summaries)
 
 
-def main(unused_argv): #TODO: add model saver
+def main(unused_argv):
 
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
@@ -239,7 +238,7 @@ def main(unused_argv): #TODO: add model saver
         break
 
       #Training Step on batch
-      feed_dict = {train_model.learning_rate: FLAGS.learning_rate} #TODO: consider learning rate decay -> @Jonas: ADAM implements decay (source: http://stats.stackexchange.com/questions/200063/tensorflow-adam-optimizer-with-exponential-decay)
+      feed_dict = {train_model.learning_rate: FLAGS.learning_rate}
       train_loss, _, train_summary_str = sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
       #Print Interation and loss
       tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
@@ -256,16 +255,16 @@ def main(unused_argv): #TODO: add model saver
         #plot_buf = gen_plot(pred_frame)
         #image = tf.decode_raw(plot_buf, tf.uint8)
         #image_summary_t = tf.image_summary("plot", pred_img)
+        #TODO Add image summary
+
 
         # summary and log
         #val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op, image_summary_t], feed_dict)
-        val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op], feed_dict)
+        val_loss, val_summary_str = sess.run([val_model.loss, val_model.sum_op], feed_dict)
+
         summary_writer.add_summary(val_summary_str, itr)
-        summary_writer.add_summary(image_summary)
         #Print validation loss
         tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
-
-
 
       #dump summary
       if itr % FLAGS.summary_interval == 1:

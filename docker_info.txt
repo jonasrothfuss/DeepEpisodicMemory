@@ -20,3 +20,6 @@ newer version:
 nvidia-docker run -it tensorflow/tensorflow:1.0.0-devel-gpu-py3
 
 
+install in docker image
+sudo apt-get install python-tk
+sudo apt-get install python3-tk

@@ -103,30 +103,29 @@ def create_batch(directory, mode, batch_size, num_epochs):
         image_seq_tensor = read_and_decode(filename_queue)
 
         # -- validation -- read all validation data
-        if mode == 'valid':
-          valid_data = []
+        if mode == 'valid' or mode == 'test':
+          # create new session to determine batch_size for validation/test data
           with tf.Session() as sess_valid:
             init_op = tf.group(tf.local_variables_initializer())
             sess_valid.run(init_op)
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
             try:
-              # tf.parse_example requires number of examples beforehand. Therefore, using more flexible
-              # reader solution that throws an error when all tfrecords depleted
+              num_examples = 0
               while True:
-                sample = sess_valid.run([image_seq_tensor])
-                images = tf.reshape(sample[0], tf.pack([NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH]))
-                images = tf.reshape(images, [1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH])
-                valid_data.append(images)
+                sess_valid.run([image_seq_tensor])
+                num_examples += 1
             except tf.errors.OutOfRangeError as e:
               coord.request_stop(e)
             finally:
+              batch_size = num_examples
               coord.request_stop()
               coord.join(threads)
-              valid_data = tf.reshape(valid_data, [len(valid_data), 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH])
-              # improve speed with creating empty tensor with shape(len(valid_data, 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH)) and then reshape valid_data into it
-              # returning tensor with shape (i, 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH)
-              return valid_data
+              image_seq_batch = tf.train.batch(
+                [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+                capacity=1000 + 3 * batch_size)
+              return image_seq_batch
+
         # -- training -- get shuffled batches
         else:
           # Shuffle the examples and collect them into batch_size batches.

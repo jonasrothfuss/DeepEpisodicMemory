@@ -23,6 +23,7 @@ DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/
 LOG_PATH = '/Users/fabioferreira/Desktop'
 OUT_DIR = '/Users/fabioferreira/Desktop'
 
+
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 10 000')
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')

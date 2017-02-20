@@ -62,7 +62,10 @@ def read_and_decode(filename_queue):
 
 def create_batch(directory, mode, batch_size, num_epochs):
 
-    """Reads input data num_epochs times and creates batch
+    """ If mode equals 'train": Reads input data num_epochs times and creates batch
+        If mode equals 'valid': Creates one large batch with all validation tensors.
+        batch_size will be ignored and num_epochs will be set to 1 in this case.
+        If mode equals 'test': #TODO
 
     :arg
         ;param directory: path to directory where train/valid tfrecord files are stored
@@ -99,36 +102,48 @@ def create_batch(directory, mode, batch_size, num_epochs):
         # sharing the same file even when multiple reader threads used
         image_seq_tensor = read_and_decode(filename_queue)
 
-        # Shuffle the examples and collect them into batch_size batches.
-        # (Internally uses a RandomShuffleQueue.)
-        # We run this in two threads to avoid being a bottleneck.
-
+        # -- validation -- read all validation data
         if mode == 'valid':
-          image_seq_batch = tf.train.batch(
-            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
-            capacity=1000 + 3 * batch_size)
-
+          valid_data = []
+          with tf.Session() as sess_valid:
+            init_op = tf.group(tf.local_variables_initializer())
+            sess_valid.run(init_op)
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(coord=coord)
+            try:
+              # tf.parse_example requires number of examples beforehand. Therefore, using more flexible
+              # reader solution that throws an error when all tfrecords depleted
+              while True:
+                sample = sess_valid.run([image_seq_tensor])
+                images = tf.reshape(sample[0], tf.pack([NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH]))
+                images = tf.reshape(images, [1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH])
+                valid_data.append(images)
+            except tf.errors.OutOfRangeError as e:
+              coord.request_stop(e)
+            finally:
+              coord.request_stop()
+              coord.join(threads)
+              valid_data = tf.reshape(valid_data, [len(valid_data), 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH])
+              # improve speed with creating empty tensor with shape(len(valid_data, 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH)) and then reshape valid_data into it
+              # returning tensor with shape (i, 1, NUM_IMAGES, HEIGHT, WIDTH, NUM_DEPTH)
+              return valid_data
+        # -- training -- get shuffled batches
         else:
+          # Shuffle the examples and collect them into batch_size batches.
+          # (Internally uses a RandomShuffleQueue.)
+          # We run this in two threads to avoid being a bottleneck.
           image_seq_batch = tf.train.shuffle_batch(
               [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
               capacity=1000 + 3 * batch_size,
               # Ensures a minimum amount of shuffling of examples.
               min_after_dequeue=1000)
-
-        return image_seq_batch
+          return image_seq_batch
 
 
 #def main(args):
     #test run
     #path = os.path.abspath(FLAGS.input)
     #filenames = gfile.Glob(os.path.join(path, FLAGS.train_files))
-    #filename_queue = tf.train.string_input_producer(
-    #    filenames, num_epochs='None')
-
-    #image_seq_tensor = read_and_decode(filenames)
-    #createInputs(FLAGS.input, True)
-
-
 
 
 #if __name__ == '__main__':

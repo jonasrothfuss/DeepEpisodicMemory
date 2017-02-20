@@ -203,7 +203,7 @@ def main(unused_argv): #TODO: add model saver
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, 1)  # TODO: ensure that validation set data doesn't change (--> Fabio)
+    val_set = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size, 1)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
@@ -257,8 +257,9 @@ def main(unused_argv): #TODO: add model saver
         #image = tf.decode_raw(plot_buf, tf.uint8)
         #image_summary_t = tf.image_summary("plot", pred_img)
 
-        #summary and log
-        val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op, image_summary_t], feed_dict)
+        # summary and log
+        #val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op, image_summary_t], feed_dict)
+        val_loss, val_summary_str, image_summary = sess.run([val_model.loss, val_model.sum_op], feed_dict)
         summary_writer.add_summary(val_summary_str, itr)
         summary_writer.add_summary(image_summary)
         #Print validation loss

@@ -10,8 +10,13 @@ Run command with local dir attached
 nvidia-docker run -v /localhome/rothfuss:/local --rm -ti ferreirafabio/deepepisodicmemory
 
 Then run training:
-python3 train_model.py --path /local/data/ArtificialFlyingBlobs/tfrecords --event_log_dir /local/training/log --output_dir /local/training/dumps --num_epochs 500000
+python3 train_model.py --path /local/data/ArtificialFlyingBlobs/tfrecords --output_dir /local/training --num_epochs 500000
 
+Load trained model:
+python3 train_model.py --path /local/data/ArtificialFlyingBlobs/tfrecords --output_dir /local/training --num_epochs 500000 --pretrained_model /local/training/
+
+Running tensorboard:
+tensorboard --logdir=/local/training/log/ --port 6006
 
 Explicit command to origin:
 nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py3

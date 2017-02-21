@@ -193,7 +193,7 @@ class Model:
                                         frames[:, encoder_length + i, :, :, :], max_outputs=1))
     for i in range(decoder_reconst_length):
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_gen_' + str(i + 1),
-                                        self.frames_pred[i], max_outputs=1))
+                                        self.self.frames_reconst[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
 

@@ -19,9 +19,8 @@ FLAGS = flags.FLAGS
 #DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
 #LOG_PATH = '/home/jonasrothfuss/Desktop/'
 #OUT_DIR = '/home/jonasrothfuss/Desktop/'
-DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-LOG_PATH = '/Users/fabioferreira/Desktop'
-OUT_DIR = '/Users/fabioferreira/Desktop'
+DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
+OUT_DIR = '/localhome/rothfuss/training/'
 
 
 # hyperparameters
@@ -232,7 +231,7 @@ def main(unused_argv):
 
   # Start Session and initialize variables
   init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-  sess = tf.Session()
+  sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
   sess.run(init_op)
 
   #restore dumped model if provided

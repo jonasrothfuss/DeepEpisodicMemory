@@ -15,12 +15,19 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
+# constants for developing
 FLAGS = flags.FLAGS
 #DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
 #LOG_PATH = '/home/jonasrothfuss/Desktop/'
 #OUT_DIR = '/home/jonasrothfuss/Desktop/'
 DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
 OUT_DIR = '/localhome/rothfuss/training/'
+
+# use pretrained model
+PRETRAINED_MODEL = '' #/localhome/rothfuss/training/02-20-17_23-21'
+
+# use pre-trained model and run validation only
+VALID_ONLY = False
 
 
 # hyperparameters
@@ -37,11 +44,11 @@ flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 
 #IO specifications
-
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
-flags.DEFINE_string('pretrained_model', '', 'filepath of a pretrained model to initialize from.')
+flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
+flags.DEFINE_string('valid', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
 
 
 def gradient_difference_loss(true, pred, alpha=2.0):
@@ -196,6 +203,28 @@ class Model:
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
 
+class Initializer:
+
+  def start(self):
+    """Starts a session and initializes all variables. Returns session and coordinator"""
+    # Start Session and initialize variables
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
+    self.sess = sess
+    sess.run(init_op)
+
+
+    # Start input enqueue threads
+    coord = tf.train.Coordinator()
+    self.coord = coord
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+    self.threads = threads
+
+  def stop(self):
+    self.coord.join(self.threads)
+    self.sess.close()
+
+
 def create_session_dir():
   assert(FLAGS.output_dir)
   dir_name = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M"))
@@ -205,47 +234,61 @@ def create_session_dir():
   print('Created custom directory for session:', dir_name)
   return output_dir
 
-def main(unused_argv):
-  if not FLAGS.pretrained_model:
-    #create new session directory
-    output_dir = create_session_dir()
+def create_subfolder(dir, name):
+  if os.path.isdir(dir + name):
+    os.mkdir(dir)
+    print('Created subdir', name)
+    return dir
   else:
-    output_dir = FLAGS.pretrained_model
-    print('Reusing provided session directory:', output_dir)
+    return None
 
 
-  print('Constructing train model and input')
-  with tf.variable_scope('train_model', reuse=None) as training_scope:
-    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
-    train_batch = tf.cast(train_batch, tf.float32)
-    train_model = Model(train_batch, 'train')
+#TODO implement validation run
+#def valid_run(output_dir):
 
-  print('Constructing validation model and input')
-  with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
-    val_set = tf.cast(val_set, tf.float32)
-    val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
+
+def create_model():
+  if FLAGS.valid:
+    print('Constructing validation model and input')
+    with tf.variable_scope('val_model', reuse=None):
+      val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
+      val_set = tf.cast(val_set, tf.float32)
+      val_model = Model(val_set, 'valid')
+    return val_model
+
+  else:
+    print('Constructing train model and input')
+    with tf.variable_scope('train_model', reuse=None) as training_scope:
+      train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
+      train_batch = tf.cast(train_batch, tf.float32)
+      train_model = Model(train_batch, 'train')
+
+    print('Constructing validation model and input')
+    with tf.variable_scope('val_model', reuse=None):
+      val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
+      val_set = tf.cast(val_set, tf.float32)
+      val_model = Model(val_set, 'valid', reuse_scope=training_scope)
+
+    return train_model, val_model
+
+
+def train_valid_run(output_dir):
+  train_model, val_model = create_model()
   print('Constructing saver')
   saver = tf.train.Saver(max_to_keep=0)
 
-  # Start Session and initialize variables
-  init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-  sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-  sess.run(init_op)
+  initializer = Initializer()
+  initializer.start()
 
   #restore dumped model if provided
   if FLAGS.pretrained_model:
     print('Restore model from: ' + str(FLAGS.pretrained_model))
-    saver.restore(sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
+    saver.restore(initializer.sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
 
+  summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
 
-  summary_writer = tf.summary.FileWriter(output_dir, graph=sess.graph, flush_secs=10)
-
-  # Start input enqueue threads
-  coord = tf.train.Coordinator()
-  threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-
+  tf.logging.set_verbosity(tf.logging.INFO)
   tf.logging.info(' --- Start Training --- ')
   tf.logging.info(' Iteration, Train_Loss ')
 
@@ -253,12 +296,12 @@ def main(unused_argv):
   ''' main training loop '''
   try:
     for itr in range(FLAGS.num_iterations):
-      if coord.should_stop():
+      if initializer.coord.should_stop():
         break
 
       #Training Step on batch
       feed_dict = {train_model.learning_rate: FLAGS.learning_rate}
-      train_loss, _, train_summary_str = sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
+      train_loss, _, train_summary_str = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
       #Print Interation and loss
       tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
 
@@ -267,7 +310,7 @@ def main(unused_argv):
         feed_dict = {val_model.learning_rate: 0.0}
 
         # summary and log
-        val_loss, val_summary_str = sess.run([val_model.loss, val_model.sum_op], feed_dict)
+        val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
 
         summary_writer.add_summary(val_summary_str, itr)
         #Print validation loss
@@ -279,21 +322,45 @@ def main(unused_argv):
 
       #save model checkpoint
       if itr % FLAGS.save_interval == 1:
-        save_path = saver.save(sess, os.path.join(output_dir, 'model'), global_step=itr)
+        save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr)
         tf.logging.info(' Saved Model to: ' + str(save_path))
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- iterations limit reached')
   finally:
     # When done, ask the threads to stop.
-    coord.request_stop()
+    initializer.coord.request_stop()
 
   tf.logging.info(' Saving Model ... ')
-  saver.save(sess, output_dir + '/model')
+  saver.save(initializer.sess, output_dir + '/model')
 
   # Wait for threads to finish.
-  coord.join(threads)
-  sess.close()
+  initializer.stop()
+
+
+def main(unused_argv):
+
+  # run validation only
+  if FLAGS.valid:
+    assert FLAGS.pretrained_model
+    output_dir = FLAGS.pretrained_model
+    tf.logging.info(' --- VALIDATION MODE ONLY --- ')
+    print('Reusing provided session directory:', output_dir)
+    subdir = create_subfolder(output_dir, 'valid_run')
+    print('Storing validation data in:', output_dir)
+    #valid_run(subdir)
+
+  # run training + validation
+  else:
+    if not FLAGS.pretrained_model:
+      # create new session directory
+      output_dir = create_session_dir()
+    else:
+      output_dir = FLAGS.pretrained_model
+      print('Reusing provided session directory:', output_dir)
+
+    tf.logging.info(' --- TRAIN+VALID MODE --- ')
+    train_valid_run(output_dir)
 
 
 if __name__ == '__main__':

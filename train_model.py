@@ -20,8 +20,11 @@ FLAGS = flags.FLAGS
 #DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
 #LOG_PATH = '/home/jonasrothfuss/Desktop/'
 #OUT_DIR = '/home/jonasrothfuss/Desktop/'
-DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
-OUT_DIR = '/localhome/rothfuss/training/'
+#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
+#OUT_DIR = '/localhome/rothfuss/training/'
+DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+OUT_DIR = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs/out_dir'
+
 
 # use pretrained model
 PRETRAINED_MODEL = '' #/localhome/rothfuss/training/02-20-17_23-21'
@@ -187,6 +190,9 @@ class Model:
     if reuse_scope: # only image summary if validation or test model
       self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
 
+    #if reuse_scope and FLAGS.valid:
+      #TODO: use and implement e.g. export_frames(..)
+
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
     self.sum_op = tf.summary.merge(self.summaries)
 
@@ -205,9 +211,17 @@ class Model:
 
 class Initializer:
 
-  def start(self):
-    """Starts a session and initializes all variables. Returns session and coordinator"""
+  def __init__(self):
+    self.status = False
+    self.sess = None
+    self.threads = None
+    self.coord = None
+    self.saver = None
+
+  def start_session(self):
+    """Starts a session and initializes all variables. Provides access to session and coordinator"""
     # Start Session and initialize variables
+    self.status = True
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
     self.sess = sess
@@ -220,9 +234,24 @@ class Initializer:
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
     self.threads = threads
 
-  def stop(self):
-    self.coord.join(self.threads)
-    self.sess.close()
+  def stop_session(self):
+    """Stops a current session."""
+    if self.sess and self.coord:
+      self.coord.join(self.threads)
+      self.sess.close()
+      self.status = False
+
+  def start_saver(self):
+    """Constructs a saver and if pretrained model given, loads the model."""
+    print('Constructing saver')
+    self.saver = tf.train.Saver(max_to_keep=0)
+
+    # restore dumped model if provided
+    if FLAGS.pretrained_model:
+      print('Restore model from: ' + str(FLAGS.pretrained_model))
+      self.saver.restore(self.sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
+
+    return self.saver
 
 
 def create_session_dir():
@@ -244,9 +273,37 @@ def create_subfolder(dir, name):
 
 
 #TODO implement validation run
-#def valid_run(output_dir):
+def valid_run(output_dir):
+  val_model = create_model()
 
+  initializer = Initializer()
+  initializer.start_session()
+  initializer.start_saver()
 
+  summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
+
+  try:
+    for itr in range (FLAGS.num_iterations):
+      if initializer.coord.should_stop():
+        break
+
+      feed_dict = {val_model.learning_rate: 0.0}
+
+      # summary and log
+      val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
+
+      summary_writer.add_summary(val_summary_str, itr)
+
+      #TODO:
+
+  except tf.errors.OutOfRangeError:
+    tf.logging.info('Done producing validation results -- iterations limit reached')
+  finally:
+    # When done, ask the threads to stop.
+    initializer.coord.request_stop()
+
+  # Wait for threads to finish.
+  initializer.stop_session()
 
 def create_model():
   if FLAGS.valid:
@@ -275,16 +332,13 @@ def create_model():
 
 def train_valid_run(output_dir):
   train_model, val_model = create_model()
-  print('Constructing saver')
-  saver = tf.train.Saver(max_to_keep=0)
+
 
   initializer = Initializer()
-  initializer.start()
+  initializer.start_session()
 
-  #restore dumped model if provided
-  if FLAGS.pretrained_model:
-    print('Restore model from: ' + str(FLAGS.pretrained_model))
-    saver.restore(initializer.sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
+  saver = initializer.start_saver()
+
 
   summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
 
@@ -322,7 +376,7 @@ def train_valid_run(output_dir):
 
       #save model checkpoint
       if itr % FLAGS.save_interval == 1:
-        save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr)
+        save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr) #TODO also implement save operation in Initializer class
         tf.logging.info(' Saved Model to: ' + str(save_path))
 
   except tf.errors.OutOfRangeError:
@@ -335,7 +389,7 @@ def train_valid_run(output_dir):
   saver.save(initializer.sess, output_dir + '/model')
 
   # Wait for threads to finish.
-  initializer.stop()
+  initializer.stop_session()
 
 
 def main(unused_argv):

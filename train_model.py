@@ -3,9 +3,9 @@ import numpy as np
 from models import model
 import math
 import data_prep.model_input as input
-import io
 import os
 import datetime as dt
+import moviepy.editor as mpy
 
 
 from tensorflow.python.platform import app
@@ -38,9 +38,6 @@ flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iter
 flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
-flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -53,6 +50,10 @@ flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
 
+# intervals
+flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
+flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
+flags.DEFINE_integer('save_interval', 1, 'number of training steps between session/model dumps')
 
 def gradient_difference_loss(true, pred, alpha=2.0):
   """description here"""
@@ -163,12 +164,15 @@ class Model:
                decoder_future_length=FLAGS.decoder_future_length,
                decoder_reconst_length=FLAGS.decoder_reconst_length,
                loss_fun=FLAGS.loss_function,
-               reuse_scope=None):
+               reuse_scope=None,
+               out_dir = None):
 
+    #self.output_dir = out_dir  # for validation only
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
     #self.prefix = tf.placeholder(tf.string, []) #string for summary that denotes whether train or val
-    self.iter_num = tf.placeholder(tf.float32, [])
+    self.iter_num = tf.placeholder(tf.int32, [])
     self.summaries = []
+    self.output_dir = out_dir
 
     if reuse_scope is None: #train model
       frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
@@ -190,8 +194,8 @@ class Model:
     if reuse_scope: # only image summary if validation or test model
       self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
 
-    #if reuse_scope and FLAGS.valid:
-      #TODO: use and implement e.g. export_frames(..)
+    if reuse_scope and FLAGS.valid:
+      self.export_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length)
 
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
     self.sum_op = tf.summary.merge(self.summaries)
@@ -209,9 +213,16 @@ class Model:
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
 
+
+  def export_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
+    for i in range(decoder_future_length):
+      clip = mpy.ImageSequenceClip(list(self.frames_pred), fps=10)
+      clip.write_gif(self.output_dir + 'decoder_future_' + str(self.iter_num) + '.gif')
+      #TODO: not tested
+
 class Initializer:
 
-  def __init__(self):
+  def __init__(self, out_dir=None):
     self.status = False
     self.sess = None
     self.threads = None
@@ -276,7 +287,7 @@ def create_subfolder(dir, name):
 def valid_run(output_dir):
   val_model = create_model()
 
-  initializer = Initializer()
+  initializer = Initializer(output_dir)
   initializer.start_session()
   initializer.start_saver()
 
@@ -291,6 +302,7 @@ def valid_run(output_dir):
 
       # summary and log
       val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
+      val_model.iter_num = itr
 
       summary_writer.add_summary(val_summary_str, itr)
 
@@ -402,7 +414,7 @@ def main(unused_argv):
     print('Reusing provided session directory:', output_dir)
     subdir = create_subfolder(output_dir, 'valid_run')
     print('Storing validation data in:', output_dir)
-    #valid_run(subdir)
+    valid_run(subdir)
 
   # run training + validation
   else:

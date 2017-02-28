@@ -17,17 +17,14 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-#DATA_PATH = '/home/jonasrothfuss/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-#LOG_PATH = '/home/jonasrothfuss/Desktop/'
-#OUT_DIR = '/home/jonasrothfuss/Desktop/'
-#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
-#OUT_DIR = '/localhome/rothfuss/training/'
-DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-OUT_DIR = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs/out_dir'
+DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
+OUT_DIR = '/localhome/rothfuss/training/'
+#DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
+#OUT_DIR = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs/out_dir'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '' #/localhome/rothfuss/training/02-20-17_23-21'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/02-24-17_17-19'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -39,9 +36,9 @@ flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer'
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
-flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 1, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 9, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 1, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -194,8 +191,11 @@ class Model:
     if reuse_scope: # only image summary if validation or test model
       self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
 
-    if reuse_scope and FLAGS.valid:
-      self.export_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length)
+    if reuse_scope and FLAGS.valid: # only valid mode - evaluate frame predictions for storage on disk
+      self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
+
+
+
 
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
     self.sum_op = tf.summary.merge(self.summaries)
@@ -212,13 +212,6 @@ class Model:
                                         self.frames_reconst[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
-
-
-  def export_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
-    for i in range(decoder_future_length):
-      clip = mpy.ImageSequenceClip(list(self.frames_pred), fps=10)
-      clip.write_gif(self.output_dir + 'decoder_future_' + str(self.iter_num) + '.gif')
-      #TODO: not tested
 
 class Initializer:
 
@@ -237,7 +230,6 @@ class Initializer:
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
     self.sess = sess
     sess.run(init_op)
-
 
     # Start input enqueue threads
     coord = tf.train.Coordinator()
@@ -265,7 +257,7 @@ class Initializer:
     return self.saver
 
 
-def create_session_dir():
+def create_session_dir(): #TODO move to utils
   assert(FLAGS.output_dir)
   dir_name = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M"))
   output_dir = os.path.join(FLAGS.output_dir, dir_name)
@@ -274,73 +266,29 @@ def create_session_dir():
   print('Created custom directory for session:', dir_name)
   return output_dir
 
-def create_subfolder(dir, name):
-  if os.path.isdir(dir + name):
-    os.mkdir(dir)
-    print('Created subdir', name)
-    return dir
+def create_subfolder(dir, name): #TODO move to utils
+  subdir = os.path.join(dir, name)
+  if not os.path.isdir(subdir):
+    os.mkdir(subdir)
+    print('Created subdir:', subdir)
+    return subdir
   else:
-    return None
-
-
-#TODO implement validation run
-def valid_run(output_dir):
-  val_model = create_model()
-
-  initializer = Initializer(output_dir)
-  initializer.start_session()
-  initializer.start_saver()
-
-  summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
-
-  try:
-    for itr in range (FLAGS.num_iterations):
-      if initializer.coord.should_stop():
-        break
-
-      feed_dict = {val_model.learning_rate: 0.0}
-
-      # summary and log
-      val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
-      val_model.iter_num = itr
-
-      summary_writer.add_summary(val_summary_str, itr)
-
-      #TODO:
-
-  except tf.errors.OutOfRangeError:
-    tf.logging.info('Done producing validation results -- iterations limit reached')
-  finally:
-    # When done, ask the threads to stop.
-    initializer.coord.request_stop()
-
-  # Wait for threads to finish.
-  initializer.stop_session()
+    return os.path.join(dir, name)
 
 def create_model():
-  if FLAGS.valid:
-    print('Constructing validation model and input')
-    with tf.variable_scope('val_model', reuse=None):
-      val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
-      val_set = tf.cast(val_set, tf.float32)
-      val_model = Model(val_set, 'valid')
-    return val_model
+  print('Constructing train model and input')
+  with tf.variable_scope('train_model', reuse=None) as training_scope:
+    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
+    train_batch = tf.cast(train_batch, tf.float32)
+    train_model = Model(train_batch, 'train')
 
-  else:
-    print('Constructing train model and input')
-    with tf.variable_scope('train_model', reuse=None) as training_scope:
-      train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
-      train_batch = tf.cast(train_batch, tf.float32)
-      train_model = Model(train_batch, 'train')
+  print('Constructing validation model and input')
+  with tf.variable_scope('val_model', reuse=None):
+    val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
+    val_set = tf.cast(val_set, tf.float32)
+    val_model = Model(val_set, 'valid', reuse_scope=training_scope)
 
-    print('Constructing validation model and input')
-    with tf.variable_scope('val_model', reuse=None):
-      val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
-      val_set = tf.cast(val_set, tf.float32)
-      val_model = Model(val_set, 'valid', reuse_scope=training_scope)
-
-    return train_model, val_model
-
+  return train_model, val_model
 
 def train_valid_run(output_dir):
   train_model, val_model = create_model()
@@ -404,6 +352,60 @@ def train_valid_run(output_dir):
   initializer.stop_session()
 
 
+def store_output_frames_as_gif(output_frames, output_dir):
+  """ Stores frame sequence produced by model as gif
+    Args:
+      output_frames:  list with Tensors of shape [batch_size, frame_height, frame_width, num_channels],
+                      each element corresponds to one frame in the produced gifs
+      output_dir:     path to output directory
+  """
+  assert os.path.isdir(output_dir)
+  batch_size = output_frames[0].shape[0]
+  for i in range(batch_size): #iterate over validation instances
+    clip_array = [frame[i,:,:,:] for frame in output_frames]
+    print(type(clip_array))
+    print(type(clip_array[0]))
+    print(clip_array[0].shape)
+    clip = mpy.ImageSequenceClip(clip_array, fps=10)
+    clip.to_gif(os.path.join(output_dir, 'generated_clip_' + str(i) + '.gif'))
+
+def valid_run(output_dir):
+  """ feeds validation batch through the model and stores produced frame sequence as gifs to output_dir
+    :param
+      output_dir: path to output directory where validation summary and gifs are stored
+  """
+  _, val_model = create_model()
+
+  initializer = Initializer(output_dir)
+  initializer.start_session()
+  initializer.start_saver()
+
+  summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
+
+  tf.logging.info(' --- Start Validation --- ')
+
+  try:
+    feed_dict = {val_model.learning_rate: 0.0}
+
+    # summary and log
+    val_loss, val_summary_str, output_frames = initializer.sess.run([val_model.loss, val_model.sum_op, val_model.output_frames], feed_dict)
+    val_model.iter_num = 1
+
+    tf.logging.info('Converting validation frame sequences to gif')
+    store_output_frames_as_gif(output_frames, output_dir)
+    tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
+
+    summary_writer.add_summary(val_summary_str, 1)
+
+  except tf.errors.OutOfRangeError:
+    tf.logging.info('Done producing validation results -- iterations limit reached')
+  finally:
+    # When done, ask the threads to stop.
+    initializer.coord.request_stop()
+
+  # Wait for threads to finish.
+  initializer.stop_session()
+
 def main(unused_argv):
 
   # run validation only
@@ -413,7 +415,7 @@ def main(unused_argv):
     tf.logging.info(' --- VALIDATION MODE ONLY --- ')
     print('Reusing provided session directory:', output_dir)
     subdir = create_subfolder(output_dir, 'valid_run')
-    print('Storing validation data in:', output_dir)
+    print('Storing validation data in:', subdir)
     valid_run(subdir)
 
   # run training + validation

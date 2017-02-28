@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from models import model
+from models import loss_functions
 import math
 import data_prep.model_input as input
 import os
@@ -24,7 +25,7 @@ OUT_DIR = '/localhome/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/02-24-17_17-19'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/02-28-17_18-25'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -36,9 +37,9 @@ flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer'
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
-flags.DEFINE_string('encoder_length', 1, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 9, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 1, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -52,105 +53,6 @@ flags.DEFINE_integer('valid_interval', 500, 'number of training steps between ea
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 1, 'number of training steps between session/model dumps')
 
-def gradient_difference_loss(true, pred, alpha=2.0):
-  """description here"""
-  tf.assert_equal(tf.shape(true), tf.shape(pred))
-  # vertical
-  true_pred_diff_vert = tf.pow(tf.abs(difference_gradient(true, vertical=True) - difference_gradient(pred, vertical=True)), alpha)
-  # horizontal
-  true_pred_diff_hor = tf.pow(tf.abs(difference_gradient(true, vertical=False) - difference_gradient(pred, vertical=False)), alpha)
-  # normalization over all dimensions
-  return tf.reduce_sum(true_pred_diff_vert) + tf.reduce_sum(true_pred_diff_hor) / tf.to_float(2*tf.size(pred))
-
-
-def difference_gradient(image, vertical=True):
-  # two dimensional tensor
-  # rank = ndim in numpy
-  #tf.assert_rank(tf.rank(image), 4)
-
-  # careful! begin is zero-based; size is one-based
-  if vertical:
-    begin0 = [0, 0, 0]
-    begin1 = [1, 0, 0]
-    size = [tf.shape(image)[1] - 1, tf.shape(image)[2], tf.shape(image)[3]]
-  else: # horizontal
-    begin0 = [0, 0, 0]
-    begin1 = [0, 1, 0]
-    size = [tf.shape(image)[1], tf.shape(image)[2] - 1, tf.shape(image)[3]]
-
-  slice0 = tf.slice(image[0, :, :, :], begin0, size)
-  slice1 = tf.slice(image[0, :, :, :], begin1, size)
-  return tf.abs(tf.sub(slice0, slice1))
-
-
-def mean_squared_error(true, pred):
-  """L2 distance between tensors true and pred.
-  Args:
-    true: the ground truth image.
-    pred: the predicted image.
-  Returns:
-    mean squared error between ground truth and predicted image.
-  """
-  return tf.reduce_sum(tf.square(true - pred)) / tf.to_float(tf.size(pred))
-
-
-def peak_signal_to_noise_ratio(true, pred):
-  """Image quality metric based on maximal signal power vs. power of the noise.
-  Args:
-    true: the ground truth image.
-    pred: the predicted image.
-  Returns:
-    peak signal to noise ratio (PSNR)
-  """
-  return 10.0 * tf.log(1.0 / mean_squared_error(true, pred)) / tf.log(10.0)
-
-
-def decoder_loss(frames_gen, frames_original, loss_fun):
-  """Sum of parwise loss between frames of frames_gen and frames_original
-    Args:
-    frames_gen: array of length=sequence_length of Tensors with each having the shape=(batch size, frame_height, frame_width, num_channels)
-    frames_original: Tensor with shape=(batch size, sequence_length, frame_height, frame_width, num_channels)
-    loss_fun: loss function type ['mse',...]
-  Returns:
-    loss: sum (specified) loss between ground truth and predicted frames of provided sequence.
-  """
-  assert loss_fun in LOSS_FUNCTIONS
-  loss = 0.0
-  if loss_fun == 'mse':
-    for i in range(len(frames_gen)):
-      loss += mean_squared_error(frames_original[:, i, :, :, :], frames_gen[i])
-  if loss_fun == 'gdl':
-    for i in range(len(frames_gen)):
-      loss += gradient_difference_loss(frames_original[:, i, :, :, :], frames_gen[i])
-  return loss
-
-
-def decoder_psnr(frames_gen, frames_original, loss_fun):
-  """Sum of peak_signal_to_noise_ratio loss between frames of frames_gen and frames_original
-     Args:
-       frames_gen: array of length=sequence_length of Tensors with each having the shape=(batch size, frame_height, frame_width, num_channels)
-       frames_original: Tensor with shape=(batch size, sequence_length, frame_height, frame_width, num_channels)
-       loss_fun: loss function type ['mse',...]
-     Returns:
-       loss: sum of mean squared error between ground truth and predicted frames of provided sequence.
-  """
-  psnr = 0.0
-  for i in range(len(frames_gen)):
-    psnr += peak_signal_to_noise_ratio(frames_original[:, i, :, :, :], frames_gen[i])
-  return psnr
-
-
-def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
-                   encoder_length=FLAGS.encoder_length, decoder_future_length=FLAGS.decoder_future_length,
-                   decoder_reconst_length=FLAGS.decoder_reconst_length):
-
-  assert encoder_length <= decoder_reconst_length
-  assert loss_fun in LOSS_FUNCTIONS
-  frames_original_future = original_frames[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
-  frames_original_reconst = original_frames[:, (encoder_length - decoder_reconst_length):encoder_length, :, :, :]
-  pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun)
-  reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun)
-  return pred_loss + reconst_loss
 
 class Model:
 
@@ -185,7 +87,10 @@ class Model:
 
     self.frames_pred = frames_pred
     self.frames_reconst = frames_reconst
-    self.loss = composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun)
+    self.loss = loss_functions.composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun,
+                                        encoder_length=FLAGS.encoder_length,
+                                        decoder_future_length=FLAGS.decoder_future_length,
+                                        decoder_reconst_length=FLAGS.decoder_future_length)
     self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))
 
     if reuse_scope: # only image summary if validation or test model
@@ -193,9 +98,6 @@ class Model:
 
     if reuse_scope and FLAGS.valid: # only valid mode - evaluate frame predictions for storage on disk
       self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
-
-
-
 
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
     self.sum_op = tf.summary.merge(self.summaries)

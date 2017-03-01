@@ -7,6 +7,7 @@ import data_prep.model_input as input
 import os
 import datetime as dt
 import moviepy.editor as mpy
+import re
 
 
 from tensorflow.python.platform import app
@@ -51,7 +52,7 @@ flags.DEFINE_string('valid', VALID_ONLY, 'Set to "True" if you want to validate 
 # intervals
 flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 1, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -123,6 +124,7 @@ class Initializer:
     self.threads = None
     self.coord = None
     self.saver = None
+    self.itr_start = 0
 
   def start_session(self):
     """Starts a session and initializes all variables. Provides access to session and coordinator"""
@@ -154,10 +156,22 @@ class Initializer:
     # restore dumped model if provided
     if FLAGS.pretrained_model:
       print('Restore model from: ' + str(FLAGS.pretrained_model))
-      self.saver.restore(self.sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
+      latest_checkpoint = tf.train.latest_checkpoint(FLAGS.pretrained_model)
+      self.itr_start = get_iter_from_pretrained_model(latest_checkpoint) + 1
+      print('Start with iteration: ' + str(self.itr_start))
+      self.saver.restore(self.sess, latest_checkpoint)
 
     return self.saver
 
+def get_iter_from_pretrained_model(checkpoint_file_name):
+  ''' extracts the iterator count of a dumped checkpoint from the checkpoint file name
+  :param checkpoint_file_name: name of checkpoint file - must contain a
+  :return: iterator number
+  '''
+  file_basename = os.path.basename(checkpoint_file_name)
+  assert re.compile('[A-Za-z0-9]+[-][0-9]+').match(file_basename)
+  idx = re.findall(r'-\b\d+\b', file_basename)[0][1:]
+  return int(idx)
 
 def create_session_dir(): #TODO move to utils
   assert(FLAGS.output_dir)
@@ -211,7 +225,7 @@ def train_valid_run(output_dir):
 
   ''' main training loop '''
   try:
-    for itr in range(FLAGS.num_iterations):
+    for itr in range(initializer.itr_start, initializer.itr_start + FLAGS.num_iterations):
       if initializer.coord.should_stop():
         break
 
@@ -252,7 +266,6 @@ def train_valid_run(output_dir):
 
   # Wait for threads to finish.
   initializer.stop_session()
-
 
 def store_output_frames_as_gif(output_frames, output_dir):
   """ Stores frame sequence produced by model as gif
@@ -335,5 +348,4 @@ def main(unused_argv):
 
 if __name__ == '__main__':
   app.run()
-
 

@@ -8,6 +8,7 @@ import os
 import datetime as dt
 import moviepy.editor as mpy
 import re
+from datetime import datetime
 
 
 from tensorflow.python.platform import app
@@ -26,7 +27,7 @@ OUT_DIR = '/localhome/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/02-28-17_18-25'
+PRETRAINED_MODEL = '' #''/localhome/rothfuss/training/02-28-17_18-25'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -34,13 +35,14 @@ VALID_ONLY = False
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_integer('learning_rate', 0.0001, 'learning rate for Adam optimizer')
+flags.DEFINE_integer('learning_rate', 0.001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_bool('fc_layer', False, 'indicates whether fully connected layer shall be added between encoder and decoder')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -78,13 +80,15 @@ class Model:
       frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
                                                           decoder_future_length,
                                                           decoder_reconst_length,
-                                                          num_channels=FLAGS.num_channels)
+                                                          num_channels=FLAGS.num_channels,
+                                                          fc_conv_layer=FLAGS.fc_layer)
     else: # -> validation or test model
       with tf.variable_scope(reuse_scope, reuse=True):
         frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
                                                             decoder_future_length,
                                                             decoder_reconst_length,
-                                                            num_channels=FLAGS.num_channels)
+                                                            num_channels=FLAGS.num_channels,
+                                                            fc_conv_layer=FLAGS.fc_layer)
 
     self.frames_pred = frames_pred
     self.frames_reconst = frames_reconst
@@ -237,6 +241,10 @@ def train_valid_run(output_dir):
 
       #validation
       if itr % FLAGS.valid_interval == 1:
+
+        with open(os.path.join(output_dir, 'timestamps.log'), 'a') as f:  # TODO delete
+          f.write(str(itr) + ': ' + str(datetime.now()) + '\n')
+
         feed_dict = {val_model.learning_rate: 0.0}
 
         # summary and log
@@ -245,6 +253,7 @@ def train_valid_run(output_dir):
         summary_writer.add_summary(val_summary_str, itr)
         #Print validation loss
         tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
+
 
       #dump summary
       if itr % FLAGS.summary_interval == 1:

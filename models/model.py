@@ -7,12 +7,13 @@ from models.conv_lstm import basic_conv_lstm_cell
 
 # Amount to use when lower bounding tensors
 RELU_SHIFT = 1e-12
+FC_LAYER_SIZE = 512
 
 # kernel size for DNA and CDNA.
 DNA_KERN_SIZE = 5
 
 
-def encoder_model(frames, sequence_length, scope='encoder'):
+def encoder_model(frames, sequence_length, scope='encoder', fc_conv_layer=False):
   """
   Args:
     frames: 5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)
@@ -20,6 +21,7 @@ def encoder_model(frames, sequence_length, scope='encoder'):
     scope: tensorflow variable scope name
   Returns:
     hidden4: hidden state of highest ConvLSTM layer
+    fc_conv_layer: indicated whether a Fully Convolutional (8x8x16 -> 1x1x1024) shall be added
   """
 
   lstm_state1, lstm_state2, lstm_state3, lstm_state4 = None, None, None, None
@@ -64,10 +66,17 @@ def encoder_model(frames, sequence_length, scope='encoder'):
       hidden4, lstm_state4 = basic_conv_lstm_cell(conv4, lstm_state4, 16, filter_size=3, scope='convlstm4')
       hidden4 = tf_layers.layer_norm(hidden4, scope='layer_norm8')
 
-  return hidden4
+      #LAYER 9: Fully Convolutional Layer (8x8x16 --> 1x1xFC_LAYER_SIZE)
+      if fc_conv_layer:
+        fc_conv = slim.layers.conv2d(hidden4, FC_LAYER_SIZE, [8,8], stride=1, scope='fc_conv', padding='VALID')
+        hidden_repr = fc_conv
+      else:
+        hidden_repr = hidden4
+
+  return hidden_repr
 
 
-def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder'):
+def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder', fc_conv_layer=False):
   """
   Args:
     hidden_repr: Tensor of latent space representation
@@ -75,18 +84,27 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder')
     num_channels: number of channels for generated frames
   Returns:
     frame_gen: array of generated frames (Tensors)
+    fc_conv_layer: indicates whether hidden_repr is 1x1xdepth tensor a and fully concolutional layer shall be added
   """
   frame_gen = []
 
   lstm_state1, lstm_state2, lstm_state3, lstm_state4 = None, None, None, None
+  assert (not fc_conv_layer) or (hidden_repr.get_shape()[1] == hidden_repr.get_shape()[2] == 1)
 
   for i in range(sequence_length):
     reuse = (i > 0) #reuse variables (recurrence) after first time step
 
     with tf.variable_scope(scope, reuse=reuse):
 
+      #Fully Convolutional Layer (1x1xFC_LAYER_SIZE -> 8x8x16)
+      if fc_conv_layer:
+        fc_conv = slim.layers.conv2d_transpose(hidden_repr, 16, [8, 8], stride=1, scope='fc_conv', padding='VALID')
+        hidden1_input = fc_conv
+      else:
+        hidden1_input = hidden_repr
+
       #LAYER 1: convLSTM1
-      hidden1, lstm_state1 = basic_conv_lstm_cell(hidden_repr, lstm_state1, 16, filter_size=3, scope='convlstm1')
+      hidden1, lstm_state1 = basic_conv_lstm_cell(hidden1_input, lstm_state1, 16, filter_size=3, scope='convlstm1')
       hidden1 = tf_layers.layer_norm(hidden1, scope='layer_norm1')
 
       #LAYER 2: upconv1 (8x8 -> 16x16)
@@ -125,18 +143,21 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder')
   return frame_gen
 
 
-def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst_len=5, num_channels=3):
+def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst_len=5, num_channels=3, fc_conv_layer=False):
   """
   Args:
     frames: 5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)
     encoder_len: number of frames that shall be encoded
     decoder_future_sequence_length: number of frames that shall be decoded from the hidden_repr
     num_channels: number of channels for generated frames
+    fc_conv_layer: indicates whether fully connected layer shall be added between encoder and decoder
   Returns:
     frame_gen: array of generated frames (Tensors)
   """
   assert all([len > 0 for len in [encoder_len, decoder_future_len, decoder_reconst_len]])
-  hidden_repr = encoder_model(frames, encoder_len)
-  frames_pred = decoder_model(hidden_repr, decoder_future_len, num_channels=num_channels, scope='decoder_pred')
-  frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, num_channels=num_channels, scope='decoder_reconst')
+  hidden_repr = encoder_model(frames, encoder_len, fc_conv_layer=fc_conv_layer)
+  frames_pred = decoder_model(hidden_repr, decoder_future_len, num_channels=num_channels,
+                              scope='decoder_pred', fc_conv_layer=fc_conv_layer)
+  frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, num_channels=num_channels,
+                                 scope='decoder_reconst', fc_conv_layer=fc_conv_layer)
   return frames_pred, frames_reconst

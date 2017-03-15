@@ -59,7 +59,7 @@ def read_and_decode(filename_queue):
     return image_seq
 
 
-def create_batch(directory, mode, batch_size, num_epochs):
+def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
 
     """ If mode equals 'train": Reads input data num_epochs times and creates batch
         If mode equals 'valid': Creates one large batch with all validation tensors.
@@ -100,6 +100,11 @@ def create_batch(directory, mode, batch_size, num_epochs):
 
         # sharing the same file even when multiple reader threads used
         image_seq_tensor = read_and_decode(filename_queue)
+
+        # TODO: observe influence on performance when standardizing online instead of offline (store standardized to tf)
+        # scale image to have zero mean and unit norm
+        if standardize:
+          image_seq_tensor = tf.Image.per_image_standardization(image_seq_tensor)
 
         if mode == 'valid' or mode == 'test':
           batch_size = get_number_of_records(filenames)

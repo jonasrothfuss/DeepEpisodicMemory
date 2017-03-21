@@ -34,6 +34,7 @@ def read_and_decode(filename_queue):
     _, serialized_example = reader.read(filename_queue)
 
     image_seq = []
+    video_id = None
 
     for imageCount in range(NUM_IMAGES):
         path = 'blob' + '/' + str(imageCount)
@@ -44,7 +45,8 @@ def read_and_decode(filename_queue):
                 path: tf.FixedLenFeature([], tf.string),
                 'height': tf.FixedLenFeature([], tf.int64),
                 'width': tf.FixedLenFeature([], tf.int64),
-                'depth': tf.FixedLenFeature([], tf.int64)
+                'depth': tf.FixedLenFeature([], tf.int64),
+                'id': tf.FixedLenFeature([], tf.string)
             })
 
         image_buffer = tf.reshape(features[path], shape=[])
@@ -52,11 +54,15 @@ def read_and_decode(filename_queue):
         image = tf.reshape(image, tf.pack([HEIGHT, WIDTH, NUM_DEPTH]))
         image = tf.reshape(image, [1, HEIGHT, WIDTH, NUM_DEPTH])
 
+
         image_seq.append(image)
+
+    if features:
+      video_id = features['id']
 
     image_seq = tf.concat(0, image_seq)
 
-    return image_seq
+    return image_seq, video_id
 
 
 def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
@@ -99,7 +105,7 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           filenames, num_epochs=num_epochs)
 
         # sharing the same file even when multiple reader threads used
-        image_seq_tensor = read_and_decode(filename_queue)
+        image_seq_tensor, video_id = read_and_decode(filename_queue)
 
         # TODO: observe influence on performance when standardizing online instead of offline (store standardized to tf)
         # scale image to have zero mean and unit norm
@@ -109,8 +115,8 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
         if mode == 'valid' or mode == 'test':
           batch_size = get_number_of_records(filenames)
           assert batch_size > 0
-          image_seq_batch = tf.train.batch(
-            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+          image_seq_batch, video_id_batch = tf.train.batch(
+            [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
             capacity=1000 + 3 * batch_size)
 
               # -- training -- get shuffled batches
@@ -118,12 +124,12 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           # Shuffle the examples and collect them into batch_size batches.
           # (Internally uses a RandomShuffleQueue.)
           # We run this in two threads to avoid being a bottleneck.
-          image_seq_batch = tf.train.shuffle_batch(
-            [image_seq_tensor], batch_size=batch_size, num_threads=NUM_THREADS,
+          image_seq_batch, video_id_batch = tf.train.shuffle_batch(
+            [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
             capacity=1000 + 3 * batch_size,
             # Ensures a minimum amount of shuffling of examples.
             min_after_dequeue=1000)
-        return image_seq_batch
+        return image_seq_batch, video_id_batch
 
 
 def get_number_of_records(filenames):

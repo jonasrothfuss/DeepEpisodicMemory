@@ -8,6 +8,7 @@ import os
 import datetime as dt
 import moviepy.editor as mpy
 import re
+import warnings
 from datetime import datetime
 
 
@@ -20,22 +21,23 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingBlobs/tfrecords/'
-OUT_DIR = '/localhome/rothfuss/training/'
-#DATA_PATH = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs'
-#OUT_DIR = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/4_Data/Datasets/ArtificialFlyingBlobs/out_dir'
+DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords/'
+OUT_DIR = '/data/rothfuss/training/'
+#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords'
+#OUT_DIR = '/localhome/rothfuss/training'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '' #''/localhome/rothfuss/training/02-28-17_18-25'
+PRETRAINED_MODEL = ''#''/data/rothfuss/training/03-21-17_20-58'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
+EXPORT_LATENT_VECTORS = False
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_integer('learning_rate', 0.001, 'learning rate for Adam optimizer')
+flags.DEFINE_integer('learning_rate', 5*0.001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
@@ -49,7 +51,8 @@ flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are 
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
-flags.DEFINE_string('valid', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
+flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
+flags.DEFINE_string('export_latent_vectors', EXPORT_LATENT_VECTORS, 'When set to "True", encoder latent vector for each validation is exported to "output_dir" (only when VALID_ONLY=True)')
 
 # intervals
 flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
@@ -61,30 +64,33 @@ class Model:
 
   def __init__(self,
                frames,
+               video_id,
                summary_prefix,
                encoder_length=FLAGS.encoder_length,
                decoder_future_length=FLAGS.decoder_future_length,
                decoder_reconst_length=FLAGS.decoder_reconst_length,
                loss_fun=FLAGS.loss_function,
                reuse_scope=None,
-               out_dir = None):
+               out_dir = None
+               ):
 
-    #self.output_dir = out_dir  # for validation only
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
+    # TODO: implement prefix
     #self.prefix = tf.placeholder(tf.string, []) #string for summary that denotes whether train or val
     self.iter_num = tf.placeholder(tf.int32, [])
     self.summaries = []
     self.output_dir = out_dir
+    self.label = video_id
 
     if reuse_scope is None: #train model
-      frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
+      frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
                                                           decoder_future_length,
                                                           decoder_reconst_length,
                                                           num_channels=FLAGS.num_channels,
                                                           fc_conv_layer=FLAGS.fc_layer)
     else: # -> validation or test model
       with tf.variable_scope(reuse_scope, reuse=True):
-        frames_pred, frames_reconst = model.composite_model(frames, encoder_length,
+        frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
                                                             decoder_future_length,
                                                             decoder_reconst_length,
                                                             num_channels=FLAGS.num_channels,
@@ -92,16 +98,17 @@ class Model:
 
     self.frames_pred = frames_pred
     self.frames_reconst = frames_reconst
+    self.hidden_repr = hidden_repr
     self.loss = loss_functions.composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun,
                                         encoder_length=FLAGS.encoder_length,
                                         decoder_future_length=FLAGS.decoder_future_length,
                                         decoder_reconst_length=FLAGS.decoder_future_length)
-    self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))
+    self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) # TODO: add video_id to summary
 
     if reuse_scope: # only image summary if validation or test model
       self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
 
-    if reuse_scope and FLAGS.valid: # only valid mode - evaluate frame predictions for storage on disk
+    if reuse_scope and FLAGS.valid_only: # only valid mode - evaluate frame predictions for storage on disk
       self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
 
     self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
@@ -198,15 +205,16 @@ def create_subfolder(dir, name): #TODO move to utils
 def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
-    train_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))))
+    # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
+    train_batch, video_id_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
     train_batch = tf.cast(train_batch, tf.float32)
-    train_model = Model(train_batch, 'train')
+    train_model = Model(train_batch, video_id_batch, 'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10))
+    val_set, video_id_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
-    val_model = Model(val_set, 'valid', reuse_scope=training_scope)
+    val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope)
 
   return train_model, val_model
 
@@ -235,7 +243,8 @@ def train_valid_run(output_dir):
 
       #Training Step on batch
       feed_dict = {train_model.learning_rate: FLAGS.learning_rate}
-      train_loss, _, train_summary_str = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
+      train_loss, _, train_summary_str, _ = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op, train_model.label], feed_dict)
+
       #Print Interation and loss
       tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
 
@@ -276,6 +285,7 @@ def train_valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
+
 def store_output_frames_as_gif(output_frames, output_dir):
   """ Stores frame sequence produced by model as gif
     Args:
@@ -311,8 +321,16 @@ def valid_run(output_dir):
   try:
     feed_dict = {val_model.learning_rate: 0.0}
 
-    # summary and log
-    val_loss, val_summary_str, output_frames = initializer.sess.run([val_model.loss, val_model.sum_op, val_model.output_frames], feed_dict)
+    if FLAGS.export_latent_vectors:
+      # store encoder latent vector for analysing
+      val_loss, val_summary_str, output_frames, hidden_repr, label = initializer.sess.run(
+        [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
+      hidden_repr_dir = create_subfolder(output_dir, 'hidden_repr')
+      store_encoder_latent_vector(hidden_repr_dir, hidden_repr, label)
+    else:
+      # summary and log
+      val_loss, val_summary_str, output_frames = initializer.sess.run([val_model.loss, val_model.sum_op, val_model.output_frames], feed_dict)
+
     val_model.iter_num = 1
 
     tf.logging.info('Converting validation frame sequences to gif')
@@ -320,6 +338,7 @@ def valid_run(output_dir):
     tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
 
     summary_writer.add_summary(val_summary_str, 1)
+
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done producing validation results -- iterations limit reached')
@@ -330,10 +349,31 @@ def valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
+
+def store_encoder_latent_vector(output_dir, hidden_repr, label):
+  """" stores the latent representation of the last encoder layer (possibly activations of fc layer if flag activated)
+  and the video labels that created the activations in two separate files
+
+  Example shape of stored objects if no fc layer used
+  (each ndarray)
+  hidden repr file: shape(1000,8,8,16), each of 0..1000 representing the activation of encoder neurons
+  labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations """
+
+  assert os.path.isdir(output_dir)
+  if hidden_repr.size and label.size:
+    tag = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S"))
+    file_name_hidden = os.path.join(output_dir, tag + '_hidden_repr')
+    np.save(file_name_hidden, hidden_repr)
+
+    file_name_label = os.path.join(output_dir, tag + '_label')
+    np.save(file_name_label, label)
+  else:
+    warnings.warn("Storing latent representation failed: Either latent vector or label vector empty")
+
 def main(unused_argv):
 
   # run validation only
-  if FLAGS.valid:
+  if FLAGS.valid_only:
     assert FLAGS.pretrained_model
     output_dir = FLAGS.pretrained_model
     tf.logging.info(' --- VALIDATION MODE ONLY --- ')

@@ -5,3 +5,7 @@
 - <del> apply frame standardization </del>
 - refactor train_model.py
 - try to finetune full trained circle shape model with three-shape videos
+- <del> add video id's (labels) </del>
+- <del> export function for encoder latent vectors </del>
+- create end-to-end pipeline: from .avi videos to running training/validation
+- add labels to tf summary (visualize in tensorboard)

@@ -7,5 +7,7 @@
 - try to finetune full trained circle shape model with three-shape videos
 - <del> add video id's (labels) </del>
 - <del> export function for encoder latent vectors </del>
-- create end-to-end pipeline: from .avi videos to running training/validation
+- create pipeline for end-to-end execution: from .avi videos to running training/validation
 - add labels to tf summary (visualize in tensorboard)
+- build opencv for python 3
+- use color dataset

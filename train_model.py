@@ -1,7 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from models import model
-from models import loss_functions
 import math
 import data_prep.model_input as input
 import os
@@ -9,13 +7,13 @@ import datetime as dt
 import moviepy.editor as mpy
 import re
 import warnings
-from datetime import datetime
-
+import time
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
-
-tf.logging.set_verbosity(tf.logging.INFO)
+from datetime import datetime
+from models import model
+from models import loss_functions
 
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
@@ -28,7 +26,7 @@ OUT_DIR = '/data/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''#''/data/rothfuss/training/03-21-17_20-58'
+PRETRAINED_MODEL = '/data/rothfuss/training/03-21-17_23-08'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -103,7 +101,12 @@ class Model:
                                         encoder_length=FLAGS.encoder_length,
                                         decoder_future_length=FLAGS.decoder_future_length,
                                         decoder_reconst_length=FLAGS.decoder_future_length)
+
     self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) # TODO: add video_id to summary
+
+    if reuse_scope is None: #only measure time DURING training step
+      self.elapsed_time = tf.placeholder(tf.float32, [])
+      self.summaries.append(tf.summary.scalar('batch_duration', self.elapsed_time))
 
     if reuse_scope: # only image summary if validation or test model
       self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
@@ -141,16 +144,21 @@ class Initializer:
     """Starts a session and initializes all variables. Provides access to session and coordinator"""
     # Start Session and initialize variables
     self.status = True
+
+    # limit gpu RAM occupation
+    config = tf.ConfigProto(
+      #gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.4)
+      #gpu_options = tf.GPUOptions(allow_growth=True)
+    )
+
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
-    self.sess = sess
-    sess.run(init_op)
+
+    self.sess = tf.Session(config=config)
+    self.sess.run(init_op)
 
     # Start input enqueue threads
-    coord = tf.train.Coordinator()
-    self.coord = coord
-    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-    self.threads = threads
+    self.coord = tf.train.Coordinator()
+    self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
 
   def stop_session(self):
     """Stops a current session."""
@@ -227,13 +235,13 @@ def train_valid_run(output_dir):
 
   saver = initializer.start_saver()
 
-
   summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
 
   tf.logging.set_verbosity(tf.logging.INFO)
   tf.logging.info(' --- Start Training --- ')
   tf.logging.info(' Iteration, Train_Loss ')
 
+  elapsed_time = 0
 
   ''' main training loop '''
   try:
@@ -242,17 +250,14 @@ def train_valid_run(output_dir):
         break
 
       #Training Step on batch
-      feed_dict = {train_model.learning_rate: FLAGS.learning_rate}
-      train_loss, _, train_summary_str, _ = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op, train_model.label], feed_dict)
+      feed_dict = {train_model.learning_rate: FLAGS.learning_rate, train_model.elapsed_time: float(elapsed_time)}
 
-      #Print Interation and loss
-      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
+      t = time.time()
+      train_loss, _, train_summary_str, _ = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op, train_model.label], feed_dict)
+      elapsed_time = time.time() - t
 
       #validation
       if itr % FLAGS.valid_interval == 1:
-
-        with open(os.path.join(output_dir, 'timestamps.log'), 'a') as f:  # TODO delete
-          f.write(str(itr) + ': ' + str(datetime.now()) + '\n')
 
         feed_dict = {val_model.learning_rate: 0.0}
 
@@ -260,9 +265,9 @@ def train_valid_run(output_dir):
         val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
 
         summary_writer.add_summary(val_summary_str, itr)
+
         #Print validation loss
         tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
-
 
       #dump summary
       if itr % FLAGS.summary_interval == 1:
@@ -272,6 +277,9 @@ def train_valid_run(output_dir):
       if itr % FLAGS.save_interval == 1:
         save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr) #TODO also implement save operation in Initializer class
         tf.logging.info(' Saved Model to: ' + str(save_path))
+
+      #Print Interation and loss
+      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- iterations limit reached')

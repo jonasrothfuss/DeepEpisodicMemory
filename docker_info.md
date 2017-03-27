@@ -18,6 +18,11 @@ python3 train_model.py --path /local/data/ArtificialFlyingBlobs/tfrecords --outp
 Running tensorboard:
 tensorboard --logdir=/local/training/log/ --port 6006
 
+Running tensorboard without docker:
+python3 /usr/local/lib/python3.4/dist-packages/tensorflow/tensorboard/tensorboard.py --logdir=/data/rothfuss/training/
+
+
+
 Explicit command to origin:
 nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py3
 

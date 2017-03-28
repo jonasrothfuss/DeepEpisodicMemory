@@ -26,7 +26,7 @@ OUT_DIR = '/data/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/data/rothfuss/training/03-21-17_23-08'
+PRETRAINED_MODEL = '' #''/data/rothfuss/training/03-21-17_23-08'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -35,7 +35,7 @@ EXPORT_LATENT_VECTORS = False
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_integer('learning_rate', 5*0.001, 'learning rate for Adam optimizer')
+flags.DEFINE_integer('learning_rate', 0.001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
@@ -43,6 +43,7 @@ flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder 
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', False, 'indicates whether fully connected layer shall be added between encoder and decoder')
+flags.DEFINE_float('learning_rate_decay', 0.00002, 'learning rate decay factor')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -226,6 +227,9 @@ def create_model():
 
   return train_model, val_model
 
+def learning_rate_decay(initial_learning_rate, itr, decay_factor=0.0):
+  return initial_learning_rate * math.e**(- decay_factor * itr)
+
 def train_valid_run(output_dir):
   train_model, val_model = create_model()
 
@@ -250,7 +254,8 @@ def train_valid_run(output_dir):
         break
 
       #Training Step on batch
-      feed_dict = {train_model.learning_rate: FLAGS.learning_rate, train_model.elapsed_time: float(elapsed_time)}
+      learning_rate = learning_rate_decay(FLAGS.learning_rate, itr, decay_factor=FLAGS.learning_rate_decay)
+      feed_dict = {train_model.learning_rate: learning_rate, train_model.elapsed_time: float(elapsed_time)}
 
       t = time.time()
       train_loss, _, train_summary_str, _ = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op, train_model.label], feed_dict)

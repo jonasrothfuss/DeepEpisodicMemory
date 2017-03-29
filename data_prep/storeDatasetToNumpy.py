@@ -139,7 +139,7 @@ else:
                         video[j, :, :, :] = image
                         #image counter
                         j += 1
-                        print 'total frames: ' + str(j) + " frame in video: " + str(f)
+                        print('total frames: ' + str(j) + " frame in video: " + str(f))
                 else:
                     getNextFrame(cap)
 

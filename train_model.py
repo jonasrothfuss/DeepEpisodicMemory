@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import math
 import data_prep.model_input as input
+import data_postp.similarity_computations as similarity_computations
 import os
 import datetime as dt
 import moviepy.editor as mpy
@@ -26,11 +27,11 @@ OUT_DIR = '/data/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '' #''/data/rothfuss/training/03-21-17_23-08'
+PRETRAINED_MODEL = '/data/rothfuss/training/03-28-17_15-50'
 
 # use pre-trained model and run validation only
-VALID_ONLY = False
-EXPORT_LATENT_VECTORS = False
+VALID_ONLY = True
+VALID_MODE = 'similarity' # 'vector', 'gif', 'similarity'
 
 
 # hyperparameters
@@ -51,7 +52,10 @@ flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames'
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
-flags.DEFINE_string('export_latent_vectors', EXPORT_LATENT_VECTORS, 'When set to "True", encoder latent vector for each validation is exported to "output_dir" (only when VALID_ONLY=True)')
+flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
+                                              '"vector": encoder latent vector for each validation is exported to "output_dir" (only when VALID_ONLY=True) '
+                                              '"gif": gifs are generated from the videos'
+                                              '"similarity": compute (cos) similarity matrix')
 
 # intervals
 flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
@@ -299,11 +303,12 @@ def train_valid_run(output_dir):
   initializer.stop_session()
 
 
-def store_output_frames_as_gif(output_frames, output_dir):
+def store_output_frames_as_gif(output_frames, labels, output_dir):
   """ Stores frame sequence produced by model as gif
     Args:
       output_frames:  list with Tensors of shape [batch_size, frame_height, frame_width, num_channels],
                       each element corresponds to one frame in the produced gifs
+      labels:         list with video_id's of shape [batch_size, label]
       output_dir:     path to output directory
   """
   assert os.path.isdir(output_dir)
@@ -314,7 +319,7 @@ def store_output_frames_as_gif(output_frames, output_dir):
     print(type(clip_array[0]))
     print(clip_array[0].shape)
     clip = mpy.ImageSequenceClip(clip_array, fps=10)
-    clip.to_gif(os.path.join(output_dir, 'generated_clip_' + str(i) + '.gif'))
+    clip.to_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'))
 
 def valid_run(output_dir):
   """ feeds validation batch through the model and stores produced frame sequence as gifs to output_dir
@@ -329,26 +334,32 @@ def valid_run(output_dir):
 
   summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
 
-  tf.logging.info(' --- Start Validation --- ')
+  tf.logging.info(' --- Start validation --- ')
 
   try:
     feed_dict = {val_model.learning_rate: 0.0}
+    val_summary_str = []
 
-    if FLAGS.export_latent_vectors:
+    val_loss, val_summary_str, output_frames, hidden_representations, labels = initializer.sess.run(
+      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
+
+    if FLAGS.valid_mode == 'vector':
       # store encoder latent vector for analysing
-      val_loss, val_summary_str, output_frames, hidden_repr, label = initializer.sess.run(
-        [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
+
       hidden_repr_dir = create_subfolder(output_dir, 'hidden_repr')
-      store_encoder_latent_vector(hidden_repr_dir, hidden_repr, label)
-    else:
+      store_encoder_latent_vector(hidden_repr_dir, hidden_representations, labels, True)
+
+    if FLAGS.valid_mode == 'gif':
       # summary and log
-      val_loss, val_summary_str, output_frames = initializer.sess.run([val_model.loss, val_model.sum_op, val_model.output_frames], feed_dict)
+      val_model.iter_num = 1
+      tf.logging.info('Converting validation frame sequences to gif')
+      store_output_frames_as_gif(output_frames, labels, output_dir)
+      tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
 
-    val_model.iter_num = 1
+    if FLAGS.valid_mode == 'similarity':
+      #print(str(similarity_computations.compute_cosine_similarity(hidden_representations, labels, b'064195', b'004323')))
 
-    tf.logging.info('Converting validation frame sequences to gif')
-    store_output_frames_as_gif(output_frames, output_dir)
-    tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
+      print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
 
     summary_writer.add_summary(val_summary_str, 1)
 
@@ -363,25 +374,36 @@ def valid_run(output_dir):
   initializer.stop_session()
 
 
-def store_encoder_latent_vector(output_dir, hidden_repr, label):
-  """" stores the latent representation of the last encoder layer (possibly activations of fc layer if flag activated)
-  and the video labels that created the activations in two separate files
+def store_encoder_latent_vector(output_dir, hidden_representations, labels, produce_single_files=True):
+  """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
+  and the video labels that created the activations as npy files.
+
+  :param output_dir: the path where the files should be stored
+  :param hidden_representations: numpy array containing the activations
+  :param labels: the corresponding video id's
+  :param produce_single_files: export representations as single files
 
   Example shape of stored objects if no fc layer used
   (each ndarray)
   hidden repr file: shape(1000,8,8,16), each of 0..1000 representing the activation of encoder neurons
-  labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations """
+  labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations
 
-  assert os.path.isdir(output_dir)
-  if hidden_repr.size and label.size:
+  """
+  assert os.path.isdir(output_dir) and hidden_representations.size > 0 and labels.size > 0, \
+    'Storing latent representation failed: Output dir does not exist or latent vector or/and label vector empty'
+
+  if produce_single_files:
+    for single_rep_itr in range(hidden_representations.shape[0]):
+      file_name = os.path.join(output_dir, labels[single_rep_itr].decode('utf-8'))
+      np.save(file_name, hidden_representations[single_rep_itr])
+  else:
     tag = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S"))
     file_name_hidden = os.path.join(output_dir, tag + '_hidden_repr')
-    np.save(file_name_hidden, hidden_repr)
+    np.save(file_name_hidden, hidden_representations)
 
     file_name_label = os.path.join(output_dir, tag + '_label')
-    np.save(file_name_label, label)
-  else:
-    warnings.warn("Storing latent representation failed: Either latent vector or label vector empty")
+    np.save(file_name_label, labels)
+
 
 def main(unused_argv):
 

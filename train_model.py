@@ -35,7 +35,6 @@ EXPORT_LATENT_VECTORS = False
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_integer('learning_rate', 0.001, 'learning rate for Adam optimizer')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 
@@ -44,6 +43,7 @@ flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', False, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.00002, 'learning rate decay factor')
+flags.DEFINE_integer('learning_rate', 0.005, 'initial learning rate for Adam optimizer')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')

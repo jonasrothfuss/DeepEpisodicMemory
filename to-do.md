@@ -11,4 +11,4 @@
 - add labels to tf summary (visualize in tensorboard)
 - build opencv for python 3
 - use color dataset
-- consider learning rate decay in addition to ADAM
+- <del> consider learning rate decay in addition to ADAM </del>

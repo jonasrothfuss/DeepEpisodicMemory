@@ -8,7 +8,6 @@
 - <del> add video id's (labels) </del>
 - <del> export function for encoder latent vectors </del>
 - create pipeline for end-to-end execution: from .avi videos to running training/validation
-- add labels to tf summary (visualize in tensorboard)
 - build opencv for python 3
 - use color dataset
 - <del> consider learning rate decay in addition to ADAM </del>

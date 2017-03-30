@@ -31,6 +31,7 @@ flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single t
 flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('filePath', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('outputPath', DESTINATION, 'Directory for storing tf records')
+flags.DEFINE_boolean('use_meta', False, 'indicates whether meta-information shall be extracted from filename')
 
 
 
@@ -39,7 +40,6 @@ def _int64_feature(value):
 
 def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
-
 
 def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSize, current_batch_number, total_batch_number):
   """Converts an entire dataset into x tfrecords where x=videos/fragmentSize.
@@ -61,7 +61,6 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
   i=0
   writer = None
   feature = {}
-
 
   for videoCount in range(num_videos):
 
@@ -86,26 +85,27 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
           feature['depth'] = _int64_feature(num_channels)
 
 
-          if not meta_info:
+          if meta_info:
+            feature['id'] = _bytes_feature(meta_info[videoCount][0])
+            feature['shape'] = _bytes_feature(meta_info[videoCount][1])
+            feature['color'] = _bytes_feature(meta_info[videoCount][2])
+            feature['start_location'] = _bytes_feature(meta_info[videoCount][3])
+            feature['end_location'] = _bytes_feature(meta_info[videoCount][4])
+            feature['motion_location'] = _bytes_feature(meta_info[videoCount][5])
+            feature['eucl_distance'] = _bytes_feature(meta_info[videoCount][6])
+          else:
             warnings.warn("no meta info stored in tf records")
-          feature['id'] = _bytes_feature(meta_info[videoCount][0])
-          feature['shape'] = _bytes_feature(meta_info[videoCount][1])
-          feature['color'] = _bytes_feature(meta_info[videoCount][2])
-          feature['start_location'] = _bytes_feature(meta_info[videoCount][3])
-          feature['end_location'] = _bytes_feature(meta_info[videoCount][4])
-          feature['motion_location'] = _bytes_feature(meta_info[videoCount][5])
-          feature['eucl_distance'] = _bytes_feature(meta_info[videoCount][6])
 
       example = tf.train.Example(features=tf.train.Features(feature=feature))
       writer.write(example.SerializeToString())
   writer.close()
 
-
-def convert_avi_to_numpy(filenames):
+def convert_avi_to_numpy(filenames, use_meta=True):
   """Generates an ndarray from multiple avi files given by filenames.
   Implementation chooses frame step size automatically for a equal separation distribution of the avi images.
 
   :param filenames
+  :param use_meta: indicates whether meta-information shall be extracted from filename
   :return ndarray(uint32) of shape (v,i,h,w,c) with v=number of videos, i=number of images, c=number of image"""
   if not filenames:
     raise RuntimeError('No data files found.')
@@ -118,9 +118,10 @@ def convert_avi_to_numpy(filenames):
 
   for i in range(number_of_videos):
     cap = getVideoCapture(filenames[i])
-    meta_info_entry = get_meta_info(filenames[i])
 
-    meta_info.append(meta_info_entry)
+    if use_meta:
+      meta_info_entry = get_meta_info(filenames[i])
+      meta_info.append(meta_info_entry)
     # compute meta data of video
     frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
 
@@ -173,14 +174,13 @@ def convert_avi_to_numpy(filenames):
     cap.release()
   return data, meta_info
 
-
 def chunks(l, n):
   """Yield successive n-sized chunks from l.
   Used to create n sublists from a list l"""
   for i in range(0, len(l), n):
     yield l[i:i + n]
 
-def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.numVideos):
+def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.numVideos, use_meta=True):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
   :param source_path: directory where avi videos are stored
   :param destination_path: directory where tfrecords should be stored
@@ -194,7 +194,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   i = 1
   filenames_splitted = list(chunks(filenames, videos_per_file))
   for batch in filenames_splitted:
-    data, meta_info = convert_avi_to_numpy(batch)
+    data, meta_info = convert_avi_to_numpy(batch, use_meta)
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i, total_batch_number)
@@ -231,7 +231,7 @@ def main(argv):
   # Get the data.
   #data_train = np.load(FLAGS.filePath)
   #save_numpy_to_tfrecords(data_train, FLAGS.type, 1)
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.outputPath, FLAGS.numVideos)
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.outputPath, FLAGS.numVideos, use_meta=FLAGS.use_meta)
 
 if __name__ == '__main__':
   app.run()

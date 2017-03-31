@@ -1,9 +1,9 @@
 from math import*
-
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 import numpy as np
-import sklearn
+from matplotlib import pyplot as plt
+
 from sklearn.manifold import TSNE
 import sklearn.metrics.pairwise as sk_pairwise
 
@@ -78,6 +78,19 @@ def square_rooted(x):
     return round(sqrt(sum([a * a for a in x])), 3)
 
 
-def main(argv):
-  if __name__ == '__main__':
-    app.run()
+def visualize_hidden_representations(hidden_representations, labels):
+  X = np.array([[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]])
+  model = TSNE(n_components=2, random_state=0)
+  data = model.fit_transform(X)
+
+  # plot the result
+  plt.scatter(data[:, 0], data[:, 1])
+  plt.show()
+
+
+def main():
+  visualize_hidden_representations()
+  #app.run()
+
+if __name__ == "__main__":
+  main()

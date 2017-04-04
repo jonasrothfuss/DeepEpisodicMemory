@@ -27,7 +27,7 @@ flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering vali
 flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
 
 
-def read_and_decode(filename_queue):
+def read_and_decode(filename_queue, has_metadata=True):
     """Creates one image sequence"""
 
     reader = tf.TFRecordReader()
@@ -39,15 +39,26 @@ def read_and_decode(filename_queue):
     for imageCount in range(NUM_IMAGES):
         path = 'blob' + '/' + str(imageCount)
 
+        feature_dict = {
+          path: tf.FixedLenFeature([], tf.string),
+          'height': tf.FixedLenFeature([], tf.int64),
+          'width': tf.FixedLenFeature([], tf.int64),
+          'depth': tf.FixedLenFeature([], tf.int64),
+          'id': tf.FixedLenFeature([], tf.string)
+        }
+
+        if has_metadata:
+          feature_dict['shape'] = tf.FixedLenFeature([], tf.string)
+          feature_dict['color'] = tf.FixedLenFeature([], tf.string)
+          feature_dict['start_location'] = tf.FixedLenFeature([], tf.string)
+          feature_dict['end_location'] = tf.FixedLenFeature([], tf.string)
+          feature_dict['motion_location'] = tf.FixedLenFeature([], tf.string)
+          feature_dict['eucl_distance'] = tf.FixedLenFeature([], tf.string)
+
         features = tf.parse_single_example(
             serialized_example,
-            features={
-                path: tf.FixedLenFeature([], tf.string),
-                'height': tf.FixedLenFeature([], tf.int64),
-                'width': tf.FixedLenFeature([], tf.int64),
-                'depth': tf.FixedLenFeature([], tf.int64),
-                'id': tf.FixedLenFeature([], tf.string)
-            })
+            features=feature_dict)
+
 
         image_buffer = tf.reshape(features[path], shape=[])
         image = tf.decode_raw(image_buffer, tf.uint8)
@@ -62,7 +73,7 @@ def read_and_decode(filename_queue):
 
     image_seq = tf.concat(0, image_seq)
 
-    return image_seq, video_id
+    return image_seq, video_id, features
 
 
 def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
@@ -105,7 +116,7 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           filenames, num_epochs=num_epochs)
 
         # sharing the same file even when multiple reader threads used
-        image_seq_tensor, video_id = read_and_decode(filename_queue)
+        image_seq_tensor, video_id, metadata = read_and_decode(filename_queue)
 
         # TODO: observe influence on performance when standardizing online instead of offline (store standardized to tf)
         # scale image to have zero mean and unit norm
@@ -115,11 +126,11 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
         if mode == 'valid' or mode == 'test':
           batch_size = get_number_of_records(filenames)
           assert batch_size > 0
-          image_seq_batch, video_id_batch = tf.train.batch(
-            [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
+          image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
+            [image_seq_tensor, video_id, metadata['shape']], batch_size=batch_size, num_threads=NUM_THREADS, #TODO: make independent of metadata field name
             capacity=1000 + 3 * batch_size)
 
-              # -- training -- get shuffled batches
+        # -- training -- get shuffled batches
         else:
           # Shuffle the examples and collect them into batch_size batches.
           # (Internally uses a RandomShuffleQueue.)
@@ -129,7 +140,9 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
             capacity=1000 + 3 * batch_size,
             # Ensures a minimum amount of shuffling of examples.
             min_after_dequeue=1000)
-        return image_seq_batch, video_id_batch
+          metadata_batch = None
+
+        return image_seq_batch, video_id_batch, metadata_batch
 
 
 def get_number_of_records(filenames):

@@ -7,8 +7,8 @@ import os
 import datetime as dt
 import moviepy.editor as mpy
 import re
-import warnings
 import time
+import pandas as pd
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
@@ -31,7 +31,7 @@ PRETRAINED_MODEL = '/data/rothfuss/training/03-28-17_15-50'
 
 # use pre-trained model and run validation only
 VALID_ONLY = True
-VALID_MODE = 'similarity' # 'vector', 'gif', 'similarity'
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
@@ -68,6 +68,7 @@ class Model:
   def __init__(self,
                frames,
                video_id,
+               metadata,
                summary_prefix,
                encoder_length=FLAGS.encoder_length,
                decoder_future_length=FLAGS.decoder_future_length,
@@ -78,12 +79,11 @@ class Model:
                ):
 
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
-    # TODO: implement prefix
-    #self.prefix = tf.placeholder(tf.string, []) #string for summary that denotes whether train or val
     self.iter_num = tf.placeholder(tf.int32, [])
     self.summaries = []
     self.output_dir = out_dir
     self.label = video_id
+    self.shape = metadata
 
     if reuse_scope is None: #train model
       frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
@@ -134,6 +134,7 @@ class Model:
                                         self.frames_reconst[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
+
 
 class Initializer:
 
@@ -187,6 +188,7 @@ class Initializer:
 
     return self.saver
 
+
 def get_iter_from_pretrained_model(checkpoint_file_name):
   ''' extracts the iterator count of a dumped checkpoint from the checkpoint file name
   :param checkpoint_file_name: name of checkpoint file - must contain a
@@ -197,6 +199,7 @@ def get_iter_from_pretrained_model(checkpoint_file_name):
   idx = re.findall(r'-\b\d+\b', file_basename)[0][1:]
   return int(idx)
 
+
 def create_session_dir(): #TODO move to utils
   assert(FLAGS.output_dir)
   dir_name = str(dt.datetime.now().strftime("%m-%d-%y_%H-%M"))
@@ -205,6 +208,7 @@ def create_session_dir(): #TODO move to utils
     os.mkdir(output_dir)
   print('Created custom directory for session:', dir_name)
   return output_dir
+
 
 def create_subfolder(dir, name): #TODO move to utils
   subdir = os.path.join(dir, name)
@@ -215,24 +219,27 @@ def create_subfolder(dir, name): #TODO move to utils
   else:
     return os.path.join(dir, name)
 
+
 def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
     # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
-    train_batch, video_id_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
+    train_batch, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
     train_batch = tf.cast(train_batch, tf.float32)
-    train_model = Model(train_batch, video_id_batch, 'train')
+    train_model = Model(train_batch, video_id_batch, metadata_batch,  'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
-    val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope)
+    val_model = Model(val_set, video_id_batch, metadata_batch, 'valid', reuse_scope=training_scope)
 
   return train_model, val_model
 
+
 def learning_rate_decay(initial_learning_rate, itr, decay_factor=0.0):
   return initial_learning_rate * math.e**(- decay_factor * itr)
+
 
 def train_valid_run(output_dir):
   train_model, val_model = create_model()
@@ -321,6 +328,7 @@ def store_output_frames_as_gif(output_frames, labels, output_dir):
     clip = mpy.ImageSequenceClip(clip_array, fps=10)
     clip.to_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'))
 
+
 def valid_run(output_dir):
   """ feeds validation batch through the model and stores produced frame sequence as gifs to output_dir
     :param
@@ -340,8 +348,8 @@ def valid_run(output_dir):
     feed_dict = {val_model.learning_rate: 0.0}
     val_summary_str = []
 
-    val_loss, val_summary_str, output_frames, hidden_representations, labels = initializer.sess.run(
-      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
+    val_loss, val_summary_str, output_frames, hidden_representations, labels, shape = initializer.sess.run(
+      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.shape], feed_dict)
 
     if FLAGS.valid_mode == 'vector':
       # store encoder latent vector for analysing
@@ -357,9 +365,10 @@ def valid_run(output_dir):
       tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
 
     if FLAGS.valid_mode == 'similarity':
-      #print(str(similarity_computations.compute_cosine_similarity(hidden_representations, labels, b'064195', b'004323')))
-
       print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
+
+    if FLAGS.valid_mode == 'data_frame':
+      store_latent_vectors_as_df(output_dir, hidden_representations, labels, shape)
 
     summary_writer.add_summary(val_summary_str, 1)
 
@@ -387,7 +396,6 @@ def store_encoder_latent_vector(output_dir, hidden_representations, labels, prod
   (each ndarray)
   hidden repr file: shape(1000,8,8,16), each of 0..1000 representing the activation of encoder neurons
   labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations
-
   """
   assert os.path.isdir(output_dir) and hidden_representations.size > 0 and labels.size > 0, \
     'Storing latent representation failed: Output dir does not exist or latent vector or/and label vector empty'
@@ -404,6 +412,31 @@ def store_encoder_latent_vector(output_dir, hidden_representations, labels, prod
     file_name_label = os.path.join(output_dir, tag + '_label')
     np.save(file_name_label, labels)
 
+def store_latent_vectors_as_df(output_dir, hidden_representations, labels, shapes, filename = None):
+  """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
+  and the video metadata as a pandas dataframe in python3 pickle format
+
+  :param output_dir: the path where the pickle file should be stored
+  :param hidden_representations: numpy array containing the activations
+  :param labels: the corresponding video id's
+  :param shapes: the corresponding shape of the object in the video
+  :param filename: name of the pickle file - if not provided, a filename is created automatically
+
+  Example shape of stored objects if no fc layer used
+  (each ndarray)
+  hidden repr file: shape(1000,8,8,16), each of 0..1000 representing the activation of encoder neurons
+  labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations
+  """
+  hidden_representations = [hidden_representations[i] for i in
+                            range(hidden_representations.shape[0])]  # converts 2d ndarray to list of 1d ndarrays
+  df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations, 'shape': shapes})
+  df['label'] = df['label'].map(lambda x: x.decode('utf-8'))
+  df['shape'] = df['shape'].map(lambda x: x.decode('utf-8'))
+  if not filename:
+    filename = os.path.join(output_dir, 'hidden_repr_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
+  df.to_pickle(filename)
+  print("Dumped df pickle to", filename)
+  return df
 
 def main(unused_argv):
 

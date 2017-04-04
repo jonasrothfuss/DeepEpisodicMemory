@@ -68,7 +68,6 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
           if writer is not None:
               writer.close()
           i += 1
-          #filename = os.path.join(destination_path, name + str(i) + '-of-' + str(int(math.ceil(num_videos/fragmentSize))) + '.tfrecords')
           filename = os.path.join(destination_path, name + str(current_batch_number) + '_of_' + str(total_batch_number) + '.tfrecords')
           print('Writing', filename)
           writer = tf.python_io.TFRecordWriter(filename)
@@ -83,10 +82,9 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
           feature['height'] = _int64_feature(height)
           feature['width'] = _int64_feature(width)
           feature['depth'] = _int64_feature(num_channels)
+          feature['id'] = _bytes_feature(meta_info[videoCount][0])
 
-
-          if meta_info:
-            feature['id'] = _bytes_feature(meta_info[videoCount][0])
+          if len(meta_info)>1:
             feature['shape'] = _bytes_feature(meta_info[videoCount][1])
             feature['color'] = _bytes_feature(meta_info[videoCount][2])
             feature['start_location'] = _bytes_feature(meta_info[videoCount][3])
@@ -117,11 +115,15 @@ def convert_avi_to_numpy(filenames, use_meta=True):
   meta_info = list()
 
   for i in range(number_of_videos):
+    print(i, filenames[i])
     cap = getVideoCapture(filenames[i])
 
     if use_meta:
       meta_info_entry = get_meta_info(filenames[i])
       meta_info.append(meta_info_entry)
+    else: #only include filename as id
+      meta_info.append(os.path.basename(filenames[i]).split('.')[0])
+
     # compute meta data of video
     frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
 
@@ -180,7 +182,7 @@ def chunks(l, n):
   for i in range(0, len(l), n):
     yield l[i:i + n]
 
-def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.numVideos, use_meta=True):
+def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.numVideos, use_meta=FLAGS.use_meta):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
   :param source_path: directory where avi videos are stored
   :param destination_path: directory where tfrecords should be stored

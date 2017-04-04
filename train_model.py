@@ -12,7 +12,6 @@ import pandas as pd
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
-from datetime import datetime
 from models import model
 from models import loss_functions
 
@@ -20,17 +19,17 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords/'
-OUT_DIR = '/data/rothfuss/training/'
-#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords'
-#OUT_DIR = '/localhome/rothfuss/training'
+#DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords/'
+#OUT_DIR = '/data/rothfuss/training/'
+DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation'
+OUT_DIR = '/localhome/rothfuss/training'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/data/rothfuss/training/03-28-17_15-50'
+PRETRAINED_MODEL = ''#''/data/rothfuss/training/03-28-17_15-50'
 
 # use pre-trained model and run validation only
-VALID_ONLY = True
+VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
@@ -49,6 +48,7 @@ flags.DEFINE_integer('learning_rate', 0.005, 'initial learning rate for Adam opt
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
+flags.DEFINE_boolean('has_metadata', False, 'incicates whether metadata is inclused in tf records')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
@@ -68,14 +68,14 @@ class Model:
   def __init__(self,
                frames,
                video_id,
-               metadata,
                summary_prefix,
                encoder_length=FLAGS.encoder_length,
                decoder_future_length=FLAGS.decoder_future_length,
                decoder_reconst_length=FLAGS.decoder_reconst_length,
                loss_fun=FLAGS.loss_function,
                reuse_scope=None,
-               out_dir = None
+               out_dir = None,
+               metadata = None
                ):
 
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
@@ -224,15 +224,17 @@ def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
     # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
-    train_batch, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
+    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False, has_metadata=False)
+
     train_batch = tf.cast(train_batch, tf.float32)
-    train_model = Model(train_batch, video_id_batch, metadata_batch,  'train')
+    train_model = Model(train_batch, video_id_batch, 'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False, has_metadata=FLAGS.has_metadata)
     val_set = tf.cast(val_set, tf.float32)
-    val_model = Model(val_set, video_id_batch, metadata_batch, 'valid', reuse_scope=training_scope)
+    val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
+
 
   return train_model, val_model
 

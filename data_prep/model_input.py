@@ -27,7 +27,7 @@ flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering vali
 flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
 
 
-def read_and_decode(filename_queue, has_metadata=True):
+def read_and_decode(filename_queue, has_metadata=False):
     """Creates one image sequence"""
 
     reader = tf.TFRecordReader()
@@ -76,7 +76,7 @@ def read_and_decode(filename_queue, has_metadata=True):
     return image_seq, video_id, features
 
 
-def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
+def create_batch(directory, mode, batch_size, num_epochs, standardize=True, has_metadata=False):
 
     """ If mode equals 'train": Reads input data num_epochs times and creates batch
         If mode equals 'valid': Creates one large batch with all validation tensors.
@@ -126,9 +126,13 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
         if mode == 'valid' or mode == 'test':
           batch_size = get_number_of_records(filenames)
           assert batch_size > 0
-          image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
-            [image_seq_tensor, video_id, metadata['shape']], batch_size=batch_size, num_threads=NUM_THREADS, #TODO: make independent of metadata field name
-            capacity=1000 + 3 * batch_size)
+          if has_metadata:
+            image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
+              [image_seq_tensor, video_id, metadata['shape']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size, min_after_dequeue=1000)
+          else:
+            image_seq_batch, video_id_batch = tf.train.shuffle_batch(
+              [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size, min_after_dequeue=1000)
+            metadata_batch = None
 
         # -- training -- get shuffled batches
         else:

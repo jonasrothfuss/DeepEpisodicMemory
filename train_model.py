@@ -26,11 +26,11 @@ OUT_DIR = '/localhome/rothfuss/training'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''#''/data/rothfuss/training/03-28-17_15-50'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/04-04-17_22-11'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
-VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
@@ -105,7 +105,7 @@ class Model:
     self.loss = loss_functions.composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun,
                                         encoder_length=FLAGS.encoder_length,
                                         decoder_future_length=FLAGS.decoder_future_length,
-                                        decoder_reconst_length=FLAGS.decoder_future_length)
+                                        decoder_reconst_length=FLAGS.decoder_reconst_length)
 
     self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) # TODO: add video_id to summary
 
@@ -350,8 +350,12 @@ def valid_run(output_dir):
     feed_dict = {val_model.learning_rate: 0.0}
     val_summary_str = []
 
-    val_loss, val_summary_str, output_frames, hidden_representations, labels, shape = initializer.sess.run(
+    if FLAGS.has_metadata:
+      val_loss, val_summary_str, output_frames, hidden_representations, labels, shape = initializer.sess.run(
       [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.shape], feed_dict)
+    else:
+      val_loss, val_summary_str, output_frames, hidden_representations, labels = initializer.sess.run(
+      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
 
     if FLAGS.valid_mode == 'vector':
       # store encoder latent vector for analysing

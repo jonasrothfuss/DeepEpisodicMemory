@@ -70,6 +70,7 @@ def compute_hidden_representation_similarity(hidden_representations, labels, typ
 
 
 def compute_cosine_similarity(vector_a, vector_b):
+  "vectors similar: cosine similarity is 1"
   if vector_a.ndim > 2:
     vector_a = vector_a.flatten()
   if vector_b.ndim > 2:
@@ -151,7 +152,7 @@ def svm(df):
   svc.fit(X,Y)
   return svc.score(X, Y)
 
-def avg_distance(df):
+def avg_distance(df, similarity_type = 'cos'):
   same_class_dist_array = []
   out_class_dist_array = []
   vectors = list(df['hidden_repr'])
@@ -159,7 +160,10 @@ def avg_distance(df):
   for i, (v1, l1) in enumerate(zip(vectors, labels)):
     print(i)
     for v2, l2 in zip(vectors, labels):
-      distance = compute_cosine_similarity(v1, v2)
+      if similarity_type == 'cos':
+        distance = compute_cosine_similarity(v1, v2)
+      elif similarity_type == 'euc':
+        distance = np.square(np.sum((v1.flatten() - v2.flatten())**2))
       if l1==l2:
         same_class_dist_array.append(distance)
       else:
@@ -170,10 +174,9 @@ def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
-  #print(df)
-  #result = svm(df)
-  #print(result)
-  print(avg_distance(df))
+  #print(svm(df))
+  #print(logistic_regression(df))
+  print(avg_distance(df, 'cos'))
 
 if __name__ == "__main__":
   main()

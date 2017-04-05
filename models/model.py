@@ -24,7 +24,7 @@ def encoder_model(frames, sequence_length, scope='encoder', fc_conv_layer=False)
     fc_conv_layer: indicated whether a Fully Convolutional (8x8x16 -> 1x1x1024) shall be added
   """
 
-  lstm_state1, lstm_state2, lstm_state3, lstm_state4 = None, None, None, None
+  lstm_state1, lstm_state2, lstm_state3, lstm_state4, lstm_state5 = None, None, None, None, None
 
   for i in range(sequence_length):
 
@@ -50,7 +50,7 @@ def encoder_model(frames, sequence_length, scope='encoder', fc_conv_layer=False)
       hidden2 = tf_layers.layer_norm(hidden2, scope='layer_norm4')
 
       #LAYER 5: conv3
-      conv3 = slim.layers.conv2d(hidden2, hidden2.get_shape()[3], [3, 3], stride=2, scope='conv3', normalizer_fn=tf_layers.layer_norm,
+      conv3 = slim.layers.conv2d(hidden2, hidden2.get_shape()[3], [5, 5], stride=2, scope='conv3', normalizer_fn=tf_layers.layer_norm,
                                   normalizer_params={'scope': 'layer_norm5'})
 
       #LAYER 6: convLSTM3
@@ -63,15 +63,22 @@ def encoder_model(frames, sequence_length, scope='encoder', fc_conv_layer=False)
                                  normalizer_params={'scope': 'layer_norm7'})
 
       #LAYER 8: convLSTM4 (8x8 featuremap size)
-      hidden4, lstm_state4 = basic_conv_lstm_cell(conv4, lstm_state4, 16, filter_size=3, scope='convlstm4')
+      hidden4, lstm_state4 = basic_conv_lstm_cell(conv4, lstm_state4, 32, filter_size=3, scope='convlstm4')
       hidden4 = tf_layers.layer_norm(hidden4, scope='layer_norm8')
+
+      #LAYER 8: conv5
+      conv5 = slim.layers.conv2d(hidden4, hidden4.get_shape()[3], [3, 3], stride=2, scope='conv5', normalizer_fn=tf_layers.layer_norm,
+                                 normalizer_params={'scope': 'layer_norm9'})
+
+      hidden5, lstm_state5 = basic_conv_lstm_cell(conv5, lstm_state5, 32, filter_size=3, scope='convlstm5')
+      hidden5 = tf_layers.layer_norm(hidden5, scope='layer_norm10')
 
       #LAYER 9: Fully Convolutional Layer (8x8x16 --> 1x1xFC_LAYER_SIZE)
       if fc_conv_layer:
-        fc_conv = slim.layers.conv2d(hidden4, FC_LAYER_SIZE, [8,8], stride=1, scope='fc_conv', padding='VALID')
+        fc_conv = slim.layers.conv2d(hidden5, FC_LAYER_SIZE, [4,4], stride=1, scope='fc_conv', padding='VALID')
         hidden_repr = fc_conv
       else:
-        hidden_repr = hidden4
+        hidden_repr = hidden5
 
   return hidden_repr
 
@@ -88,7 +95,7 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder',
   """
   frame_gen = []
 
-  lstm_state1, lstm_state2, lstm_state3, lstm_state4 = None, None, None, None
+  lstm_state1, lstm_state2, lstm_state3, lstm_state4, lstm_state5 = None, None, None, None, None
   assert (not fc_conv_layer) or (hidden_repr.get_shape()[1] == hidden_repr.get_shape()[2] == 1)
 
   for i in range(sequence_length):
@@ -98,13 +105,13 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder',
 
       #Fully Convolutional Layer (1x1xFC_LAYER_SIZE -> 8x8x16)
       if fc_conv_layer:
-        fc_conv = slim.layers.conv2d_transpose(hidden_repr, 16, [8, 8], stride=1, scope='fc_conv', padding='VALID')
+        fc_conv = slim.layers.conv2d_transpose(hidden_repr, 32, [4, 4], stride=1, scope='fc_conv', padding='VALID')
         hidden1_input = fc_conv
       else:
         hidden1_input = hidden_repr
 
       #LAYER 1: convLSTM1
-      hidden1, lstm_state1 = basic_conv_lstm_cell(hidden1_input, lstm_state1, 16, filter_size=3, scope='convlstm1')
+      hidden1, lstm_state1 = basic_conv_lstm_cell(hidden1_input, lstm_state1, 32, filter_size=3, scope='convlstm1')
       hidden1 = tf_layers.layer_norm(hidden1, scope='layer_norm1')
 
       #LAYER 2: upconv1 (8x8 -> 16x16)
@@ -113,7 +120,7 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder',
                                              normalizer_params={'scope': 'layer_norm2'})
 
       #LAYER 3: convLSTM2
-      hidden2, lstm_state2 = basic_conv_lstm_cell(upconv1, lstm_state2, 16, filter_size=3, scope='convlstm2')
+      hidden2, lstm_state2 = basic_conv_lstm_cell(upconv1, lstm_state2, 32, filter_size=3, scope='convlstm2')
       hidden2 = tf_layers.layer_norm(hidden2, scope='layer_norm3')
 
       #LAYER 4: upconv2 (16x16 -> 32x32)
@@ -122,7 +129,7 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder',
                                              normalizer_params={'scope': 'layer_norm4'})
 
       #LAYER 5: convLSTM3
-      hidden3, lstm_state3 = basic_conv_lstm_cell(upconv2, lstm_state3, 16, filter_size=5, scope='convlstm3')
+      hidden3, lstm_state3 = basic_conv_lstm_cell(upconv2, lstm_state3, 16, filter_size=3, scope='convlstm3')
       hidden3 = tf_layers.layer_norm(hidden3, scope='layer_norm5')
 
       # LAYER 6: upconv3 (32x32 -> 64x64)
@@ -135,9 +142,16 @@ def decoder_model(hidden_repr, sequence_length, num_channels=3, scope='decoder',
       hidden4 = tf_layers.layer_norm(hidden4, scope='layer_norm7')
 
       #Layer 8: upconv4 (64x64 -> 128x128)
-      upconv4 = slim.layers.conv2d_transpose(hidden4, num_channels, 5, stride=2, scope='upconv4')
+      upconv4 = slim.layers.conv2d_transpose(hidden4, 16, 5, stride=2, scope='upconv4', normalizer_fn=tf_layers.layer_norm,
+                                             normalizer_params={'scope': 'layer_norm8'})
 
-      frame_gen.append(upconv4)
+      #LAYER 9: convLSTM5
+      hidden5, lstm_state5 = basic_conv_lstm_cell(upconv4, lstm_state5, 16, filter_size=5, scope='convlstm5')
+      hidden5 = tf_layers.layer_norm(hidden5, scope='layer_norm9')
+
+      upconv5 = slim.layers.conv2d_transpose(hidden5, num_channels, 5, stride=2, scope='upconv5')
+
+      frame_gen.append(upconv5)
 
   assert len(frame_gen)==sequence_length
   return frame_gen

@@ -25,7 +25,7 @@ tensorboard --logdir=/local/training/log/ --port 6006
 python3 /usr/local/lib/python3.4/dist-packages/tensorflow/tensorboard/tensorboard.py  --logdir=/data/rothfuss/training
 
 ##### Accessing Tensorboard on other pc via ssh
-ssh -L 6007:127.0.0.1:6006 rothfuss@i61pc032
+ssh -L 6007:127.0.0.1:6006 rothfuss@xxxxx032
 
 ##### Explicit command to origin:
 nvidia-docker run -it -p 8888:8888 tensorflow/tensorflow:0.12.0-rc1-devel-gpu-py3

@@ -3,7 +3,7 @@
 python3 /usr/local/lib/python3.4/dist-packages/tensorflow/tensorboard/tensorboard.py --logdir=/data/rothfuss/training/
 
 ## Using virtualenv
-### Run python 3.4 virtual environment:
+##### Run python 3.4 virtual environment:
 source ~/p3.4/bin/activate
 
 ## Using Docker

@@ -170,10 +170,15 @@ def avg_distance(df, similarity_type = 'cos'):
         out_class_dist_array.append(distance)
   return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
 
+def compute_confusion_matrix(df):
+  """"""
+
+
 def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
+
   #print(svm(df))
   #print(logistic_regression(df))
   print(avg_distance(df, 'cos'))

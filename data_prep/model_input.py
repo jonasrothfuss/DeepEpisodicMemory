@@ -27,7 +27,7 @@ flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering vali
 flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
 
 
-def read_and_decode(filename_queue, has_metadata=False):
+def read_and_decode(filename_queue):
     """Creates one image sequence"""
 
     reader = tf.TFRecordReader()
@@ -44,21 +44,13 @@ def read_and_decode(filename_queue, has_metadata=False):
           'height': tf.FixedLenFeature([], tf.int64),
           'width': tf.FixedLenFeature([], tf.int64),
           'depth': tf.FixedLenFeature([], tf.int64),
-          'id': tf.FixedLenFeature([], tf.string)
+          'id': tf.FixedLenFeature([], tf.string),
+          'metadata': tf.FixedLenFeature([], tf.string)
         }
-
-        if has_metadata:
-          feature_dict['shape'] = tf.FixedLenFeature([], tf.string)
-          feature_dict['color'] = tf.FixedLenFeature([], tf.string)
-          feature_dict['start_location'] = tf.FixedLenFeature([], tf.string)
-          feature_dict['end_location'] = tf.FixedLenFeature([], tf.string)
-          feature_dict['motion_location'] = tf.FixedLenFeature([], tf.string)
-          feature_dict['eucl_distance'] = tf.FixedLenFeature([], tf.string)
 
         features = tf.parse_single_example(
             serialized_example,
             features=feature_dict)
-
 
         image_buffer = tf.reshape(features[path], shape=[])
         image = tf.decode_raw(image_buffer, tf.uint8)
@@ -76,7 +68,7 @@ def read_and_decode(filename_queue, has_metadata=False):
     return image_seq, video_id, features
 
 
-def create_batch(directory, mode, batch_size, num_epochs, standardize=True, has_metadata=False):
+def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
 
     """ If mode equals 'train": Reads input data num_epochs times and creates batch
         If mode equals 'valid': Creates one large batch with all validation tensors.
@@ -116,23 +108,19 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True, has_
           filenames, num_epochs=num_epochs)
 
         # sharing the same file even when multiple reader threads used
-        image_seq_tensor, video_id, metadata = read_and_decode(filename_queue)
+        image_seq_tensor, video_id, features = read_and_decode(filename_queue)
 
         # TODO: observe influence on performance when standardizing online instead of offline (store standardized to tf)
         # scale image to have zero mean and unit norm
         if standardize:
-          image_seq_tensor = tf.Image.per_image_standardization(image_seq_tensor)
+          image_seq_tensor = tf.image.per_image_standardization(image_seq_tensor)
 
         if mode == 'valid' or mode == 'test':
           batch_size = get_number_of_records(filenames)
           assert batch_size > 0
-          if has_metadata:
-            image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
-              [image_seq_tensor, video_id, metadata['shape']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size, min_after_dequeue=1000)
-          else:
-            image_seq_batch, video_id_batch = tf.train.shuffle_batch(
-              [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size, min_after_dequeue=1000)
-            metadata_batch = None
+          image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
+              [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size)
+
 
         # -- training -- get shuffled batches
         else:

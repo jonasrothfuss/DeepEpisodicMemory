@@ -15,6 +15,7 @@ from tensorflow.python.platform import app
 import cv2
 import numpy as np
 import tensorflow as tf
+import json
 
 FLAGS = None
 FILE_FILTER = '*.avi'
@@ -24,14 +25,14 @@ WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 
 SOURCE = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/videos'
-DESTINATION = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords'
+DESTINATION = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('filePath', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('outputPath', DESTINATION, 'Directory for storing tf records')
-flags.DEFINE_boolean('use_meta', False, 'indicates whether meta-information shall be extracted from filename')
+flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
 
 
 
@@ -84,6 +85,8 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
           feature['depth'] = _int64_feature(num_channels)
           feature['id'] = _bytes_feature(meta_info[videoCount][0])
 
+          meta_dict = {'height': height, 'width': width, 'depth': num_channels, 'id': meta_info[videoCount][0]}
+
           if len(meta_info[0])>1:
             feature['shape'] = _bytes_feature(meta_info[videoCount][1])
             feature['color'] = _bytes_feature(meta_info[videoCount][2])
@@ -91,8 +94,17 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
             feature['end_location'] = _bytes_feature(meta_info[videoCount][4])
             feature['motion_location'] = _bytes_feature(meta_info[videoCount][5])
             feature['eucl_distance'] = _bytes_feature(meta_info[videoCount][6])
+
+            meta_dict['shape'] = meta_info[videoCount][1]
+            meta_dict['color'] = meta_info[videoCount][2]
+            meta_dict['start_location'] = meta_info[videoCount][3]
+            meta_dict['end_location'] = meta_info[videoCount][4]
+            meta_dict['motion_location'] = meta_info[videoCount][5]
+            meta_dict['eucl_distance'] = meta_info[videoCount][6]
           else:
             warnings.warn("no meta info stored in tf records")
+
+          feature['metadata'] = _bytes_feature(json.dumps(meta_dict))
 
       example = tf.train.Example(features=tf.train.Features(feature=feature))
       writer.write(example.SerializeToString())
@@ -115,7 +127,7 @@ def convert_avi_to_numpy(filenames, use_meta=True):
   meta_info = list()
 
   for i in range(number_of_videos):
-    print(i, filenames[i])
+    #print(i, filenames[i])
     cap = getVideoCapture(filenames[i])
 
     if use_meta:

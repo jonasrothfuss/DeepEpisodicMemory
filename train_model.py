@@ -9,6 +9,7 @@ import moviepy.editor as mpy
 import re
 import time
 import pandas as pd
+import json
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
@@ -19,18 +20,18 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-#DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords/'
-#OUT_DIR = '/data/rothfuss/training/'
-DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation'
-OUT_DIR = '/localhome/rothfuss/training'
+DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
+OUT_DIR = '/data/rothfuss/training/'
+#DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation'
+#OUT_DIR = '/localhome/rothfuss/training'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/04-04-17_22-11'
+PRETRAINED_MODEL = '/data/rothfuss/training/03-28-17_15-50'
 
 # use pre-trained model and run validation only
-VALID_ONLY = False
-VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_ONLY = True
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
@@ -48,7 +49,6 @@ flags.DEFINE_integer('learning_rate', 0.005, 'initial learning rate for Adam opt
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
-flags.DEFINE_boolean('has_metadata', False, 'incicates whether metadata is inclused in tf records')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
@@ -74,8 +74,8 @@ class Model:
                decoder_reconst_length=FLAGS.decoder_reconst_length,
                loss_fun=FLAGS.loss_function,
                reuse_scope=None,
-               out_dir = None,
-               metadata = None
+               out_dir=None,
+               metadata=None
                ):
 
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
@@ -83,7 +83,7 @@ class Model:
     self.summaries = []
     self.output_dir = out_dir
     self.label = video_id
-    self.shape = metadata
+    self.metadata = metadata
 
     if reuse_scope is None: #train model
       frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
@@ -224,14 +224,14 @@ def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
     # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
-    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False, has_metadata=False)
+    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
 
     train_batch = tf.cast(train_batch, tf.float32)
     train_model = Model(train_batch, video_id_batch, 'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False, has_metadata=FLAGS.has_metadata)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
 
@@ -350,12 +350,9 @@ def valid_run(output_dir):
     feed_dict = {val_model.learning_rate: 0.0}
     val_summary_str = []
 
-    if FLAGS.has_metadata:
-      val_loss, val_summary_str, output_frames, hidden_representations, labels, shape = initializer.sess.run(
-      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.shape], feed_dict)
-    else:
-      val_loss, val_summary_str, output_frames, hidden_representations, labels = initializer.sess.run(
-      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label], feed_dict)
+
+    val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata = initializer.sess.run(
+      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
 
     if FLAGS.valid_mode == 'vector':
       # store encoder latent vector for analysing
@@ -374,7 +371,7 @@ def valid_run(output_dir):
       print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
 
     if FLAGS.valid_mode == 'data_frame':
-      store_latent_vectors_as_df(output_dir, hidden_representations, labels, shape)
+      store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
 
     summary_writer.add_summary(val_summary_str, 1)
 
@@ -418,7 +415,7 @@ def store_encoder_latent_vector(output_dir, hidden_representations, labels, prod
     file_name_label = os.path.join(output_dir, tag + '_label')
     np.save(file_name_label, labels)
 
-def store_latent_vectors_as_df(output_dir, hidden_representations, labels, shapes, filename = None):
+def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, filename = None):
   """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
   and the video metadata as a pandas dataframe in python3 pickle format
 
@@ -433,13 +430,23 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, shape
   hidden repr file: shape(1000,8,8,16), each of 0..1000 representing the activation of encoder neurons
   labels file: shape(1000,), each of 0..1000 representing the video_id for the coresponding activations
   """
+
+  # create 2 column df including hidden representations and labels/ids
   hidden_representations = [hidden_representations[i] for i in
                             range(hidden_representations.shape[0])]  # converts 2d ndarray to list of 1d ndarrays
-  df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations, 'shape': shapes})
-  df['label'] = df['label'].map(lambda x: x.decode('utf-8'))
-  df['shape'] = df['shape'].map(lambda x: x.decode('utf-8'))
+
+  hidden_rep_df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations})
+  hidden_rep_df['label'] = hidden_rep_df['label'].map(lambda x: x.decode('utf-8'))
+
+  # create dataframe from metadata
+  f = lambda x: x.decode('utf-8')
+  metadata_df = pd.DataFrame.from_dict([json.loads(f(e)) for e in list(metadata)], orient='columns')
+
+  #merge dataframes to one
+  df = pd.merge(hidden_rep_df, metadata_df, left_on='label', right_on='id')
+
   if not filename:
-    filename = os.path.join(output_dir, 'hidden_repr_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
+    filename = os.path.join(output_dir, 'metadata_and_hidden_rep_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
   df.to_pickle(filename)
   print("Dumped df pickle to", filename)
   return df

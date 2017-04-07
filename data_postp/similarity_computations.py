@@ -12,7 +12,7 @@ import pandas as pd
 import itertools
 import seaborn as sn
 
-PICKLE_FILE_DEFAULT = '/data/rothfuss/training/03-28-17_15-50/valid_run/metadata_and_hidden_rep_df_04-06-17_20-23-45.pickle'
+PICKLE_FILE_DEFAULT = '/localhome/rothfuss/data/df.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -118,11 +118,20 @@ def df_col_to_matrix(panda_col):
   return np.vstack(panda_col)
 
 def principal_components(df_col, n_components=2):
+  """Performs a Principal Component Analysis (fit to the data) and then returns the returns the data transformed corresponding to the n_components
+  first principal components
+
+  :return ndarray - provided data projected onto the first n principal components
+  :param df_col: pandas Series (df column)
+  :param n_components: number of principal components that shall be used for the data transformatation (dimensionality reduction)
+  """
   pca = sklearn.decomposition.PCA(n_components)
   X = df_col_to_matrix(df_col) #reshape dataframe column consisting of ndarrays as 2D matrix
   return pca.fit_transform(X)
 
 def distance_classifier(df):
+  """Handmade classifier that computes the center of each class and then assigns each datapoint the class with the closest centerpoint
+   """
   classes = list(set(df['shape']))
   mean_vectors = [mean_vector(list(df[df['shape']==c]['hidden_repr'])) for c in classes]
   for i, c in enumerate(classes):
@@ -141,6 +150,7 @@ def distance_classifier(df):
   return df
 
 def logistic_regression(df):
+  """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the training accuracy"""
   X = df_col_to_matrix(df['hidden_repr'])
   Y = df['shape']
   lr = sklearn.linear_model.LogisticRegression()
@@ -148,6 +158,7 @@ def logistic_regression(df):
   return lr.score(X,Y)
 
 def svm(df):
+  """ Fits a SVM with linear kernel on the data and returns the training accuracy"""
   X = df_col_to_matrix(df['hidden_repr'])
   Y = df['shape']
   svc = sklearn.svm.SVC(kernel='linear')
@@ -155,6 +166,16 @@ def svm(df):
   return svc.score(X, Y)
 
 def avg_distance(df, similarity_type = 'cos'):
+  """ Computes the average pairwise distance (a: euclidean, b:cosine) of data instances within
+  the same class and with different class labels
+  :returns avg pairwise distance of data instances with the same class label
+  :returns avg pairwise distance of data instances with different class label
+  :param dataframe including the colummns hidden_repr and shape
+  :param similarity_type - either 'cos' or 'euc'
+  """
+  assert similarity_type in ['cos', 'euc']
+  assert 'hidden_repr' in list(df) and 'shape' in list(df)
+
   same_class_dist_array = []
   out_class_dist_array = []
   vectors = list(df['hidden_repr'])
@@ -171,8 +192,6 @@ def avg_distance(df, similarity_type = 'cos'):
       else:
         out_class_dist_array.append(distance)
   return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
-
-
 
 def plot_confusion_matrix(df):
   """This function computes the large square confusion matrix with the dimensions being of shape (num_shapes * num_directions) and plots it using matplotlib"""
@@ -210,7 +229,6 @@ def plot_confusion_matrix(df):
   plt.figure(figsize=(64,64))
   sn.heatmap(df_cm, annot=True)
   sn.plt.show()
-
 
 def compute_small_confusion_matrix(df, shape1, shape2):
   """Used to compute a square confusion matrix with the dimensions being of shape
@@ -260,7 +278,6 @@ def compute_small_confusion_matrix(df, shape1, shape2):
       confusion_matrix[i,j] = similarity_lists_means.get(str(shape1) + '_' + str(shape2) + '_' + str(direction1) + '_' + str(direction2))
 
   return confusion_matrix
-
 
 def main():
   #visualize_hidden_representations()

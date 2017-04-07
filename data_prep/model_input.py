@@ -116,7 +116,8 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           image_seq_tensor = tf.image.per_image_standardization(image_seq_tensor)
 
         if mode == 'valid' or mode == 'test':
-          batch_size = get_number_of_records(filenames)
+          if not batch_size:
+            batch_size = get_number_of_records(filenames)
           assert batch_size > 0
           image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
               [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size)

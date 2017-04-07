@@ -231,12 +231,9 @@ def create_model():
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 1000, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', None, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
-
-
-  return train_model, val_model
 
 
 def learning_rate_decay(initial_learning_rate, itr, decay_factor=0.0):

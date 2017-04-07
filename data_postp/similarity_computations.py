@@ -198,7 +198,7 @@ def plot_confusion_matrix(df):
     if(shape1 == 'circular' and shape2 == 'square'): x = 0; y = 16
     if(shape1 == 'triangle' and shape2 == 'circular'): x = 8; y = 0
     if(shape1 == 'triangle' and shape2 == 'triangle'): x = 8; y = 8
-    if(shape1 == 'triangle' and shape2 == 'square'): x = 8; y = 0
+    if(shape1 == 'triangle' and shape2 == 'square'): x = 8; y = 16
     if(shape1 == 'square' and shape2 == 'circular'): x = 16; y = 0
     if(shape1 == 'square' and shape2 == 'triangle'): x = 16; y = 8
     if(shape1 == 'square' and shape2 == 'square'): x = 16; y = 16

@@ -188,11 +188,6 @@ def plot_confusion_matrix(df):
   for (shape1, shape2) in list(itertools.product(different_shapes, different_shapes)):
     print('x:', x)
     print('y:', y)
-    print('computing matrix for: ' + shape1, shape2)
-    intermediate_matrix = compute_small_confusion_matrix(df, shape1, shape2)
-    print('inserting small into large confusion matrix')
-    large_confusion_matrix[x:x+intermediate_matrix.shape[0], y:y+intermediate_matrix.shape[1]] = intermediate_matrix
-
     if(shape1 == 'circular' and shape2 == 'circular'): x = 0; y = 0
     if(shape1 == 'circular' and shape2 == 'triangle'): x = 0; y = 8
     if(shape1 == 'circular' and shape2 == 'square'): x = 0; y = 16
@@ -202,6 +197,11 @@ def plot_confusion_matrix(df):
     if(shape1 == 'square' and shape2 == 'circular'): x = 16; y = 0
     if(shape1 == 'square' and shape2 == 'triangle'): x = 16; y = 8
     if(shape1 == 'square' and shape2 == 'square'): x = 16; y = 16
+    print('computing matrix for: ' + shape1, shape2)
+    intermediate_matrix = compute_small_confusion_matrix(df, shape1, shape2)
+    print('inserting small into large confusion matrix')
+    large_confusion_matrix[x:x+intermediate_matrix.shape[0], y:y+intermediate_matrix.shape[1]] = intermediate_matrix
+
 
   print(large_confusion_matrix)
 

@@ -9,8 +9,10 @@ from sklearn.manifold import TSNE
 import scipy
 import sklearn.metrics.pairwise as sk_pairwise
 import pandas as pd
+import itertools
+import seaborn as sn
 
-PICKLE_FILE_DEFAULT = '/data/rothfuss/training/03-28-17_15-50/valid_run/hidden_repr_df_04-04-17_15-18-53.pickle'
+PICKLE_FILE_DEFAULT = '/data/rothfuss/training/03-28-17_15-50/valid_run/metadata_and_hidden_rep_df_04-06-17_20-23-45.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -170,18 +172,100 @@ def avg_distance(df, similarity_type = 'cos'):
         out_class_dist_array.append(distance)
   return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
 
-def compute_confusion_matrix(df):
-  """"""
+
+
+def plot_confusion_matrix(df):
+  """This function computes the large square confusion matrix with the dimensions being of shape (num_shapes * num_directions) and plots it using matplotlib"""
+
+  different_shapes = df['shape'].unique()
+  different_directions = df['motion_location'].unique()
+  large_confusion_matrix = np.zeros(shape=(len(different_shapes) * len(different_directions), len(different_shapes) * len(different_directions)))
+
+
+  x = 0
+  y = 0
+
+  for (shape1, shape2) in list(itertools.product(different_shapes, different_shapes)):
+    print('computing matrix for: ' + shape1, shape2)
+    intermediate_matrix = compute_small_confusion_matrix(df, 'circular', 'triangle')
+    print('inserting small into large confusion matrix')
+    large_confusion_matrix[x:x+intermediate_matrix.shape[0], y:y+intermediate_matrix.shape[1]] = intermediate_matrix
+
+    x += len(different_directions)
+    if x >= large_confusion_matrix.shape[0]:
+      x = 0
+    y += len(different_directions)
+    if y >= large_confusion_matrix.shape[1]:
+      y = 0
+
+  # TODO: create plot here
+  print(large_confusion_matrix)
+
+  df_cm = pd.DataFrame(large_confusion_matrix, index = [i for i in np.concatenate([different_directions, different_directions, different_directions])],
+                       columns = [i for i in np.concatenate([different_directions, different_directions, different_directions])])
+  plt.figure(figsize=(64,64))
+  sn.heatmap(df_cm, annot=True)
+  sn.plt.show()
+
+
+def compute_small_confusion_matrix(df, shape1, shape2):
+  """Used to compute a square confusion matrix with the dimensions being of shape
+  (num_directions_of_shape1 * num_directions_of_shape2). It
+   1st: computes the similarity between every vector given by df,
+        i.e. for every motion combination of the individual shapes
+   2nd: computes the mean values for every motion combination
+   3rd: assigns the mean values to a numpy array and returns it
+  """
+
+  subset_of_shape_1 = df.loc[df['shape'] == shape1]
+  subset_of_shape_2 = df.loc[df['shape'] == shape2]
+
+  different_directions = subset_of_shape_1['motion_location'].unique()
+
+  vectors_1 = list(subset_of_shape_1['hidden_repr'])
+  vectors_2 = list(subset_of_shape_2['hidden_repr'])
+  labels_1 = list(subset_of_shape_1['shape'])
+  labels_2 = list(subset_of_shape_2['shape'])
+  motions_1 = list(subset_of_shape_1['motion_location'])
+  motions_2 = list(subset_of_shape_2['motion_location'])
+
+  # initialize the resulting matrix
+  confusion_matrix = np.zeros(shape=(len(different_directions), len(different_directions)))
+
+  # use a dictionary of lists for all shape-motion combinations to collect the similarity values (keys are for example 'circular_circular_top_leftbottom')
+  similarity_lists = {}
+  for (shape1, shape2, direction1, direction2) in list(itertools.product([shape1], [shape2], different_directions, different_directions)):
+    # adding to list is slow but no extra increment needed for number of elements
+    similarity_lists[str(shape1) + '_' + str(shape2) + '_' + str(direction1) + '_' + str(direction2)] = []
+
+  # iterate through the hidden representations, assign the to the dictionary lists appropriately
+  for i, (v1, l1, m1) in enumerate(zip(vectors_1, labels_1, motions_1)):
+    for j, (v2, l2, m2) in enumerate(zip(vectors_2, labels_2, motions_2)):
+      distance = compute_cosine_similarity(v1, v2)
+      similarity_lists.get(str(l1) + '_' + str(l2) + '_' + str(m1) + '_' + str(m2)).append(distance)
+
+  # compute the mean for every shape-motion combination list
+  similarity_lists_means = {}
+  for k, v in similarity_lists.items():
+    if float(sum(v)) is not None:
+      similarity_lists_means[k] = float(sum(v)) / len(v)
+
+  # assign the means to the previously initialized matrix
+  for i, direction1 in enumerate(different_directions):
+    for j, direction2 in enumerate(different_directions):
+      confusion_matrix[i,j] = similarity_lists_means.get(str(shape1) + '_' + str(shape2) + '_' + str(direction1) + '_' + str(direction2))
+
+  return confusion_matrix
 
 
 def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
-
+  plot_confusion_matrix(df)
   #print(svm(df))
   #print(logistic_regression(df))
-  print(avg_distance(df, 'cos'))
+  #print(avg_distance(df, 'cos'))
 
 if __name__ == "__main__":
   main()

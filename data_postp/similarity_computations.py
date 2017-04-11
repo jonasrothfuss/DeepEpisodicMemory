@@ -12,7 +12,7 @@ import pandas as pd
 import itertools
 import seaborn as sn
 
-PICKLE_FILE_DEFAULT = '/localhome/rothfuss/data/df.pickle'
+PICKLE_FILE_DEFAULT = '/home/jonasrothfuss/Dropbox/Privat/Data_Analysis_Latent_Space/hidden_repr_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -81,7 +81,6 @@ def compute_cosine_similarity(vector_a, vector_b):
   numerator = sum(a * b for a, b in zip(vector_a, vector_b))
   denominator = square_rooted(vector_a) * square_rooted(vector_b)
   return round(numerator / float(denominator), 3)
-
 
 def square_rooted(x):
     return round(sqrt(sum([a * a for a in x])), 3)
@@ -186,12 +185,41 @@ def avg_distance(df, similarity_type = 'cos'):
       if similarity_type == 'cos':
         distance = compute_cosine_similarity(v1, v2)
       elif similarity_type == 'euc':
-        distance = np.square(np.sum((v1.flatten() - v2.flatten())**2))
+        distance = np.sqrt(np.sum((v1.flatten() - v2.flatten())**2))
       if l1==l2:
         same_class_dist_array.append(distance)
       else:
         out_class_dist_array.append(distance)
   return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
+
+def similarity_matrix(df, df_label_col, similarity_type = 'cos'):
+  assert 'hidden_repr' in list(df) and df_label_col in list(df)
+  assert similarity_type in ['cos', 'euc']
+  labels = list(set(df[df_label_col]))
+  n = len(labels)
+  sim_matrix = np.zeros([n, n])
+  for i in range(n):
+    for j in range(n):
+      print(i,j, labels[i], labels[j])
+      vectors1 = list(df[df[df_label_col] == labels[i]]['hidden_repr'])
+      vectors2 = list(df[df[df_label_col] == labels[j]]['hidden_repr'])
+      sim = []
+      for k, v1 in enumerate(vectors1):
+        for v2 in vectors2:
+          if similarity_type is 'cos':
+            sim.append(compute_cosine_similarity(v1, v2))
+          else:
+            sim.append(np.sqrt(np.sum((v1.flatten() - v2.flatten())**2)))
+      assert(len(sim)==len(vectors1)*len(vectors2))
+      print(np.mean(sim))
+      sim_matrix[i,j] = np.mean(sim)
+  df_cm = pd.DataFrame(sim_matrix, index=labels, columns=labels)
+  df_cm.to_pickle('/home/jonasrothfuss/Desktop/sim_matrix.pickle')
+  plt.figure(figsize=(64, 64))
+  sn.set(font_scale=4)
+  sn.heatmap(df_cm, annot=True, annot_kws={"size":35})
+  sn.plt.show()
+  return sim_matrix
 
 def plot_confusion_matrix(df):
   """This function computes the large square confusion matrix with the dimensions being of shape (num_shapes * num_directions) and plots it using matplotlib"""
@@ -283,7 +311,9 @@ def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
-  plot_confusion_matrix(df)
+  #print(similarity_matrix(df, 'shape'))
+
+  #plot_confusion_matrix(df)
   #print(svm(df))
   #print(logistic_regression(df))
   #print(avg_distance(df, 'cos'))

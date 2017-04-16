@@ -38,6 +38,7 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -89,6 +90,7 @@ class Model:
       frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
                                                           decoder_future_length,
                                                           decoder_reconst_length,
+                                                          uniform_init=FLAGS.uniform_init,
                                                           num_channels=FLAGS.num_channels,
                                                           fc_conv_layer=FLAGS.fc_layer)
     else: # -> validation or test model
@@ -96,6 +98,7 @@ class Model:
         frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
                                                             decoder_future_length,
                                                             decoder_reconst_length,
+                                                            uniform_init=FLAGS.uniform_init,
                                                             num_channels=FLAGS.num_channels,
                                                             fc_conv_layer=FLAGS.fc_layer)
 

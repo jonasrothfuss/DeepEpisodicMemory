@@ -11,6 +11,7 @@ import time
 import pandas as pd
 import json
 
+
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 from models import model
@@ -27,10 +28,10 @@ OUT_DIR = '/data/rothfuss/training/'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/data/rothfuss/training/03-28-17_15-50'
+PRETRAINED_MODEL = ''#'/data/rothfuss/training/03-28-17_15-50'
 
 # use pre-trained model and run validation only
-VALID_ONLY = True
+VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
@@ -43,7 +44,7 @@ flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be dra
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
-flags.DEFINE_bool('fc_layer', False, 'indicates whether fully connected layer shall be added between encoder and decoder')
+flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.00002, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.005, 'initial learning rate for Adam optimizer')
 
@@ -234,10 +235,11 @@ def create_model():
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', None, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 300, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
-
+  
+  return train_model, val_model
 
 def learning_rate_decay(initial_learning_rate, itr, decay_factor=0.0):
   return initial_learning_rate * math.e**(- decay_factor * itr)

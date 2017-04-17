@@ -2,6 +2,8 @@ from math import*
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 from matplotlib import pyplot as plt
 import collections
 import sklearn

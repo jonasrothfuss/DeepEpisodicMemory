@@ -14,21 +14,26 @@ import json
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
-from models import model
 from models import loss_functions
+
+""" Set Model From Model Zoo"""
+from models.model_zoo import model_conv5_fc128 as model
+""""""
+
 
 LOSS_FUNCTIONS = ['mse', 'gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
-OUT_DIR = '/data/rothfuss/training/'
+#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
+#OUT_DIR = '/data/rothfuss/training/'
 #DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation'
-#OUT_DIR = '/localhome/rothfuss/training'
+OUT_DIR = '/localhome/rothfuss/training'
+DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''#'/data/rothfuss/training/03-28-17_15-50'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/04-21-17_16-56'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -46,7 +51,7 @@ flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.00002, 'learning rate decay factor')
-flags.DEFINE_integer('learning_rate', 0.005, 'initial learning rate for Adam optimizer')
+flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')

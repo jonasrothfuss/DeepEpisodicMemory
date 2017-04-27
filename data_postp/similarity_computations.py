@@ -1,4 +1,6 @@
 from math import*
+import os
+from datetime import datetime
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 import numpy as np
@@ -14,7 +16,7 @@ import pandas as pd
 import itertools
 import seaborn as sn
 
-PICKLE_FILE_DEFAULT = '/home/jonasrothfuss/Dropbox/Privat/Data_Analysis_Latent_Space/hidden_repr_df.pickle' #'/localhome/rothfuss/data/df.pickle'
+PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -194,7 +196,7 @@ def avg_distance(df, similarity_type = 'cos'):
         out_class_dist_array.append(distance)
   return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
 
-def similarity_matrix(df, df_label_col, similarity_type = 'cos'):
+def similarity_matrix(df, df_label_col,  similarity_type= 'cos'):
   assert 'hidden_repr' in list(df) and df_label_col in list(df)
   assert similarity_type in ['cos', 'euc']
   labels = list(set(df[df_label_col]))
@@ -216,11 +218,19 @@ def similarity_matrix(df, df_label_col, similarity_type = 'cos'):
       print(np.mean(sim))
       sim_matrix[i,j] = np.mean(sim)
   df_cm = pd.DataFrame(sim_matrix, index=labels, columns=labels)
-  df_cm.to_pickle('/home/jonasrothfuss/Desktop/sim_matrix.pickle')
+  print(df_cm)
+  df_cm.to_pickle(os.path.join(os.path.dirname(FLAGS.pickle_file),'sim_matrix_' + similarity_type +'.pickle'))
   plt.figure(figsize=(64, 64))
-  sn.set(font_scale=4)
-  sn.heatmap(df_cm, annot=True, annot_kws={"size":35})
-  sn.plt.show()
+  sn.set(font_scale=10)
+  ax = sn.heatmap(df_cm, annot=True, annot_kws={"size":90})
+  if n > 5:
+    #rotate x-axis labels
+    for item in ax.get_xticklabels():
+      item.set_rotation(90)
+  heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),'sim_matrix_' + df_label_col + '_'+  similarity_type +'.png')
+  plt.savefig(heatmap_file_name, dpi=100)
+  print('Dumped Heatmap to:', heatmap_file_name)
+  plt.show()
   return sim_matrix
 
 def plot_confusion_matrix(df):
@@ -309,10 +319,27 @@ def compute_small_confusion_matrix(df, shape1, shape2):
 
   return confusion_matrix
 
+def classifier_analysis(df):
+  string_to_dump = str(datetime.now()) + '\n' + '---- SVM ----\nAccuracy: ' + str(svm(df)) + '\n' \
+                   + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(logistic_regression(df)) + '\n'
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),'classifier_analysis' + '.txt')
+  print(string_to_dump)
+  with open(dump_file_name, 'w') as file:
+    file.write(string_to_dump)
+
+
 def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
+  #print(df)
+
+  similarity_matrix(df, "shape")
+  similarity_matrix(df, "motion_location")
+  classifier_analysis(df)
+
+
+
   #print(similarity_matrix(df, 'shape'))
 
   #plot_confusion_matrix(df)

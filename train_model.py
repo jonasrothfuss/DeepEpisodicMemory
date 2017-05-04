@@ -7,7 +7,7 @@ import os
 import datetime as dt
 import moviepy.editor as mpy
 import re
-import time
+import time, datetime
 import pandas as pd
 import json
 
@@ -17,7 +17,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc128 as model
+from models.model_zoo import model_conv5_fc_lstm_128 as model
 """"""
 
 
@@ -27,17 +27,17 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 FLAGS = flags.FLAGS
 #DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
 #OUT_DIR = '/data/rothfuss/training/'
-#DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation'
+DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation/tfrecords_meta'
 OUT_DIR = '/localhome/rothfuss/training'
-DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
+#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/04-21-17_16-56'
+PRETRAINED_MODEL = '' #'/localhome/rothfuss/training/04-27-17_20-40'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
-VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
@@ -46,11 +46,11 @@ flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, 
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
-flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 1, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 19, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 1, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
-flags.DEFINE_float('learning_rate_decay', 0.00002, 'learning rate decay factor')
+flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
 
 #IO specifications
@@ -458,6 +458,13 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   print("Dumped df pickle to", filename)
   return df
 
+def write_metainfo(output_dir):
+  with open(os.path.join(output_dir, 'metainfo.txt'), 'w+') as f:
+    f.write('\n' + '---- Training: ' + str(datetime.datetime.now()) + ' ----' + '\n')
+    f.write('model' + ':  ' + str(os.path.basename(model.__file__)) + '\n') #print model name
+    for key, value in FLAGS.__flags.items():
+      f.write(str(key) + ':  ' + str(value) + '\n')
+
 def main(unused_argv):
 
   # run validation only
@@ -480,6 +487,7 @@ def main(unused_argv):
       print('Reusing provided session directory:', output_dir)
 
     tf.logging.info(' --- TRAIN+VALID MODE --- ')
+    write_metainfo(output_dir)
     train_valid_run(output_dir)
 
 

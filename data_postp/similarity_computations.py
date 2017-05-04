@@ -16,8 +16,10 @@ import pandas as pd
 import itertools
 import seaborn as sn
 
-PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
+# PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
+#/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
 
+PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
@@ -233,7 +235,7 @@ def similarity_matrix(df, df_label_col,  similarity_type= 'cos'):
   plt.show()
   return sim_matrix
 
-def plot_confusion_matrix(df):
+def plot_similarity_shape_motion_matrix(df):
   """This function computes the large square confusion matrix with the dimensions being of shape (num_shapes * num_directions) and plots it using matplotlib"""
 
   different_shapes = df['shape'].unique()
@@ -262,12 +264,14 @@ def plot_confusion_matrix(df):
     large_confusion_matrix[x:x+intermediate_matrix.shape[0], y:y+intermediate_matrix.shape[1]] = intermediate_matrix
 
 
-  print(large_confusion_matrix)
+  #print(large_confusion_matrix)
 
   df_cm = pd.DataFrame(large_confusion_matrix, index = [i for i in np.concatenate([different_directions, different_directions, different_directions])],
                        columns = [i for i in np.concatenate([different_directions, different_directions, different_directions])])
   plt.figure(figsize=(64,64))
   sn.heatmap(df_cm, annot=True)
+  heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),'large_sim_matrix.png')
+  plt.savefig(heatmap_file_name, dpi=100)
   sn.plt.show()
 
 def compute_small_confusion_matrix(df, shape1, shape2):
@@ -337,12 +341,12 @@ def main():
   similarity_matrix(df, "shape")
   similarity_matrix(df, "motion_location")
   classifier_analysis(df)
-
+  #plot_confusion_matrix(df)
 
 
   #print(similarity_matrix(df, 'shape'))
 
-  #plot_confusion_matrix(df)
+  #plot_similarity_shape_motion_matrix(df)
   #print(svm(df))
   #print(logistic_regression(df))
   #print(avg_distance(df, 'cos'))

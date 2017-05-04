@@ -17,7 +17,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_128 as model
+from models.model_zoo import model_conv5_fc_lstm_128_noise as model
 """"""
 
 
@@ -27,13 +27,13 @@ LOSS_FUNCTIONS = ['mse', 'gdl']
 FLAGS = flags.FLAGS
 #DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
 #OUT_DIR = '/data/rothfuss/training/'
-DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation/tfrecords_meta'
+#DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation/tfrecords_meta'
 OUT_DIR = '/localhome/rothfuss/training'
-#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
+DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '' #'/localhome/rothfuss/training/04-27-17_20-40'
+PRETRAINED_MODEL = ''#'/localhome/rothfuss/training/05-04-17_11-04'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -46,12 +46,13 @@ flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, 
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
-flags.DEFINE_string('encoder_length', 1, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 19, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 1, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
+flags.DEFINE_float('noise_std', 0.1, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -91,14 +92,25 @@ class Model:
     self.output_dir = out_dir
     self.label = video_id
     self.metadata = metadata
+    self.noise_std = tf.placeholder_with_default(FLAGS.noise_std, ())
+
 
     if reuse_scope is None: #train model
-      frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
-                                                          decoder_future_length,
-                                                          decoder_reconst_length,
-                                                          uniform_init=FLAGS.uniform_init,
-                                                          num_channels=FLAGS.num_channels,
-                                                          fc_conv_layer=FLAGS.fc_layer)
+      if FLAGS.noise_std > 0.0: #noise mode
+        frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
+                                                            decoder_future_length,
+                                                            decoder_reconst_length,
+                                                            noise_std=self.noise_std,
+                                                            uniform_init=FLAGS.uniform_init,
+                                                            num_channels=FLAGS.num_channels,
+                                                            fc_conv_layer=FLAGS.fc_layer)
+      else: #no noise
+        rames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
+                                                                        decoder_future_length,
+                                                                        decoder_reconst_length,
+                                                                        uniform_init=FLAGS.uniform_init,
+                                                                        num_channels=FLAGS.num_channels,
+                                                                        fc_conv_layer=FLAGS.fc_layer)
     else: # -> validation or test model
       with tf.variable_scope(reuse_scope, reuse=True):
         frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
@@ -234,7 +246,6 @@ def create_model():
   with tf.variable_scope('train_model', reuse=None) as training_scope:
     # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
     train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
-
     train_batch = tf.cast(train_batch, tf.float32)
     train_model = Model(train_batch, video_id_batch, 'train')
 
@@ -459,7 +470,7 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   return df
 
 def write_metainfo(output_dir):
-  with open(os.path.join(output_dir, 'metainfo.txt'), 'w+') as f:
+  with open(os.path.join(output_dir, 'metainfo.txt'), 'a') as f:
     f.write('\n' + '---- Training: ' + str(datetime.datetime.now()) + ' ----' + '\n')
     f.write('model' + ':  ' + str(os.path.basename(model.__file__)) + '\n') #print model name
     for key, value in FLAGS.__flags.items():

@@ -21,7 +21,7 @@ from models.model_zoo import model_conv5_fc_lstm_128_noise as model
 """"""
 
 
-LOSS_FUNCTIONS = ['mse', 'gdl']
+LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
@@ -33,7 +33,7 @@ DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''#'/localhome/rothfuss/training/05-04-17_11-04'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/05-04-17_22-43'
 
 # use pre-trained model and run validation only
 VALID_ONLY = False

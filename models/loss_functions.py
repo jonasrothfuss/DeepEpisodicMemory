@@ -69,6 +69,9 @@ def decoder_loss(frames_gen, frames_original, loss_fun):
   elif loss_fun == 'gdl':
     for i in range(len(frames_gen)):
       loss += gradient_difference_loss(frames_original[:, i, :, :, :], frames_gen[i])
+  elif loss_fun == 'mse_gdl':
+    for i in range(len(frames_gen)):
+      loss += 0.4 * gradient_difference_loss(frames_original[:, i, :, :, :], frames_gen[i]) + 0.6 * mean_squared_error(frames_original[:, i, :, :, :], frames_gen[i])
   else:
     raise Exception('Unknown loss funcion type')
   return loss

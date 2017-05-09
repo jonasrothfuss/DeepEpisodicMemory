@@ -1,4 +1,4 @@
-import pafy, json, sys, os, os.path, moviepy, imageio
+import math, pafy, json, sys, os, os.path, moviepy, imageio
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pathlib import Path
 from moviepy.editor import *
@@ -11,7 +11,6 @@ def activity_net_db_from_json(json_file_location):
         activity_net_db = json.load(file)['database']
     return activity_net_db
 
-# extracts and saves subclip from video file starting at t1 and ending at t2
 # t1 and t2 in seconds
 def extract_subclip(file_location, t1, t2, target_location):
     try:
@@ -142,9 +141,8 @@ def create_directories_if_necessary(activity_net_target_dir):
             os.mkdir(dir)
     return download_dir, subclip_dir
 
-
-if __name__ == '__main__':
-    #activity_net_db_location, activity_net_target_dir = handle_prompt_input()
+def main():
+    # activity_net_db_location, activity_net_target_dir = handle_prompt_input()
     activity_net_db_location = '/common/homes/students/rothfuss/Downloads/metadata.json'
     activity_net_target_dir = '/common/homes/students/rothfuss/Downloads/'
     print(activity_net_db_location, activity_net_target_dir)
@@ -153,3 +151,7 @@ if __name__ == '__main__':
     activity_net_dict = activity_net_db_from_json(activity_net_db_location)
     metadata_dict = download_activity_net(activity_net_dict, download_dir)
     extract_subclips(metadata_dict, target_dir=subclip_dir)
+
+
+if __name__ == '__main__':
+    main()

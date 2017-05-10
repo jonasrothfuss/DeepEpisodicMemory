@@ -33,11 +33,11 @@ DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''
+PRETRAINED_MODEL = '/localhome/rothfuss/training/05-04-17_22-43'
 
 # use pre-trained model and run validation only
-VALID_ONLY = False
-VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_ONLY = True
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters

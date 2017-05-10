@@ -2,6 +2,7 @@ import math, pafy, json, sys, os, os.path, moviepy, imageio, os
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pathlib import Path
 from moviepy.editor import *
+from data_prep import convertToRecords
 
 def crop_and_resize_video(video_path, output_dir, target_format=(128, 128), relative_crop_displacement=0.0):
   assert -1 <= relative_crop_displacement <= 1
@@ -30,16 +31,45 @@ def crop_and_resize_video(video_path, output_dir, target_format=(128, 128), rela
   clip_resized.write_videofile(result_video_path)
 
 
+def get_ucf_video_category(taxonomy_list, label):
+  return search_list_of_dicts(taxonomy_list, 'nodeName', label)[0]['parentName']
+
+
+def search_list_of_dicts(list_of_dicts, key_label, search_label):
+  return [entry for entry in list_of_dicts if entry[key_label] == search_label]
+
+def create_metadata_dict():
+
+
 if __name__ == '__main__':
   # load subclip dict
   json_file_location = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
+  json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   output_dir = '/common/homes/students/rothfuss/Videos'
+  categories = []
   with open(json_file_location) as file:
     subclip_dict = json.load(file)
+
+  with open(json_file_location_taxonomy) as file:
+    database_dict = json.load(file)
+
+  taxonomy_list = database_dict['taxonomy']
   for i, (key, clip) in enumerate(subclip_dict.items()):
+    metadata_dict = {}
+    label = clip['label']
     video_path = clip['path']
-    crop_and_resize_video(video_path, output_dir)
-    crop_and_resize_video(video_path, output_dir, relative_crop_displacement=-1)
-    crop_and_resize_video(video_path, output_dir, relative_crop_displacement=1)
+    duration = clip['duration']
+    url = clip['url']
+
+    video_id = convertToRecords.get_meta_info(video_path)
+    #crop_and_resize_video(video_path, output_dir)
+    #crop_and_resize_video(video_path, output_dir, relative_crop_displacement=-1)
+    #crop_and_resize_video(video_path, output_dir, relative_crop_displacement=1)
+
+    #categories.append(get_ucf_video_category(taxonomy_list, label))
+    category = get_ucf_video_category(taxonomy_list, label)
+
     if i > 2:
       break
+
+

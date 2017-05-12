@@ -17,7 +17,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_128 as model
+from models.model_zoo import model_conv5_fc_lstm_128_noise as model
 """"""
 
 
@@ -33,17 +33,17 @@ DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/05-04-17_22-43'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/05-10-17_18-25'
 
 # use pre-trained model and run validation only
-VALID_ONLY = True
+VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 100, 'specify the batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
@@ -52,7 +52,7 @@ flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the 
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
-flags.DEFINE_float('noise_std', 0.0, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
+flags.DEFINE_float('noise_std', 0.5, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')

@@ -206,14 +206,16 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   print('Total videos found: ' + str(len(filenames)))
   i = 1
-  filenames_splitted = list(chunks(filenames, videos_per_file))
-  for batch in filenames_splitted:
+  filenames_split = list(chunks(filenames, videos_per_file))
+  for batch in filenames_split:
     data, meta_info = convert_avi_to_numpy(batch, use_meta)
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i, total_batch_number)
     meta_info = []
     i += 1
+
+
 
 def get_meta_info(filename):
   """extracts meta information from video file names

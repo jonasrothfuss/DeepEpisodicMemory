@@ -1,4 +1,4 @@
-## General
+## Tensorboard
 ##### Running tensorboard without docker:
 python3 /usr/local/lib/python3.4/dist-packages/tensorflow/tensorboard/tensorboard.py --logdir=/data/rothfuss/training/
 
@@ -8,6 +8,14 @@ ssh -L 6007:127.0.0.1:6006 rothfuss@xxxxx032
 ## Using virtualenv
 ##### Run python 3.4 virtual environment:
 source ~/p3.4/bin/activate
+
+## Installing Tensorflow 0.12.1 (Python 2.7, Ubuntu 64, with GPU)
+export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-0.12.1-cp27-none-linux_x86_64.whl
+pip install --upgrade $TF_BINARY_URL
+
+## Installing Tensorflow 0.12.1 (Python 3.4, Ubuntu 64, with GPU)
+export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-0.12.1-cp34-cp34m-linux_x86_64.whl
+pip3 install --upgrade $TF_BINARY_URL
 
 ## Using Docker
 Container content: TensorFlow r0.12.0 rc1 CUDA8.0 cuDNN 5 Python 3.4.3

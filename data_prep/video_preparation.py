@@ -156,13 +156,13 @@ def prepare_and_store_video(source_video_path, output_dir, target_time_interval,
                                        relative_crop_displacement=relative_crop_displacement)
 
   print("writing video: " + target_video_path)
-  clip_resized.write_videofile(target_video_path)
+  clip_resized.write_videofile(target_video_path, codec='rawvideo')
   kill_process(clip_resized)
 
 def generate_video_name(source_video_name, target_format, relative_crop_displacement, time_interval):
   return source_video_name + '_' + str(target_format[0]) + 'x' + str(target_format[1]) + '_' \
                       + str("%.2f" % relative_crop_displacement) + '_' + "(%.1f,%.1f)" % time_interval\
-                      + '.mp4'
+                      + '.avi'
 
 def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_taxonomy, output_dir, target_format=(128,128)):
   categories = []
@@ -228,7 +228,7 @@ def video_time_interval_suggestions(video_duration, max_num_suggestions=4):
   :param video_length: duration of video in seconds
   :return: array of tuples representing time intervals [(t1_start, t1_end), (t2_start, t2_end), ...]
   """
-  assert (video_duration > 3), "video to short to crop (duration < 3 sec)"
+  assert (video_duration > 3), "video too short to crop (duration < 3 sec)"
   suggestions = []
   if video_duration < 4:
     margin = (4-video_duration)/2
@@ -252,7 +252,7 @@ def main():
   json_file_location = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
   json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
-
+  #output_dir = '/data/rothfuss/data/test_videos/'
   prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
 
 

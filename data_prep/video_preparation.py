@@ -2,9 +2,12 @@ import math, pafy, json, sys, os, os.path, moviepy, os
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from moviepy.editor import *
 import tensorflow as tf
+from utils import io_handler
 from tensorflow.python.platform import gfile
 import random
 import subprocess
+import re
+import scenedetect
 
 
 
@@ -41,6 +44,7 @@ def crop_and_resize_video(video_path, output_dir, video_file_clip=None, target_f
   clip_crop = moviepy.video.fx.all.crop(clip, x1=x1, y1=y1, width=size, height=size)
   return moviepy.video.fx.all.resize(clip_crop, newsize=target_format)
 
+
 def get_ucf_video_category(taxonomy_list, label):
   """requires the ucf101 taxonomy tree structure (from json file) and the clip label (e.g. 'Surfing)
   in order to find the corresponding category (e.g. 'Participating in water sports)''"""
@@ -53,18 +57,7 @@ def search_list_of_dicts(list_of_dicts, dict_key, dict_value):
   return [entry for entry in list_of_dicts if entry[dict_key] == dict_value]
 
 
-def get_metadata_dict_as_bytes(value):
-  return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
-
-
-def get_filename_filetype_from_path(path):
-  """extracts and returns both filename (e.g. 'video_1') and filetype (e.g. 'mp4') from a given absolute path"""
-  filename = os.path.basename(path)
-  video_id, filetype = filename.split(".")
-  return video_id, filetype
-
-
-def get_metadata_dict_entry(clip_dict_entry, taxonomy_list):
+def get_metadata_dict_entry(subclip_dict_entry, taxonomy_list):
   """constructs and returns a dict entry consisting of the following entries (with UCF 101 example values):
   - label (Scuba diving)
   - category (Participating in water sports)
@@ -75,38 +68,60 @@ def get_metadata_dict_entry(clip_dict_entry, taxonomy_list):
   - url (https://www.youtube.com/watch?v=m_ST2LDe5lA)"""
   meta_dict_entry = {}
 
-  label = clip_dict_entry['label']
-  video_path = clip_dict_entry['path']
-  duration = clip_dict_entry['duration']
-  url = clip_dict_entry['url']
-  mode = clip_dict_entry['subset']
-  video_id, filetype = get_filename_filetype_from_path(video_path)
+  label = subclip_dict_entry['label']
+  video_path = subclip_dict_entry['path']
+  duration = subclip_dict_entry['duration']
+  url = subclip_dict_entry['url']
+  mode = subclip_dict_entry['subset']
+  video_id, filetype = io_handler.get_filename_and_filetype_from_path(video_path)
   category = get_ucf_video_category(taxonomy_list, label)
 
-  meta_dict_entry['label'] = label
-  meta_dict_entry['category'] = category
-  meta_dict_entry['video_id'] = video_id
-  meta_dict_entry['filetype'] = filetype
-  meta_dict_entry['duration'] = duration
-  meta_dict_entry['mode'] = mode
-  meta_dict_entry['url'] = url
+  meta_dict_entry['label'] = str(label)
+  meta_dict_entry['category'] = str(category)
+  meta_dict_entry['video_id'] = str(video_id)
+  meta_dict_entry['filetype'] = str(filetype)
+  meta_dict_entry['duration'] = str(duration)
+  meta_dict_entry['mode'] = str(mode)
+  meta_dict_entry['url'] = str(url)
 
   return meta_dict_entry
 
-def create_ucf101_metadata_dicts(subclip_dict, database_dict):
+
+def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_file_location_taxonomy, file_type="*.avi"):
   """construcs a list of dicts. Requires the json.load returns of the metadata files;
   single clip dict and database / taxonomy dict (e.g. UCF101: metadata_subclips.json and metadata.json"""
-  taxonomy_list = database_dict['taxonomy']
-  meta_dict = []
 
-  for i, (key, clip) in enumerate(subclip_dict.items()):
-    entry = get_metadata_dict_entry(clip, taxonomy_list)
-    meta_dict.append(entry)
+  filenames = io_handler.files_from_directory(video_dir, file_type)
+
+  if not filenames:
+    raise RuntimeError('No data files found.')
+
+  # load dictionaries
+  with open(json_file_location_taxonomy) as file:
+    database_dict = json.load(file)
+
+  with open(subclip_json_file_location) as file:
+    subclip_dict = json.load(file)
+
+
+  taxonomy_list = database_dict['taxonomy']
+  meta_dict = {}
+  p = re.compile('^([a-zA-Z0-9_-]+_[0-9]+)_\d{3}')
+
+  for video_path in filenames:
+    results = io_handler.get_video_id_from_path(video_path, 'UCF101')
+    if results is None:
+      continue
+    video_id = results.group(1)
+    subclip_dict_entry = subclip_dict[video_id + ".mp4"]
+    new_entry = get_metadata_dict_entry(subclip_dict_entry, taxonomy_list)
+    meta_dict.update({video_id : new_entry})
 
   return meta_dict
 
+
 def extract_subvideo(video_path, target_time_interval=(1, 4)):
-  """ Returns an instance of VideoFileClip of the initial video with the content between times start_time and end_time.
+  """ Returns an instance of VideoFileClip of the initial video with the content between times start and end_time.
   In the case end_time exceeds the true end_time of the clip the entire clip starting from start_time is returned.
   Should the video's duration be smaller than the given start_time, the original video is returned immediately without
   trimming. Also, should the specified subvideo length (end_time - start_time) exceed the video duration, the original
@@ -132,6 +147,7 @@ def extract_subvideo(video_path, target_time_interval=(1, 4)):
   assert abs(sub_clip.duration - end_time + start_time) < 0.001 # ensure that sub_clip has desired length
   # returning both for killing since ffmpeg implementation produces zombie processes
   return sub_clip
+
 
 def prepare_and_store_video(source_video_path, output_dir, target_time_interval, target_format=(128,128), relative_crop_displacement=0.0):
   sub_clip = None
@@ -159,10 +175,12 @@ def prepare_and_store_video(source_video_path, output_dir, target_time_interval,
   clip_resized.write_videofile(target_video_path, codec='rawvideo')
   kill_process(clip_resized)
 
+
 def generate_video_name(source_video_name, target_format, relative_crop_displacement, time_interval):
   return source_video_name + '_' + str(target_format[0]) + 'x' + str(target_format[1]) + '_' \
                       + str("%.2f" % relative_crop_displacement) + '_' + "(%.1f,%.1f)" % time_interval\
                       + '.avi'
+
 
 def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_taxonomy, output_dir, target_format=(128,128)):
   categories = []
@@ -171,15 +189,7 @@ def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_
   with open(subclip_json_file_location) as file:
     subclip_dict = json.load(file)
 
-  with open(json_file_location_taxonomy) as file:
-    database_dict = json.load(file)
-
-  # metadata = create_ucf101_metadata_dicts(subclip_dict, database_dict)
-
-  # video_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
-  # dest_path = os.path.dirname(output_dir)
-  file_paths = gfile.Glob(os.path.join(output_dir, '*.mp4'))
-  file_names = [os.path.basename(i) for i in file_paths]
+  file_names = io_handler.files_from_directory(output_dir, '*.avi')
 
   for i, (key, clip) in enumerate(subclip_dict.items()):
     try:
@@ -223,6 +233,7 @@ def kill_process(process):
   except:
     pass
 
+
 def video_time_interval_suggestions(video_duration, max_num_suggestions=4):
   """
   :param video_length: duration of video in seconds
@@ -247,13 +258,40 @@ def video_time_interval_suggestions(video_duration, max_num_suggestions=4):
 
   return suggestions
 
+
+def crap_detect(video_dir):
+  detector_list = [
+    scenedetect.detectors.ThresholdDetector(threshold=16, min_percent=0.6)
+  ]
+
+  file_paths = gfile.Glob(os.path.join(video_dir, '*.avi'))
+  l = []
+  for file_path in file_paths:
+    try:
+      print(file_path)
+      scene_list = []
+      video_framerate, frames_read = scenedetect.detect_scenes_file(
+        file_path, scene_list, detector_list)
+
+      # scene_list now contains the frame numbers of scene boundaries.
+      print(l)
+      if len(scene_list) >= 1:
+        l.append(file_path)
+    except:
+      pass
+
+
 def main():
   # load subclip dict
   json_file_location = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
   json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
   #output_dir = '/data/rothfuss/data/test_videos/'
-  prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
+  #prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
+  create_ucf101_metadata_dicts(output_dir, json_file_location, json_file_location_taxonomy, "*.avi")
+  #crap_detect(output_dir)
+
+
 
 
 if __name__ == '__main__':

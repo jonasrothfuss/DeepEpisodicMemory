@@ -341,7 +341,7 @@ def main():
   similarity_matrix(df, "shape")
   similarity_matrix(df, "motion_location")
   classifier_analysis(df)
-  #plot_confusion_matrix(df)
+  plot_similarity_shape_motion_matrix(df)
 
 
   #print(similarity_matrix(df, 'shape'))

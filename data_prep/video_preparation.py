@@ -1,9 +1,10 @@
-import math, pafy, json, sys, os, os.path, moviepy, imageio, os
+import math, pafy, json, sys, os, os.path, moviepy, os
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from moviepy.editor import *
 import tensorflow as tf
 from tensorflow.python.platform import gfile
 import random
+import subprocess
 
 
 def crop_and_resize_video(video_path, output_dir, video_file_clip=None, target_format=(128, 128), relative_crop_displacement=0.0):
@@ -20,7 +21,8 @@ def crop_and_resize_video(video_path, output_dir, video_file_clip=None, target_f
   if not os.path.isfile(video_path) or not os.path.isdir(output_dir) or not (-1 <= relative_crop_displacement <= 1):
     return None
 
-  if video_file_clip is not None:
+  print(video_path)
+  if video_file_clip is not None and hasattr(video_file_clip, 'reader'):
     clip = video_file_clip
   else:
     clip = VideoFileClip(video_path)
@@ -56,18 +58,25 @@ def extract_subvideo(video_path, target_time_interval=(1, 4)):
   start_time = target_time_interval[0]
   end_time = target_time_interval[1]
 
-  if not os.path.isfile(video_path) or not os.path.isdir(output_dir) or not (start_time < end_time):
+  if not os.path.isfile(video_path) or not (start_time < end_time):
     return None
-
+  
+  print(video_path)
   clip = VideoFileClip(video_path)
-
+  
+  if clip is None:
+      return None
+  
   if start_time > clip.duration or end_time - start_time > clip.duration:
       return clip
 
   if end_time > clip.duration:
     end_time = clip.end
 
-  return clip.subclip(start_time, end_time)
+  sub_clip = clip.subclip(start_time, end_time)
+
+  # returning both for killing since ffmpeg implementation produces zombie processes
+  return sub_clip
 
 
 
@@ -137,33 +146,57 @@ def create_ucf101_metadata_dicts(subclip_dict, database_dict):
   return meta_dict
 
 
-def prepare_and_store_video(video_path, output_dir, target_time_interval=None, target_format=(128,128), relative_crop_displacement=0.0, iter=0):
+def prepare_and_store_video(source_video_path, output_dir, target_time_interval=None, target_format=(128,128), relative_crop_displacement=0.0, iter=0):
   sub_clip = None
-  vid_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
+  source_video_name = os.path.basename(source_video_path).replace('.mp4', '').replace('.avi', '')
 
   if target_time_interval is not None:
     assert isinstance(target_time_interval, tuple), "provided target_time_interval is not a tuple"
     # do time trimming, else leave video at original length
-    sub_clip = extract_subvideo(video_path, target_time_interval=(target_time_interval[0], target_time_interval[1]))
-    if sub_clip is not None and sub_clip.duration < (target_time_interval[1] - target_time_interval[0]):
-      # skip video if it is shorter than specified
+    sub_clip = extract_subvideo(source_video_path, target_time_interval=(target_time_interval[0], target_time_interval[1]))
+    if sub_clip is None:
       return None
 
-  result_video_name = vid_name + '_' + str(target_format[0]) + 'x' + str(target_format[1]) + '_' \
-                      + str("%.3f" % relative_crop_displacement) + '_' + str(iter) + '.mp4'
-  result_video_path = os.path.join(output_dir, result_video_name)
+    if sub_clip is not None and sub_clip.duration < (target_time_interval[1] - target_time_interval[0]):
+      # skip video if it is shorter than specified
+      print('Video too short, skipping.')
+      kill_process(sub_clip)
+      subprocess.call(["pkill -9 -f " + source_video_path], shell=True)
+      return None
 
-  clip_resized = crop_and_resize_video(video_path, output_dir, video_file_clip=sub_clip, target_format=target_format,
-                        relative_crop_displacement=relative_crop_displacement)
+  target_video_name = source_video_name + '_' + str(target_format[0]) + 'x' + str(target_format[1]) + '_' \
+                      + str("%.3f" % abs(relative_crop_displacement)) + '_' + str(iter) + '.mp4'
+  target_video_path = os.path.join(output_dir, target_video_name)
+
+  clip_resized = crop_and_resize_video(source_video_path, output_dir, video_file_clip=sub_clip, target_format=target_format,
+                                       relative_crop_displacement=relative_crop_displacement)
+
+
   if clip_resized is not None:
-    clip_resized.write_videofile(result_video_path)
+    print("writing video: " + target_video_path)
+    clip_resized.write_videofile(target_video_path)
+    kill_process(clip_resized)
+
+  subprocess.call(["pkill -9 -f " + source_video_path], shell=True)
+
+
+def kill_process(process):
+  if hasattr(process, 'reader'):
+    process.reader.close()
+  if hasattr(process, 'audio'):
+    process.audio.reader.close_proc()
+
+  try:
+    process.__del__()
+  except:
+    pass
 
 
 if __name__ == '__main__':
   # load subclip dict
   json_file_location = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
   json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
-  output_dir = '/common/homes/students/rothfuss/Videos/ucf_prepared_videos'
+  output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
   categories = []
   with open(json_file_location) as file:
     subclip_dict = json.load(file)
@@ -178,6 +211,7 @@ if __name__ == '__main__':
   file_paths = gfile.Glob(os.path.join(output_dir, '*.mp4'))
   file_names = [os.path.basename(i) for i in file_paths]
 
+
   for i, (key, clip) in enumerate(subclip_dict.items()):
 
     label = clip['label']
@@ -190,5 +224,4 @@ if __name__ == '__main__':
     for j in range(5):
       sample_rel_crop_displacement = random.uniform(-0.7, 0.7)
       prepare_and_store_video(video_path, output_dir, target_time_interval=(1, 4), relative_crop_displacement=sample_rel_crop_displacement, iter=j)
-
 

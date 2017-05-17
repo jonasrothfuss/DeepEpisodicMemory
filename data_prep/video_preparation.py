@@ -2,12 +2,14 @@ import math, pafy, json, sys, os, os.path, moviepy, os
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from moviepy.editor import *
 import tensorflow as tf
+#import utils.io_handler
 from utils import io_handler
 from tensorflow.python.platform import gfile
 import random
 import subprocess
 import re
 import scenedetect
+from pprint import pprint
 
 
 
@@ -88,8 +90,19 @@ def get_metadata_dict_entry(subclip_dict_entry, taxonomy_list):
 
 
 def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_file_location_taxonomy, file_type="*.avi"):
-  """construcs a list of dicts. Requires the json.load returns of the metadata files;
-  single clip dict and database / taxonomy dict (e.g. UCF101: metadata_subclips.json and metadata.json"""
+  """
+  construcs a list of dicts. Requires the json.load returns of the metadata files;
+  single clip dict and database / taxonomy dict (e.g. UCF101: metadata_subclips.json and metadata.json
+
+  :param: video_dir: path to directory containing the video files
+  :param: subclip_json_file_location: path to json file with meta information about the subclips in video_dir
+  :param: json_file_location_taxonomy: path to json file containing the ucf101 class hirarchy
+  :param: file_type: postfix of video files in video_dir -> indicates the video format used
+  :returns:
+  """
+  assert os.path.isdir(video_dir)
+  assert os.path.isfile(subclip_json_file_location) and os.path.isfile(json_file_location_taxonomy)
+  assert file_type in ["*.avi", "*.mp4"]
 
   filenames = io_handler.files_from_directory(video_dir, file_type)
 
@@ -108,15 +121,13 @@ def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_fil
   meta_dict = {}
   p = re.compile('^([a-zA-Z0-9_-]+_[0-9]+)_\d{3}')
 
-  for video_path in filenames:
-    results = io_handler.get_video_id_from_path(video_path, 'UCF101')
-    if results is None:
-      continue
-    video_id = results.group(1)
+  for i, video_path in enumerate(filenames):
+    video_id = io_handler.get_video_id_from_path(video_path, 'UCF101')
     subclip_dict_entry = subclip_dict[video_id + ".mp4"]
     new_entry = get_metadata_dict_entry(subclip_dict_entry, taxonomy_list)
     meta_dict.update({video_id : new_entry})
 
+  assert len(meta_dict) == len(set([io_handler.get_video_id_from_path(video_path, 'UCF101') for video_path in filenames]))
   return meta_dict
 
 
@@ -183,14 +194,13 @@ def generate_video_name(source_video_name, target_format, relative_crop_displace
 
 
 def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_taxonomy, output_dir, target_format=(128,128)):
-  categories = []
-
   # load dictionaries
   with open(subclip_json_file_location) as file:
     subclip_dict = json.load(file)
 
   file_names = io_handler.files_from_directory(output_dir, '*.avi')
 
+  num_clips = len(subclip_dict)
   for i, (key, clip) in enumerate(subclip_dict.items()):
     try:
       label, subset, video_path, duration = clip['label'], clip['subset'], clip['path'], clip['duration']
@@ -218,8 +228,9 @@ def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_
           finally:
             subprocess.call(["pkill -9 -f " + video_path], shell=True)
 
+      print('[%d of %d]  '%(i, num_clips) + 'Successfully processed video (' + str(video_path) + ')')
     except Exception as e:
-      print('Failed to process video (' + str(video_path) + ') ---' + str(e))
+      print('[%d of %d]  '%(i, num_clips) + 'Failed to process video (' + str(video_path) + ') ---' + str(e))
 
 
 def kill_process(process):
@@ -287,8 +298,7 @@ def main():
   json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
   #output_dir = '/data/rothfuss/data/test_videos/'
-  #prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
-  create_ucf101_metadata_dicts(output_dir, json_file_location, json_file_location_taxonomy, "*.avi")
+  prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
   #crap_detect(output_dir)
 
 

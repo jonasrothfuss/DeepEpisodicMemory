@@ -26,10 +26,10 @@ WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'UCF101']
 
-SOURCE = '/data/rothfuss/data/ucf101_prepared_videos'
-DESTINATION = '/data/rothfuss/data/test_records'
-METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
-METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/metadata.json'
+SOURCE = '/data/rothfuss/data/ucf101_test_videos'
+DESTINATION = '/data/rothfuss/data/ucf101_test_tfrecords'
+METADATA_SUBCLIPS_DICT = '/data/rothfuss/data/ucf101_test_videos/metadata_subclips.json'
+METADATA_TAXONOMY_DICT = '/data/rothfuss/data/ucf101_test_videos/metadata.json'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('num_videos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -37,7 +37,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', None, 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', 'UCF101', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -178,7 +178,8 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None):
         else:
           getNextFrame(cap)
 
-    #print(str(i + 1) + " of " + str(number_of_videos) + " videos processed")
+    print(str(i + 1) + " of " + str(number_of_videos) + " videos processed")
+    print(filenames[i])
     data[i, :, :, :, :] = video
     cap.release()
   return data, meta_info
@@ -189,7 +190,7 @@ def chunks(l, n):
   for i in range(0, len(l), n):
     yield l[i:i + n]
 
-def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, use_meta=FLAGS.use_meta):
+def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, video_filenames=None):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
   :param source_path: directory where avi videos are stored
   :param destination_path: directory where tfrecords should be stored
@@ -198,7 +199,10 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   """
   assert type in ALLOWED_TYPES, str(type) + " is not an allowed type"
 
-  filenames = gfile.Glob(os.path.join(source_path, FILE_FILTER))
+  if video_filenames is not None:
+    filenames = video_filenames
+  else:
+    filenames = gfile.Glob(os.path.join(source_path, FILE_FILTER))
   if not filenames:
     raise RuntimeError('No data files found.')
 
@@ -266,7 +270,12 @@ def getNextFrame(cap):
   return np.asarray(frame)
 
 def main(argv):
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, use_meta=FLAGS.use_meta, type=FLAGS.type)
+  #data_1 = '/common/homes/students/rothfuss/Downloads/pc032_rothfuss_data'
+  #data_2 = '/common/homes/students/rothfuss/Downloads/pc031_rothfuss_data'
+  #data_3 = '/common/homes/students/rothfuss/Downloads/pc027_rothfuss_data'
+  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
+
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, video_filenames=all_files_shuffled)
 
 if __name__ == '__main__':
   app.run()

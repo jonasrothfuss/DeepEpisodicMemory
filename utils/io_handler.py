@@ -2,11 +2,16 @@ import os
 from tensorflow.python.platform import gfile
 import tensorflow as tf
 import re
+import random
 
 
 def files_from_directory(dir_str, file_type):
   file_paths = gfile.Glob(os.path.join(dir_str, file_type))
   return [os.path.basename(i) for i in file_paths]
+
+def file_paths_from_directory(dir_str, file_type):
+  file_paths = gfile.Glob(os.path.join(dir_str, file_type))
+  return file_paths
 
 
 def get_filename_and_filetype_from_path(path):
@@ -34,3 +39,18 @@ def get_video_id_from_path(path_str, type=None):
     return video_id
   else: #just return filename without extension
     return video_name.replace('.avi', '').replace('.mp4', '')
+
+def shuffle_files_in_list(paths_list):
+  """
+  generates a list of randomly shuffled paths of the files contained in the provided directories
+  :param paths_list: list with different path locations containing the files
+  :return: returns two lists, one with the content of all the given directories in the provided order and another
+  containing the same list randomly shuffled
+  """
+  assert paths_list is not None
+  all_files = []
+  for path_entry in paths_list:
+    print(path_entry)
+    all_files.extend(file_paths_from_directory(path_entry, '*.avi'))
+
+  return all_files, random.sample(all_files, len(all_files))

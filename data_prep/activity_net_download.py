@@ -21,8 +21,8 @@ def extract_subclip(file_location, t1, t2, target_location):
 
 
 def meta_already_downloaded(destination_directory, metadata_file_name):
-    if os.path.isfile(destination_directory + metadata_file_name):  # dump metadata dict already exists
-        with open(destination_directory + metadata_file_name, 'r') as f:
+    if os.path.isfile(os.path.join(destination_directory, metadata_file_name)):  # dump metadata dict already exists
+        with open(os.path.join(destination_directory, metadata_file_name), 'r') as f:
             already_downloaded_dict = json.load(f)
         return already_downloaded_dict
     else:

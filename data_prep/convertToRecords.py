@@ -26,10 +26,10 @@ WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'UCF101']
 
-SOURCE = '/data/rothfuss/data/ucf101_test_videos'
-DESTINATION = '/data/rothfuss/data/ucf101_test_tfrecords'
-METADATA_SUBCLIPS_DICT = '/data/rothfuss/data/ucf101_test_videos/metadata_subclips.json'
-METADATA_TAXONOMY_DICT = '/data/rothfuss/data/ucf101_test_videos/metadata.json'
+SOURCE = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/'
+DESTINATION = '/localhome/rothfuss/data/ucf101/tf_records/'
+METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
+METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('num_videos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -246,7 +246,7 @@ def get_meta_info(filename, type=None, meta_dict = None):
       video_id = io_handler.get_video_id_from_path(base, type)
       assert video_id in meta_dict, 'could not find meta information for video ' + video_id + ' in the meta_dict'
       meta_info = meta_dict[video_id]
-      meta_info['id'] = video_id
+      meta_info['id'] = base.replace('.avi', '').replace('.mp4', '')
 
   else: # type=None --> only include video id as meta information
     meta_info = {'id': io_handler.get_video_id_from_path(base)}
@@ -270,11 +270,12 @@ def getNextFrame(cap):
   return np.asarray(frame)
 
 def main(argv):
-  #data_1 = '/common/homes/students/rothfuss/Downloads/pc032_rothfuss_data'
-  #data_2 = '/common/homes/students/rothfuss/Downloads/pc031_rothfuss_data'
-  #data_3 = '/common/homes/students/rothfuss/Downloads/pc027_rothfuss_data'
-  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
-
+  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source]) 
+ #with open('/common/homes/students/rothfuss/Downloads/shuffled_videos.txt', 'r') as f:
+  #  content = f.read()
+  #  all_files_shuffled = content.split('\n')
+  #print('Collected %i Video Files'%len(all_files_shuffled))
+  all_files_shuffled = all_files_shuffled[0:140000]
   save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, video_filenames=all_files_shuffled)
 
 if __name__ == '__main__':

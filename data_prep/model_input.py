@@ -19,7 +19,7 @@ NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 # specifies the number of pre-processing threads
-NUM_THREADS = 4
+NUM_THREADS = 16
 
 # Constants used for dealing with the tf records files, aligned with convertToRecords.
 flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')

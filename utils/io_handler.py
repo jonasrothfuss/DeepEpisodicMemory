@@ -40,7 +40,7 @@ def get_video_id_from_path(path_str, type=None):
   else: #just return filename without extension
     return video_name.replace('.avi', '').replace('.mp4', '')
 
-def shuffle_files_in_list(paths_list):
+def shuffle_files_in_list(paths_list, seed=5):
   """
   generates a list of randomly shuffled paths of the files contained in the provided directories
   :param paths_list: list with different path locations containing the files
@@ -52,5 +52,5 @@ def shuffle_files_in_list(paths_list):
   for path_entry in paths_list:
     print(path_entry)
     all_files.extend(file_paths_from_directory(path_entry, '*.avi'))
-
+  random.seed(a=seed)	
   return all_files, random.sample(all_files, len(all_files))

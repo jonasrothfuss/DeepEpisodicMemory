@@ -17,7 +17,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_128_noise as model
+from models.model_zoo import model_conv5_fc_lstm_1024_deep as model
 """"""
 
 
@@ -29,12 +29,11 @@ FLAGS = flags.FLAGS
 #OUT_DIR = '/data/rothfuss/training/'
 #DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation/tfrecords_meta'
 OUT_DIR = '/localhome/rothfuss/training'
-DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes/tfrecords_meta'
+DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/05-10-17_18-25'
-
+PRETRAINED_MODEL = ''
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
@@ -43,16 +42,16 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 100, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 30, 'specify the batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
-flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 10, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 10, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 10, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
-flags.DEFINE_float('noise_std', 0.5, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
+flags.DEFINE_float('noise_std', 0.0, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -251,7 +250,7 @@ def create_model():
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 300, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 200, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
   

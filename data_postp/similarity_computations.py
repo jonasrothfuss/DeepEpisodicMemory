@@ -8,9 +8,9 @@ import numpy as np
 #mpl.use('Agg')
 #import matplotlib
 #matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 import collections
 import sklearn
 from sklearn.manifold import TSNE

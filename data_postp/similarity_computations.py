@@ -6,7 +6,11 @@ from tensorflow.python.platform import app
 import numpy as np
 import matplotlib as mpl
 mpl.use('Agg')
-from matplotlib import pyplot as plt
+#import matplotlib
+#matplotlib.use('TkAgg')
+#import matplotlib.pyplot as plt
+
+#from matplotlib import pyplot as plt
 import collections
 import sklearn
 from sklearn.manifold import TSNE
@@ -18,8 +22,11 @@ import seaborn as sn
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 #/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
-
-PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
+#PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09
+# -06-48.pickle'
+#PICKLE_FILE_DEFAULT ='/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private
+# repository/DeepEpisodicMemory/data/hidden_repr_df_04-04-17_15-18-53.pickle'
+PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private repository/DeepEpisodicMemory/data/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
@@ -92,14 +99,30 @@ def square_rooted(x):
     return round(sqrt(sum([a * a for a in x])), 3)
 
 
-def visualize_hidden_representations(hidden_representations, labels):
-  X = np.array([[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]])
-  model = TSNE(n_components=2, random_state=0)
-  data = model.fit_transform(X)
+def visualize_hidden_representations(pickle_hidden_representations):
+    # shatter 1000x8x8x16 to 1000x1024 dimensions
+    labels = list(pickle_hidden_representations['shape'])
+    values = df_col_to_matrix(pickle_hidden_representations['hidden_repr'])
+    Y_data = np.asarray(labels)
 
-  # plot the result
-  plt.scatter(data[:, 0], data[:, 1])
-  plt.show()
+
+    for i, entry in enumerate(Y_data):
+        if  entry == 'square':
+            Y_data[i] = 's'
+        if entry == 'circular':
+            Y_data[i] = 'o'
+        if entry == 'triangle':
+            Y_data[i] = '^'
+
+    model = TSNE(n_components=23, random_state=0, method='exact')
+    data = model.fit_transform(values)
+
+    for xp, yp, m in zip(data[:, 0], data[:, 1], Y_data):
+        plt.scatter([xp],[yp], marker=m)
+
+    plt.show()
+
+
 
 def mean_vector(vector_list):
   """Computes the mean vector from a list of ndarrays
@@ -336,12 +359,14 @@ def main():
   #visualize_hidden_representations()
   #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
-  #print(df)
+  print(df)
+  visualize_hidden_representations(df)
 
-  similarity_matrix(df, "shape")
-  similarity_matrix(df, "motion_location")
-  classifier_analysis(df)
-  plot_similarity_shape_motion_matrix(df)
+
+  #similarity_matrix(df, "shape")
+  #similarity_matrix(df, "motion_location")
+  #classifier_analysis(df)
+  #plot_similarity_shape_motion_matrix(df)
 
 
   #print(similarity_matrix(df, 'shape'))

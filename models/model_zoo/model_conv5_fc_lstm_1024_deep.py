@@ -151,7 +151,7 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, sco
       hidden4 = tf_layers.layer_norm(hidden4, scope='layer_norm7')
 
       #Layer 8: upconv4 (64x64 -> 128x128)
-      upconv4 = slim.layers.conv2d_transpose(hidden4, 16, 5, stride=2, scope='upconv4', normalizer_fn=tf_layers.layer_norm, weights_initializer=initializer,
+      upconv4 = slim.layers.conv2d_transpose(hidden4, hidden4.get_shape()[3], 5, stride=2, scope='upconv4', normalizer_fn=tf_layers.layer_norm, weights_initializer=initializer,
                                              normalizer_params={'scope': 'layer_norm8'})
 
       #LAYER 9: convLSTM5

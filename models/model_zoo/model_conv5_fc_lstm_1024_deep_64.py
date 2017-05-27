@@ -7,8 +7,8 @@ from models.conv_lstm import basic_conv_lstm_cell
 
 # Amount to use when lower bounding tensors
 RELU_SHIFT = 1e-12
-FC_LAYER_SIZE = 1024
-FC_LSTM_LAYER_SIZE = 1024
+FC_LAYER_SIZE = 800
+FC_LSTM_LAYER_SIZE = 800
 
 # kernel size for DNA and CDNA.
 DNA_KERN_SIZE = 5
@@ -49,7 +49,7 @@ def encoder_model(frames, sequence_length, initializer, scope='encoder', fc_conv
                                   normalizer_params={'scope': 'layer_norm3'})
 
       #LAYER 4: convLSTM2
-      hidden2, lstm_state2 = basic_conv_lstm_cell(conv2, lstm_state2, 64, initializer, filter_size=5, scope='convlstm2')
+      hidden2, lstm_state2 = basic_conv_lstm_cell(conv2, lstm_state2, 32, initializer, filter_size=5, scope='convlstm2')
       hidden2 = tf_layers.layer_norm(hidden2, scope='layer_norm4')
 
       #LAYER 5: conv3
@@ -57,7 +57,7 @@ def encoder_model(frames, sequence_length, initializer, scope='encoder', fc_conv
                                   normalizer_params={'scope': 'layer_norm5'})
 
       #LAYER 6: convLSTM3
-      hidden3, lstm_state3 = basic_conv_lstm_cell(conv3, lstm_state3, 64, initializer, filter_size=3, scope='convlstm3')
+      hidden3, lstm_state3 = basic_conv_lstm_cell(conv3, lstm_state3, 32, initializer, filter_size=3, scope='convlstm3')
       hidden3 = tf_layers.layer_norm(hidden3, scope='layer_norm6')
 
 
@@ -138,7 +138,7 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, sco
                                              normalizer_params={'scope': 'layer_norm4'})
 
       #LAYER 5: convLSTM3
-      hidden3, lstm_state3 = basic_conv_lstm_cell(upconv2, lstm_state3, 64, initializer, filter_size=3, scope='convlstm3')
+      hidden3, lstm_state3 = basic_conv_lstm_cell(upconv2, lstm_state3, 32, initializer, filter_size=3, scope='convlstm3')
       hidden3 = tf_layers.layer_norm(hidden3, scope='layer_norm5')
 
       # LAYER 6: upconv3 (32x32 -> 64x64)
@@ -147,12 +147,11 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, sco
                                              normalizer_params={'scope': 'layer_norm6'})
 
       #LAYER 7: convLSTM4
-      hidden4, lstm_state4 = basic_conv_lstm_cell(upconv3, lstm_state4, 64, initializer, filter_size=5, scope='convlstm4')
+      hidden4, lstm_state4 = basic_conv_lstm_cell(upconv3, lstm_state4, 32, initializer, filter_size=5, scope='convlstm4')
       hidden4 = tf_layers.layer_norm(hidden4, scope='layer_norm7')
 
       #Layer 8: upconv4 (64x64 -> 128x128)
-      upconv4 = slim.layers.conv2d_transpose(hidden4, 16, 5, stride=2, scope='upconv4', normalizer_fn=tf_layers.layer_norm, weights_initializer=initializer,
-                                             normalizer_params={'scope': 'layer_norm8'})
+      upconv4 = slim.layers.conv2d_transpose(hidden4, hidden4.get_shape()[3], 5, stride=2, scope='upconv4', normalizer_fn=tf_layers.layer_norm, weights_initializer=initializer, normalizer_params={'scope': 'layer_norm8'})
 
       #LAYER 9: convLSTM5
       hidden5, lstm_state5 = basic_conv_lstm_cell(upconv4, lstm_state5, 32, initializer, filter_size=5, scope='convlstm5')

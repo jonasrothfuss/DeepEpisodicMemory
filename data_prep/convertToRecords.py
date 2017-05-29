@@ -275,7 +275,7 @@ def main(argv):
   #  content = f.read()
   #  all_files_shuffled = content.split('\n')
   #print('Collected %i Video Files'%len(all_files_shuffled))
-  all_files_shuffled = all_files_shuffled[0:140000]
+  all_files_shuffled = all_files_shuffled[140000:]
   save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, video_filenames=all_files_shuffled)
 
 if __name__ == '__main__':

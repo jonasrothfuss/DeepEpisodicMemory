@@ -30,9 +30,9 @@ DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
 
 
 # use pretrained model
-PRETRAINED_MODEL = ''
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/05-29-17_18-07'
 # use pre-trained model and run validation only
-VALID_ONLY = False
+VALID_ONLY = True
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 

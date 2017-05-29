@@ -25,11 +25,10 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-#DATA_PATH = '/localhome/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
-#OUT_DIR = '/data/rothfuss/training/'
-#DATA_PATH = '/localhome/rothfuss/data/PlanarRobotManipulation/tfrecords_meta'
-OUT_DIR = '/localhome/rothfuss/training'
-DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
+#OUT_DIR = '/localhome/rothfuss/training'
+#DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
+OUT_DIR = '/home/ubuntu/training'
+DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 
 
 # use pretrained model
@@ -43,11 +42,12 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 30, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 200, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 
-flags.DEFINE_string('encoder_length', 10, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 10, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 10, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
@@ -250,7 +250,7 @@ def create_model():
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', 200, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
   

@@ -39,7 +39,7 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 16, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 32, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 8, 'specifies the number of available GPUs of the machine')
@@ -66,7 +66,7 @@ flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
 # intervals
 flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -214,42 +214,44 @@ def train_valid_run(output_dir):
   ''' main training loop '''
   try:
     for itr in range(initializer.itr_start, initializer.itr_start + FLAGS.num_iterations):
-      if initializer.coord.should_stop():
-        break
+      try:
+        if initializer.coord.should_stop():
+          break
 
-      #Training Step on batch
-      learning_rate = learning_rate_decay(FLAGS.learning_rate, itr, decay_factor=FLAGS.learning_rate_decay)
-      feed_dict = {train_model.learning_rate: learning_rate, train_model.elapsed_time: float(elapsed_time)}
+        #Training Step on batch
+        learning_rate = learning_rate_decay(FLAGS.learning_rate, itr, decay_factor=FLAGS.learning_rate_decay)
+        feed_dict = {train_model.learning_rate: learning_rate, train_model.elapsed_time: float(elapsed_time)}
 
-      t = time.time()
-      train_loss, _, train_summary_str = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
-      elapsed_time = time.time() - t
+        t = time.time()
+        train_loss, _, train_summary_str = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
+        elapsed_time = time.time() - t
 
-      #validation
-      if itr % FLAGS.valid_interval == 1:
+        #validation
+        if itr % FLAGS.valid_interval == 1:
 
-        feed_dict = {val_model.learning_rate: 0.0}
+          feed_dict = {val_model.learning_rate: 0.0}
 
-        # summary and log
-        val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
+          # summary and log
+          val_loss, val_summary_str = initializer.sess.run([val_model.loss, val_model.sum_op], feed_dict)
 
-        summary_writer.add_summary(val_summary_str, itr)
+          summary_writer.add_summary(val_summary_str, itr)
 
-        #Print validation loss
-        tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
+          #Print validation loss
+          tf.logging.info(' Validation loss at step ' + str(itr) + ':    ' + str(val_loss))
 
-      #dump summary
-      if itr % FLAGS.summary_interval == 1:
-        summary_writer.add_summary(train_summary_str, itr)
+        #dump summary
+        if itr % FLAGS.summary_interval == 1:
+          summary_writer.add_summary(train_summary_str, itr)
 
-      #save model checkpoint
-      if itr % FLAGS.save_interval == 1:
-        save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr) #TODO also implement save operation in Initializer class
-        tf.logging.info(' Saved Model to: ' + str(save_path))
+        #save model checkpoint
+        if itr % FLAGS.save_interval == 1:
+          save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr) #TODO also implement save operation in Initializer class
+          tf.logging.info(' Saved Model to: ' + str(save_path))
 
-      #Print Interation and loss
-      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss) + ' | %.2f sec'%(elapsed_time))
-
+        #Print Interation and loss
+        tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss) + ' | %.2f sec'%(elapsed_time))
+      except Exception as e:
+        tf.logging.info('Training iteration ' + str(itr) + 'failed: ' + str(e.message))
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- iterations limit reached')
   finally:

@@ -15,7 +15,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv4 as model
+from models.model_zoo import model_conv5_fc_lstm_800_deep_64 as model
 """"""
 
 
@@ -39,10 +39,10 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 10, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 10, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 16, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 32, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
-flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
+flags.DEFINE_integer('num_gpus', 8, 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')

@@ -15,7 +15,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_256 as model
+from models.model_zoo import model_conv4 as model
 """"""
 
 
@@ -23,26 +23,26 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
-DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
-#OUT_DIR = '/home/ubuntu/training'
-#DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
+#OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
+#DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
+OUT_DIR = '/home/ubuntu/training'
+DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/05-29-17_18-07'
+PRETRAINED_MODEL = ''
 # use pre-trained model and run validation only
-VALID_ONLY = True
+VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 30, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 200, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 10, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 10, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
-flags.DEFINE_integer('num_gpus', 8, 'specifies the number of available GPUs of the machine')
+flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -71,74 +71,60 @@ flags.DEFINE_integer('save_interval', 2000, 'number of training steps between se
 
 class Model:
 
-  def __init__(self,
-               frames,
-               video_id,
-               summary_prefix,
-               encoder_length=FLAGS.encoder_length,
-               decoder_future_length=FLAGS.decoder_future_length,
-               decoder_reconst_length=FLAGS.decoder_reconst_length,
-               loss_fun=FLAGS.loss_function,
-               reuse_scope=None,
-               out_dir=None,
-               metadata=None
-               ):
+  def __init__(self, summary_prefix, reuse_scope=None):
 
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
-    self.iter_num = tf.placeholder(tf.int32, [])
+    self.iter_num = tf.placeholder_with_default(FLAGS.num_iterations, ())
     self.summaries = []
-    self.output_dir = out_dir
-    self.label = video_id
-    self.metadata = metadata
     self.noise_std = tf.placeholder_with_default(FLAGS.noise_std, ())
+    self.opt = tf.train.AdamOptimizer(self.learning_rate)
 
+    if reuse_scope is None:  # train model
+      tower_grads = []
+      tower_losses = []
+      for i in range(FLAGS.num_gpus):
+        with tf.device('/cpu:%d' % i):
+          train_batch, _, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
+                                                                int(math.ceil(
+                                                                  FLAGS.num_iterations / (FLAGS.batch_size * 20))),
+                                                                False)
+          train_batch = tf.cast(train_batch, tf.float32)
 
-    if reuse_scope is None: #train model
-      if FLAGS.noise_std > 0.0: #noise mode
-        frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
-                                                            decoder_future_length,
-                                                            decoder_reconst_length,
-                                                            noise_std=self.noise_std,
-                                                            uniform_init=FLAGS.uniform_init,
-                                                            num_channels=FLAGS.num_channels,
-                                                            fc_conv_layer=FLAGS.fc_layer)
-      else: #no noise
-        frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
-                                                                        decoder_future_length,
-                                                                        decoder_reconst_length,
-                                                                        uniform_init=FLAGS.uniform_init,
-                                                                        num_channels=FLAGS.num_channels,
-                                                                        fc_conv_layer=FLAGS.fc_layer)
-    else: # -> validation or test model
-      with tf.variable_scope(reuse_scope, reuse=True):
-        frames_pred, frames_reconst, hidden_repr = model.composite_model(frames, encoder_length,
-                                                            decoder_future_length,
-                                                            decoder_reconst_length,
-                                                            uniform_init=FLAGS.uniform_init,
-                                                            num_channels=FLAGS.num_channels,
-                                                            fc_conv_layer=FLAGS.fc_layer)
+        with tf.device('/gpu:%d' % i):
+          with tf.name_scope('%s_%d' % ('tower', i)):
+            loss = tower_loss(train_batch)
+            tower_losses.append(loss)
 
-    self.frames_pred = frames_pred
-    self.frames_reconst = frames_reconst
-    self.hidden_repr = hidden_repr
-    self.loss = loss_functions.composite_loss(frames, frames_pred, frames_reconst, loss_fun=loss_fun,
-                                        encoder_length=FLAGS.encoder_length,
-                                        decoder_future_length=FLAGS.decoder_future_length,
-                                        decoder_reconst_length=FLAGS.decoder_reconst_length)
+            # Reuse variables for the next tower.
+            tf.get_variable_scope().reuse_variables()
 
-    self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss)) # TODO: add video_id to summary
+            grads = self.opt.compute_gradients(loss)
+            tower_grads.append(grads)
 
-    if reuse_scope is None: #only measure time DURING training step
+      #copmute average loss
+      self.loss = average_losses(tower_losses)
+
+      #compute average over gradients of all towers
+      grads = average_gradients(tower_grads)
+
+      # Apply the gradients to adjust the shared variables.
+      self.train_op= self.opt.apply_gradients(grads)
+
+      #measure batch time
       self.elapsed_time = tf.placeholder(tf.float32, [])
       self.summaries.append(tf.summary.scalar('batch_duration', self.elapsed_time))
 
-    if reuse_scope: # only image summary if validation or test model
-      self.add_image_summary(summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length) #TODO: add more summaries
+    else: # validation model (single gpu)
+      self.loss, self.frames_pred, self.frames_reconst, self.hidden_repr, val_set, self.metadata, self.label\
+          = valid_operations(reuse_scope)
+
+      self.add_image_summary(summary_prefix, val_set, FLAGS.encoder_length, FLAGS.decoder_future_length,
+                               FLAGS.decoder_reconst_length)
 
     if reuse_scope and FLAGS.valid_only: # only valid mode - evaluate frame predictions for storage on disk
       self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
 
-    self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+    self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))
     self.sum_op = tf.summary.merge(self.summaries)
 
 
@@ -169,15 +155,9 @@ class Initializer:
     # Start Session and initialize variables
     self.status = True
 
-    # limit gpu RAM occupation
-    config = tf.ConfigProto(
-      #gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.4)
-      #gpu_options = tf.GPUOptions(allow_growth=True)
-    )
-
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
-    self.sess = tf.Session(config=config)
+    self.sess = tf.Session()
     self.sess.run(init_op)
 
     # Start input enqueue threads
@@ -209,22 +189,15 @@ class Initializer:
 def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
-    # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
-    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
-    train_batch = tf.cast(train_batch, tf.float32)
-    train_model = Model(train_batch, video_id_batch, 'train')
+    train_model = Model('train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
-    val_set = tf.cast(val_set, tf.float32)
-    val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
-  
+    val_model = Model('valid', reuse_scope=training_scope)
   return train_model, val_model
 
 def train_valid_run(output_dir):
   train_model, val_model = create_model()
-
 
   initializer = Initializer()
   initializer.start_session()
@@ -250,7 +223,7 @@ def train_valid_run(output_dir):
       feed_dict = {train_model.learning_rate: learning_rate, train_model.elapsed_time: float(elapsed_time)}
 
       t = time.time()
-      train_loss, _, train_summary_str, _ = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op, train_model.label], feed_dict)
+      train_loss, _, train_summary_str = initializer.sess.run([train_model.loss, train_model.train_op, train_model.sum_op], feed_dict)
       elapsed_time = time.time() - t
 
       #validation
@@ -276,7 +249,7 @@ def train_valid_run(output_dir):
         tf.logging.info(' Saved Model to: ' + str(save_path))
 
       #Print Interation and loss
-      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss))
+      tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss) + ' | %.2f sec'%(elapsed_time))
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done training -- iterations limit reached')
@@ -344,6 +317,103 @@ def valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
+def tower_loss(train_batch):
+  """
+  Build the computation graph from input frame sequences till loss of batch
+  :param device number for assining queue runner to CPU
+  :return batch loss (scalar)
+  """
+
+  frames_pred, frames_reconst, hidden_repr = model.composite_model(train_batch, FLAGS.encoder_length,
+                                                                   FLAGS.decoder_future_length,
+                                                                   FLAGS.decoder_reconst_length,
+                                                                   uniform_init=FLAGS.uniform_init,
+                                                                   num_channels=FLAGS.num_channels,
+                                                                   fc_conv_layer=FLAGS.fc_layer)
+
+  tower_loss = loss_functions.composite_loss(train_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
+                                encoder_length=FLAGS.encoder_length,
+                                decoder_future_length=FLAGS.decoder_future_length,
+                                decoder_reconst_length=FLAGS.decoder_reconst_length)
+  return tower_loss
+
+def valid_operations(training_scope):
+  val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size,
+                                                               int(math.ceil(
+                                                                 FLAGS.num_iterations / FLAGS.valid_interval) + 10),
+                                                               False)
+  val_set = tf.cast(val_set, tf.float32)
+
+  frames_pred, frames_reconst, hidden_repr = model.composite_model(val_set, FLAGS.encoder_length,
+                                                                   FLAGS.decoder_future_length,
+                                                                   FLAGS.decoder_reconst_length,
+                                                                   uniform_init=FLAGS.uniform_init,
+                                                                   num_channels=FLAGS.num_channels,
+                                                                   fc_conv_layer=FLAGS.fc_layer)
+
+  loss = loss_functions.composite_loss(val_set, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
+                                encoder_length=FLAGS.encoder_length,
+                                decoder_future_length=FLAGS.decoder_future_length,
+                                decoder_reconst_length=FLAGS.decoder_reconst_length)
+
+  return loss, frames_pred, frames_reconst, hidden_repr, val_set, metadata_batch, video_id_batch
+
+def average_gradients(tower_grads):
+  """Calculate the average gradient for each shared variable across all towers.
+  Note that this function provides a synchronization point across all towers.
+  Args:
+    tower_grads: List of lists of (gradient, variable) tuples. The outer list
+      is over individual gradients. The inner list is over the gradient
+      calculation for each tower.
+  Returns:
+     List of pairs of (gradient, variable) where the gradient has been averaged
+     across all towers.
+  """
+
+  average_grads = []
+
+  for grad_and_vars in zip(*tower_grads):
+    # Note that each grad_and_vars looks like the following:
+    #   ((grad0_gpu0, var0_gpu0), ... , (grad0_gpuN, var0_gpuN))
+    grads = []
+    for g, _ in grad_and_vars:
+      # Add 0 dimension to the gradients to represent the tower.
+      expanded_g = tf.expand_dims(g, 0)
+
+      # Append on a 'tower' dimension which we will average over below.
+      grads.append(expanded_g)
+
+    # Average over the 'tower' dimension.
+    grad = tf.concat(0, grads)
+    grad = tf.reduce_mean(grad, 0)
+
+    # Keep in mind that the Variables are redundant because they are shared
+    # across towers. So .. we will just return the first tower's pointer to
+    # the Variable.
+    v = grad_and_vars[0][1]
+    grad_and_var = (grad, v)
+    average_grads.append(grad_and_var)
+  return average_grads
+
+def average_losses(tower_losses):
+  """Calculate the average loss among all towers
+  Args:
+    tower_losses: List of tf.Tensor skalars denoting the loss at each tower.
+  Returns:
+     loss: tf.Tensor skalar which is the mean over all losses
+  """
+  losses = []
+  for l in tower_losses:
+    # Add 0 dimension to the gradients to represent the tower.
+    expanded_l = tf.expand_dims(l, 0)
+
+    # Append on a 'tower' dimension which we will average over below.
+    losses.append(expanded_l)
+
+  # Average over the 'tower' dimension.
+  loss = tf.concat(0, losses)
+  loss = tf.reduce_mean(loss, 0)
+  return loss
 
 def main(unused_argv):
 

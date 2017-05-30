@@ -210,13 +210,17 @@ def create_model():
   print('Constructing train model and input')
   with tf.variable_scope('train_model', reuse=None) as training_scope:
     # TODO: convert video_id's to utf 8 string (e.g. b'002328 to 002328)
-    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size, int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))), False)
+    train_batch, video_id_batch, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
+                                                        int(math.ceil(FLAGS.num_iterations/(FLAGS.batch_size * 20))),
+                                                        False)
     train_batch = tf.cast(train_batch, tf.float32)
     train_model = Model(train_batch, video_id_batch, 'train')
 
   print('Constructing validation model and input')
   with tf.variable_scope('val_model', reuse=None):
-    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size, int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10), False)
+    val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size,
+                                                                 int(math.ceil(FLAGS.num_iterations/FLAGS.valid_interval)+10),
+                                                                 False)
     val_set = tf.cast(val_set, tf.float32)
     val_model = Model(val_set, video_id_batch, 'valid', reuse_scope=training_scope, metadata=metadata_batch)
   

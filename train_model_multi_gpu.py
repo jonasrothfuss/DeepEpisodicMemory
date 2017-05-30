@@ -82,14 +82,12 @@ class Model:
     if reuse_scope is None:  # train model
       tower_grads = []
       tower_losses = []
+      train_batch, _, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
+                                             int(math.ceil(
+                                               FLAGS.num_iterations / (FLAGS.batch_size * 20))),
+                                             False)
+      train_batch = tf.cast(train_batch, tf.float32)
       for i in range(FLAGS.num_gpus):
-        with tf.device('/cpu:%d' % i):
-          train_batch, _, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
-                                                                int(math.ceil(
-                                                                  FLAGS.num_iterations / (FLAGS.batch_size * 20))),
-                                                                False)
-          train_batch = tf.cast(train_batch, tf.float32)
-
         with tf.device('/gpu:%d' % i):
           with tf.name_scope('%s_%d' % ('tower', i)):
             loss = tower_loss(train_batch)

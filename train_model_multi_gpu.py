@@ -99,14 +99,15 @@ class Model:
             grads = self.opt.compute_gradients(loss)
             tower_grads.append(grads)
 
-      #copmute average loss
-      self.loss = average_losses(tower_losses)
+      with tf.device('/cpu:0'):
+        #copmute average loss
+        self.loss = average_losses(tower_losses)
 
-      #compute average over gradients of all towers
-      grads = average_gradients(tower_grads)
+        #compute average over gradients of all towers
+        grads = average_gradients(tower_grads)
 
-      # Apply the gradients to adjust the shared variables.
-      self.train_op= self.opt.apply_gradients(grads)
+        # Apply the gradients to adjust the shared variables.
+        self.train_op= self.opt.apply_gradients(grads)
 
       #measure batch time
       self.elapsed_time = tf.placeholder(tf.float32, [])

@@ -130,9 +130,9 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           # We run this in two threads to avoid being a bottleneck.
           image_seq_batch, video_id_batch = tf.train.shuffle_batch(
             [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
-            capacity=100 * batch_size,
+            capacity=60*8* batch_size,
             # Ensures a minimum amount of shuffling of examples.
-            min_after_dequeue=50 * batch_size)
+            min_after_dequeue=10*8*batch_size)
           metadata_batch = None
 
         return image_seq_batch, video_id_batch, metadata_batch

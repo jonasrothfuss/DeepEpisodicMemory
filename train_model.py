@@ -348,7 +348,6 @@ def valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
-
 def main(unused_argv):
 
   # run validation only

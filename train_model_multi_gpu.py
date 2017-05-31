@@ -64,8 +64,8 @@ flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
                                               '"similarity": compute (cos) similarity matrix')
 
 # intervals
-flags.DEFINE_integer('valid_interval', 500, 'number of training steps between each validation')
-flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
+flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
+flags.DEFINE_integer('summary_interval', 50, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
 
 
@@ -82,21 +82,21 @@ class Model:
     if reuse_scope is None:  # train model
       tower_grads = []
       tower_losses = []
-      train_batch, _, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
-                                             int(math.ceil(
-                                               FLAGS.num_iterations / (FLAGS.batch_size * 20))),
-                                             False)
-      train_batch = tf.cast(train_batch, tf.float32)
       for i in range(FLAGS.num_gpus):
+        train_batch, _, _ = input.create_batch(FLAGS.path, 'train', FLAGS.batch_size,
+                                               int(math.ceil(
+                                                 FLAGS.num_iterations / (FLAGS.batch_size * 20))),
+                                               False)
+        train_batch = tf.cast(train_batch, tf.float32)
         with tf.device('/gpu:%d' % i):
           with tf.name_scope('%s_%d' % ('tower', i)):
-            loss = tower_loss(train_batch)
-            tower_losses.append(loss)
+            tower_loss, _, _, _ = tower_operations(train_batch)
+            tower_losses.append(tower_loss)
 
             # Reuse variables for the next tower.
             tf.get_variable_scope().reuse_variables()
 
-            grads = self.opt.compute_gradients(loss)
+            grads = self.opt.compute_gradients(tower_loss)
             tower_grads.append(grads)
 
       with tf.device('/cpu:0'):
@@ -114,11 +114,45 @@ class Model:
       self.summaries.append(tf.summary.scalar('batch_duration', self.elapsed_time))
 
     else: # validation model (single gpu)
-      self.loss, self.frames_pred, self.frames_reconst, self.hidden_repr, val_set, self.metadata, self.label\
-          = valid_operations(reuse_scope)
+      with tf.variable_scope(reuse_scope, reuse=True):
+        tower_losses, frames_pred_list, frames_reconst_list, hidden_repr_list, label_batch_list, \
+        metadata_batch_list, val_batch_list = [], [], [], [], [], [], []
+
+        for i in range(FLAGS.num_gpus):
+          val_batch, label_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size,
+                                               int(math.ceil(
+                                                 FLAGS.num_iterations / (FLAGS.batch_size * 20))),
+                                               False)
+
+          val_batch = tf.cast(val_batch, tf.float32)
+
+          with tf.device('/gpu:%d' % i):
+            with tf.name_scope('%s_%d' % ('tower', i)):
+              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch)
+              tower_losses.append(tower_loss)
+              frames_pred_list.append(frames_pred)
+              frames_reconst_list.append(frames_reconst)
+              hidden_repr_list.append(hidden_repr)
+
+              val_batch_list.append(val_batch)
+              label_batch_list.append(label_batch)
+              metadata_batch_list.append(metadata_batch)
+              # Reuse variables for the next tower.
+              tf.get_variable_scope().reuse_variables()
+
+        with tf.device('/cpu:0'):
+          # compute average loss
+          self.loss = average_losses(tower_losses)
+          # concatenate outputs of towers to one large tensor each
+          self.frames_pred = tf.concat(0, frames_pred_list)
+          self.frames_reconst = tf.concat(0, frames_reconst_list)
+          self.hidden_repr = tf.concat(0, hidden_repr_list)
+          self.label = tf.concat(0, label_batch_list)
+          self.metadata = tf.concat(0, metadata_batch_list)
+          val_set = tf.concat(0, val_batch_list)
 
       self.add_image_summary(summary_prefix, val_set, FLAGS.encoder_length, FLAGS.decoder_future_length,
-                               FLAGS.decoder_reconst_length)
+                           FLAGS.decoder_reconst_length)
 
     if reuse_scope and FLAGS.valid_only: # only valid mode - evaluate frame predictions for storage on disk
       self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
@@ -318,25 +352,25 @@ def valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
-def tower_loss(train_batch):
+def tower_operations(video_batch):
   """
   Build the computation graph from input frame sequences till loss of batch
   :param device number for assining queue runner to CPU
   :return batch loss (scalar)
   """
 
-  frames_pred, frames_reconst, hidden_repr = model.composite_model(train_batch, FLAGS.encoder_length,
+  frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
                                                                    FLAGS.decoder_future_length,
                                                                    FLAGS.decoder_reconst_length,
                                                                    uniform_init=FLAGS.uniform_init,
                                                                    num_channels=FLAGS.num_channels,
                                                                    fc_conv_layer=FLAGS.fc_layer)
 
-  tower_loss = loss_functions.composite_loss(train_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
+  tower_loss = loss_functions.composite_loss(video_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
                                 encoder_length=FLAGS.encoder_length,
                                 decoder_future_length=FLAGS.decoder_future_length,
                                 decoder_reconst_length=FLAGS.decoder_reconst_length)
-  return tower_loss
+  return tower_loss, frames_pred, frames_reconst, hidden_repr
 
 def valid_operations(training_scope):
   val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size,

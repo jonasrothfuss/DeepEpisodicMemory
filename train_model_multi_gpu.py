@@ -33,14 +33,14 @@ DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 PRETRAINED_MODEL = ''
 # use pre-trained model and run validation only
 VALID_ONLY = False
-VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 32, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 8, 'specifies the number of available GPUs of the machine')
 
@@ -119,7 +119,7 @@ class Model:
         metadata_batch_list, val_batch_list = [], [], [], [], [], [], []
 
         for i in range(FLAGS.num_gpus):
-          val_batch, label_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.batch_size,
+          val_batch, label_batch, metadata_batch = input.create_batch(FLAGS.path, 'valid', FLAGS.valid_batch_size,
                                                int(math.ceil(
                                                  FLAGS.num_iterations / (FLAGS.batch_size * 20))),
                                                False)

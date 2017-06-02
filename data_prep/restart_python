@@ -1,0 +1,13 @@
+#!/bin/bash
+while true; do
+    python video_preparation.py &
+    pid=$!
+    sleep 1200
+
+    kill -9 $pidii
+    kill -HUP $(ps -A -ostat,ppid | grep -e '[zZ]'| awk '{ print $2 }')
+    for pid in $(ps -ef | awk 'video_preparation {print $2}'); do kill -9 $pid; done
+    find . -name \*.mp3 -delete
+done
+echo while loop exited
+exit 0

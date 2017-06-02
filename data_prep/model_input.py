@@ -19,7 +19,7 @@ NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 # specifies the number of pre-processing threads
-NUM_THREADS = 16
+NUM_THREADS = 32
 
 # Constants used for dealing with the tf records files, aligned with convertToRecords.
 flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
@@ -120,7 +120,7 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
             batch_size = get_number_of_records(filenames)
           assert batch_size > 0
           image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
-              [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=1000 + 3 * batch_size)
+              [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=100 * batch_size)
 
 
         # -- training -- get shuffled batches
@@ -130,9 +130,9 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
           # We run this in two threads to avoid being a bottleneck.
           image_seq_batch, video_id_batch = tf.train.shuffle_batch(
             [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
-            capacity=1000 + 3 * batch_size,
+            capacity=60*8* batch_size,
             # Ensures a minimum amount of shuffling of examples.
-            min_after_dequeue=1000)
+            min_after_dequeue=10*8*batch_size)
           metadata_batch = None
 
         return image_seq_batch, video_id_batch, metadata_batch

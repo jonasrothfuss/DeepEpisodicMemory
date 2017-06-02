@@ -14,7 +14,7 @@ import cv2 as cv2
 import numpy as np
 import tensorflow as tf
 import json
-from data_prep.video_preparation import create_ucf101_metadata_dicts
+from data_prep.video_preparation import create_ucf101_metadata_dicts, create_youtube8m_metadata_dicts
 import utils.io_handler as io_handler
 from pprint import pprint
 
@@ -24,12 +24,13 @@ NUM_FRAMES_PER_VIDEO = 20
 NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
-ALLOWED_TYPES = [None, 'flyingshapes', 'UCF101']
+ALLOWED_TYPES = [None, 'flyingshapes', 'UCF101', 'youtube8m']
 
 SOURCE = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/'
 DESTINATION = '/localhome/rothfuss/data/ucf101/tf_records/'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
+METADATA_DICT = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('num_videos', 1000, 'Number of videos stored in one single tfrecords file')
@@ -212,6 +213,9 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   if type == 'UCF101':
     meta_dict = create_ucf101_metadata_dicts(FLAGS.source, METADATA_SUBCLIPS_DICT, METADATA_TAXONOMY_DICT, FILE_FILTER)
+  elif type == 'youtube8m':
+    meta_dict = create_youtube8m_metadata_dicts(FLAGS.source, METADATA_DICT, FILE_FILTER)
+    pprint(meta_dict) #TODO delete
   else:
     meta_dict = None
 
@@ -270,12 +274,12 @@ def getNextFrame(cap):
   return np.asarray(frame)
 
 def main(argv):
-  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source]) 
- #with open('/common/homes/students/rothfuss/Downloads/shuffled_videos.txt', 'r') as f:
+  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
+  #with open('/common/homes/students/rothfuss/Downloads/shuffled_videos.txt', 'r') as f:
   #  content = f.read()
   #  all_files_shuffled = content.split('\n')
   #print('Collected %i Video Files'%len(all_files_shuffled))
-  all_files_shuffled = all_files_shuffled[0:140000]
+  #all_files_shuffled = all_files_shuffled[0:140000]
   save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, video_filenames=all_files_shuffled)
 
 if __name__ == '__main__':

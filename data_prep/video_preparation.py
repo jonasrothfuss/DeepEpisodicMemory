@@ -11,6 +11,8 @@ import re
 import scenedetect
 from pprint import pprint
 
+DATASETS = ['youtube8m', 'UCF101']
+NUM_TIME_CROPS = 6
 
 
 def crop_and_resize_video(video_path, output_dir, video_file_clip=None, target_format=(128, 128), relative_crop_displacement=0.0):
@@ -59,7 +61,7 @@ def search_list_of_dicts(list_of_dicts, dict_key, dict_value):
   return [entry for entry in list_of_dicts if entry[dict_key] == dict_value]
 
 
-def get_metadata_dict_entry(subclip_dict_entry, taxonomy_list):
+def get_metadata_dict_entry(subclip_dict_entry, taxonomy_list=None, type='UCF101'):
   """constructs and returns a dict entry consisting of the following entries (with UCF 101 example values):
   - label (Scuba diving)
   - category (Participating in water sports)
@@ -69,25 +71,27 @@ def get_metadata_dict_entry(subclip_dict_entry, taxonomy_list):
   - mode (training)
   - url (https://www.youtube.com/watch?v=m_ST2LDe5lA)"""
   meta_dict_entry = {}
+  assert type in DATASETS
+  assert taxonomy_list or not type=='UCF101'
 
   label = subclip_dict_entry['label']
   video_path = subclip_dict_entry['path']
   duration = subclip_dict_entry['duration']
   url = subclip_dict_entry['url']
-  mode = subclip_dict_entry['subset']
+
   video_id, filetype = io_handler.get_filename_and_filetype_from_path(video_path)
-  category = get_ucf_video_category(taxonomy_list, label)
 
   meta_dict_entry['label'] = str(label)
-  meta_dict_entry['category'] = str(category)
   meta_dict_entry['video_id'] = str(video_id)
   meta_dict_entry['filetype'] = str(filetype)
   meta_dict_entry['duration'] = str(duration)
-  meta_dict_entry['mode'] = str(mode)
   meta_dict_entry['url'] = str(url)
 
-  return meta_dict_entry
+  if type is 'UCF101':
+    meta_dict_entry['category'] = str(get_ucf_video_category(taxonomy_list, label))
+    meta_dict_entry['mode'] = str(subclip_dict_entry['subset'])
 
+  return meta_dict_entry
 
 def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_file_location_taxonomy, file_type="*.avi"):
   """
@@ -119,7 +123,6 @@ def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_fil
 
   taxonomy_list = database_dict['taxonomy']
   meta_dict = {}
-  p = re.compile('^([a-zA-Z0-9_-]+_[0-9]+)_\d{3}')
 
   for i, video_path in enumerate(filenames):
     video_id = io_handler.get_video_id_from_path(video_path, 'UCF101')
@@ -130,6 +133,37 @@ def create_ucf101_metadata_dicts(video_dir, subclip_json_file_location, json_fil
   assert len(meta_dict) == len(set([io_handler.get_video_id_from_path(video_path, 'UCF101') for video_path in filenames]))
   return meta_dict
 
+def create_youtube8m_metadata_dicts(video_dir, metadata_json_file, file_type="*.avi"):
+  """
+  construcs a list of metadata dicts
+
+  :param: video_dir: path to directory containing the video files
+  :param: metadata_json_file: path to json file with meta information about the clips in video_dir
+  :param: file_type: postfix of video files in video_dir -> indicates the video format used
+  :returns:
+  """
+  assert os.path.isdir(video_dir) and os.path.isfile(metadata_json_file)
+  assert file_type in ["*.avi", "*.mp4"]
+
+  filenames = io_handler.files_from_directory(video_dir, file_type)
+
+  if not filenames:
+    raise RuntimeError('No data files found.')
+
+  with open(metadata_json_file) as file:
+    clip_dict = json.load(file)
+
+  meta_dict = {}
+
+  for i, video_path in enumerate(filenames):
+    video_id = io_handler.get_video_id_from_path(video_path, 'youtube8m')
+    subclip_dict_entry = clip_dict[video_id + ".mp4"]
+    new_entry = get_metadata_dict_entry(subclip_dict_entry, type='youtube8m')
+    meta_dict.update({video_id: new_entry})
+
+  assert len(meta_dict) == len(
+    set([io_handler.get_video_id_from_path(video_path, 'youtube8m') for video_path in filenames]))
+  return meta_dict
 
 def extract_subvideo(video_path, target_time_interval=(1, 4)):
   """ Returns an instance of VideoFileClip of the initial video with the content between times start and end_time.
@@ -193,7 +227,7 @@ def generate_video_name(source_video_name, target_format, relative_crop_displace
                       + '.avi'
 
 
-def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_taxonomy, output_dir, target_format=(128,128)):
+def prepare_and_store_all_videos(subclip_json_file_location, output_dir, target_format=(128,128)):
   # load dictionaries
   with open(subclip_json_file_location) as file:
     subclip_dict = json.load(file)
@@ -203,13 +237,13 @@ def prepare_and_store_all_videos(subclip_json_file_location, json_file_location_
   num_clips = len(subclip_dict)
   for i, (key, clip) in enumerate(subclip_dict.items()):
     try:
-      label, subset, video_path, duration = clip['label'], clip['subset'], clip['path'], clip['duration']
+      label, video_path, duration = clip['label'], clip['path'], clip['duration']
       video_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
       if any(str(video_name) in x for x in file_names):
         print("Skipping video (already_exists): " + video_name)
         continue
 
-      interval_suggestions = video_time_interval_suggestions(duration, max_num_suggestions=4)
+      interval_suggestions = video_time_interval_suggestions(duration, max_num_suggestions=NUM_TIME_CROPS)
       if len(interval_suggestions) == 1:
         num_random_crops = 4
       elif len(interval_suggestions) == 2:
@@ -294,15 +328,15 @@ def crap_detect(video_dir):
 
 def main():
   # load subclip dict
-  json_file_location = '/common/homes/students/rothfuss/Downloads/clips/metadata_subclips.json'
-  json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
-  output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
-  #output_dir = '/data/rothfuss/data/test_videos/'
-  prepare_and_store_all_videos(json_file_location, json_file_location_taxonomy, output_dir)
+  json_file_location = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
+  #json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
+  #output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
+  output_dir = '/PDFData/rothfuss/data/youtube8m/video_slices'
+  prepare_and_store_all_videos(json_file_location, output_dir)
   #crap_detect(output_dir)
 
-
-
+  #with open(json_file_location, 'r') as f:
+  #  pprint(json.load(f))
 
 if __name__ == '__main__':
  main()

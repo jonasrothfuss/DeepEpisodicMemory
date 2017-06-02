@@ -32,8 +32,10 @@ def get_video_id_from_path(path_str, type=None):
     video_id = p.match(video_name).group(1)
     return video_id
   elif type == 'youtube8m':
-    # TODO
-    return None
+    print(video_name)
+    p = re.compile('^([a-zA-Z0-9_-]+)_[0-9]+x[0-9]+')
+    video_id = p.match(video_name).group(1)
+    return video_id
   elif type == 'flyingshapes':
     video_id = video_name.split('_')[0]
     return video_id

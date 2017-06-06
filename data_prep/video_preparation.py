@@ -220,7 +220,6 @@ def prepare_and_store_video(source_video_path, output_dir, target_time_interval,
   clip_resized.write_videofile(target_video_path, codec='rawvideo')
   kill_process(clip_resized)
 
-
 def generate_video_name(source_video_name, target_format, relative_crop_displacement, time_interval):
   return source_video_name + '_' + str(target_format[0]) + 'x' + str(target_format[1]) + '_' \
                       + str("%.2f" % relative_crop_displacement) + '_' + "(%.1f,%.1f)" % time_interval\
@@ -236,6 +235,8 @@ def prepare_and_store_all_videos(subclip_json_file_location, output_dir, target_
 
   num_clips = len(subclip_dict)
   for i, (key, clip) in enumerate(subclip_dict.items()):
+    if key[0] == '-': #file system cannot handle filenames that start with '-'
+      continue
     try:
       label, video_path, duration = clip['label'], clip['path'], clip['duration']
       video_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
@@ -331,7 +332,7 @@ def main():
   json_file_location = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
   #json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   #output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
-  output_dir = '/PDFData/rothfuss/data/youtube8m/video_slices'
+  output_dir = '/PDFData/rothfuss/data/youtube8m/video_slices02'
   prepare_and_store_all_videos(json_file_location, output_dir)
   #crap_detect(output_dir)
 

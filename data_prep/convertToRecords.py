@@ -26,10 +26,12 @@ WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'UCF101', 'youtube8m']
 
-SOURCE = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/'
-DESTINATION = '/localhome/rothfuss/data/ucf101/tf_records/'
+SOURCE = '/PDFData/rothfuss/data/youtube8m/video_slices01/'
+DESTINATION = '/PDFData/rothfuss/data/youtube8m/tf_records/slices01'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
+METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
+METADATA_y8m_031 = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 METADATA_DICT = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 
 FLAGS = flags.FLAGS
@@ -38,7 +40,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', 'UCF101', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', 'youtube8m', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -274,7 +276,11 @@ def getNextFrame(cap):
   return np.asarray(frame)
 
 def main(argv):
-  _, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
+  #_, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
+
+  categories = ['Train', 'Dish (food)']
+  _, all_files_shuffled = io_handler.shuffle_files_in_list_from_categories([FLAGS.source], categories, METADATA_y8m_027, type='youtube8m')
+
   #with open('/common/homes/students/rothfuss/Downloads/shuffled_videos.txt', 'r') as f:
   #  content = f.read()
   #  all_files_shuffled = content.split('\n')

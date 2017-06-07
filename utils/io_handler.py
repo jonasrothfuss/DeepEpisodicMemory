@@ -37,7 +37,6 @@ def get_video_id_from_path(path_str, type=None):
     video_id = p.match(video_name).group(1)
     return video_id
   elif type == 'youtube8m':
-    print(video_name)
     p = re.compile('^([a-zA-Z0-9_-]+)_[0-9]+x[0-9]+')
     video_id = p.match(video_name).group(1)
     return video_id
@@ -61,6 +60,48 @@ def shuffle_files_in_list(paths_list, seed=5):
     print(path_entry)
     all_files.extend(file_paths_from_directory(path_entry, '*.avi'))
   random.seed(a=seed)	
+  return all_files, random.sample(all_files, len(all_files))
+
+
+def shuffle_files_in_list_from_categories(paths_list, categories, metadata_path, type='youtube8m', seed=5):
+  """
+  generates a list of randomly shuffled paths of the files contained in the provided directories which match at least one
+  of the given categories from the 'categories' list. metadata (json file) must be provided to determine a file's category.
+  :param paths_list: list with different path locations containing the files
+  :param categories: list that works as a filter, e.g. ['Train'] only gives files that are of category train
+  :param metadata_path: path to the json file (mostly provided by the dataset authors)
+  :param type: specifies the dataset (e.g. 'UCF101')
+  :return: returns two lists, one with the content of all the given directories in the provided order and another
+  containing the same list randomly shuffled
+  """
+
+  assert paths_list is not None
+  assert categories is not None
+  assert os.path.isfile(metadata_path)
+
+  with open(metadata_path) as file:
+    metadata_file = json.load(file)
+
+  all_files = []
+  # first get all possible files
+  for path_entry in paths_list:
+    print(path_entry)
+    all_files.extend(file_paths_from_directory(path_entry, '*.avi'))
+
+  # then discard all files from the list not belonging to one of the given categories
+  for file_path in all_files:
+    file_prefix = get_video_id_from_path(file_path, type)
+    value = next(v for (k, v) in metadata_file.items() if file_prefix + '.mp4' in k)
+    file_category = []
+
+    if value is not None and 'label' in value:
+      file_category = value['label']
+
+    if file_category not in categories or file_category is None:
+      print(file_path + ' removed (category: ' + file_category + ')')
+      all_files.remove(file_path)
+
+  random.seed(a=seed)
   return all_files, random.sample(all_files, len(all_files))
 
 

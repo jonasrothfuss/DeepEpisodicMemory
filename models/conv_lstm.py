@@ -90,3 +90,30 @@ def basic_conv_lstm_cell(inputs,
     new_h = tf.tanh(new_c) * tf.sigmoid(o)
 
     return new_h, tf.concat(3, [new_c, new_h])
+
+
+def conv_lstm_cell_no_input(state,
+                         num_channels,
+                         initializer,
+                         filter_size=5,
+                         forget_bias=1.0,
+                         scope=None,
+                         reuse=None):
+  
+  with tf.variable_scope(scope, default_name='BasicConvLstmCell', values=[state], reuse=reuse):
+    state.get_shape().assert_has_rank(4)
+    c, h = tf.split(3, 2, state)
+    # Parameters of gates are concatenated into one conv for efficiency.
+    i_j_f_o = layers.conv2d(h,
+                            4 * num_channels, [filter_size, filter_size],
+                            stride=1,
+                            activation_fn=None,
+                            scope='Gates', weights_initializer=initializer)
+
+    # i = input_gate, j = new_input, f = forget_gate, o = output_gate
+    i, j, f, o = tf.split(3, 4, i_j_f_o)
+
+    new_c = c * tf.sigmoid(f + forget_bias) + tf.sigmoid(i) * tf.tanh(j)
+    new_h = tf.tanh(new_c) * tf.sigmoid(o)
+
+    return new_h, tf.concat(3, [new_c, new_h])

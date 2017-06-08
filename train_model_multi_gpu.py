@@ -1,11 +1,10 @@
 import tensorflow as tf
-import math
+import math, os, time, json
 import data_prep.model_input as input
 import data_postp.similarity_computations as similarity_computations
-import os
-import time
+from pprint import pprint
 
-from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay
+from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
 from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector
 
 
@@ -15,7 +14,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_800_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm2_800_deep_64 as model
 """"""
 
 
@@ -23,17 +22,18 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developing
 FLAGS = flags.FLAGS
-#OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
 #DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
-OUT_DIR = '/home/ubuntu/training'
-DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
-
+#OUT_DIR = '/home/ubuntu/training'
+#DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
+DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
 
 # use pretrained model
-PRETRAINED_MODEL = ''
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-08-17_12-40'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
+EXCLUDE_FROM_RESTORING = "convlstm0"
 
 
 # hyperparameters
@@ -42,7 +42,7 @@ flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, 
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
-flags.DEFINE_integer('num_gpus', 8, 'specifies the number of available GPUs of the machine')
+flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -62,11 +62,12 @@ flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
                                               '"vector": encoder latent vector for each validation is exported to "output_dir" (only when VALID_ONLY=True) '
                                               '"gif": gifs are generated from the videos'
                                               '"similarity": compute (cos) similarity matrix')
+flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable names to exclude from saving and restoring')
 
 # intervals
-flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
+flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 50, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 200, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -181,6 +182,7 @@ class Initializer:
     self.threads = None
     self.coord = None
     self.saver = None
+    self.saver_restore = None
     self.itr_start = 0
 
   def start_session(self):
@@ -215,7 +217,16 @@ class Initializer:
       latest_checkpoint = tf.train.latest_checkpoint(FLAGS.pretrained_model)
       self.itr_start = get_iter_from_pretrained_model(latest_checkpoint) + 1
       print('Start with iteration: ' + str(self.itr_start))
-      self.saver.restore(self.sess, latest_checkpoint)
+
+      if FLAGS.exclude_from_restoring is not None:
+        vars_to_exclude = str(FLAGS.exclude_from_restoring).replace(' ','').split(',')
+        global_vars = dict([(v.name, v) for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="train_model")])
+        global_vars = remove_items_from_dict(global_vars, vars_to_exclude)
+        pprint(global_vars)
+        self.saver_restore = tf.train.Saver(var_list=list(global_vars.values()), max_to_keep=0)
+        self.saver_restore.restore(self.sess, latest_checkpoint)
+      else:
+        self.saver.restore(self.sess, latest_checkpoint)
 
     return self.saver
 

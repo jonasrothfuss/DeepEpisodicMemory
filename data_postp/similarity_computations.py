@@ -8,9 +8,8 @@ import matplotlib as mpl
 mpl.use('Agg')
 #import matplotlib
 #matplotlib.use('TkAgg')
-#import matplotlib.pyplot as plt
-
-#from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 import collections
 import sklearn
 from sklearn.manifold import TSNE
@@ -24,9 +23,9 @@ import seaborn as sn
 #/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
 #PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09
 # -06-48.pickle'
-#PICKLE_FILE_DEFAULT ='/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private
-# repository/DeepEpisodicMemory/data/hidden_repr_df_04-04-17_15-18-53.pickle'
-PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private repository/DeepEpisodicMemory/data/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
+PICKLE_FILE_DEFAULT ='/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv5_fc_128_5_5/metadata_and_hidden_rep_df_04-18-17_22-23-44.pickle'
+#PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private
+# repository/DeepEpisodicMemory/data/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
@@ -121,7 +120,6 @@ def visualize_hidden_representations(pickle_hidden_representations):
         plt.scatter([xp],[yp], marker=m)
 
     plt.show()
-
 
 
 def mean_vector(vector_list):
@@ -224,7 +222,7 @@ def avg_distance(df, similarity_type = 'cos'):
 def similarity_matrix(df, df_label_col,  similarity_type= 'cos'):
   assert 'hidden_repr' in list(df) and df_label_col in list(df)
   assert similarity_type in ['cos', 'euc']
-  labels = list(set(df[df_label_col]))
+  labels = list(sorted(set(df[df_label_col])))
   n = len(labels)
   sim_matrix = np.zeros([n, n])
   for i in range(n):
@@ -356,14 +354,12 @@ def classifier_analysis(df):
 
 
 def main():
-  #visualize_hidden_representations()
-  #app.run()
   df = pd.read_pickle(FLAGS.pickle_file)
   print(df)
-  visualize_hidden_representations(df)
+  #visualize_hidden_representations(df)
 
 
-  #similarity_matrix(df, "shape")
+  similarity_matrix(df, "shape")
   #similarity_matrix(df, "motion_location")
   #classifier_analysis(df)
   #plot_similarity_shape_motion_matrix(df)

@@ -7,6 +7,7 @@ import datetime as dt
 import moviepy.editor as mpy
 import pandas as pd
 import json
+from matplotlib import pyplot as plt
 import numpy as np
 
 
@@ -217,3 +218,13 @@ def store_encoder_latent_vector(output_dir, hidden_representations, labels, prod
 
     file_name_label = os.path.join(output_dir, tag + '_label')
     np.save(file_name_label, labels)
+
+
+def store_plot(output_dir, name1, name2="", name3="", suffix=".png"):
+  assert output_dir is not None
+  assert name1 is not None
+  file_name = os.path.join(os.path.dirname(output_dir),
+                                   name1 + name2 + name3 + suffix)
+
+  plt.savefig(file_name, dpi=100)
+  print('Dumped plot to:', file_name)

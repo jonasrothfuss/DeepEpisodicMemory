@@ -476,6 +476,7 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
 
 
     :param hidden_representations_pickle: the pickle file containing the X and Y data
+    :param type: specifies the type of SVM being used. Possible values: "linear" or "rbf" will default to linear SVM.
     :return: stores the cross-validation plot with the learning curves and returns the accuracy from the
     evaluation on the 20% test data
     """
@@ -483,13 +484,14 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
     values = df_col_to_matrix(hidden_representations_pickle['hidden_repr'])
     Y_data = np.asarray(labels)
 
-    # prepare shuffle split cross-validation
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
     X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
 
     if type is "linear":
         # create linear SVM and find best C with shuffle split cv
         estimator = SVC(kernel='linear')
+        # add more C values if necesssary (one is used here due to recomputability)
         C_values = [10]
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
         classifier.fit(X_train, y_train)
@@ -503,20 +505,25 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
         plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
         file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
-    else:
+    elif type is "rbf":
         estimator = SVC(kernel='rbf')
+        C_values = [10]
         gammas = np.logspace(-6, -1, 10)
-        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas))
+        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
         classifier.fit(X_train, y_train)
-        estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma)
+        estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
 
-        title = 'Learning Curves (SVM (kernel=rbf), $\gamma=%.6f$, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.gamma, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size))
+        title = 'Learning Curves (SVM (kernel=rbf), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (
+            classifier.best_estimator_.gamma, classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 -
+                                                                                                                cv.test_size))
 
         # train svm
         plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
         file_name = 'svm_rbf_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
+    else:
+        print("No known SVM type specified. Known types are linear or rbf")
+        return None
 
     # after hyperparameter search with cv, do final test with remaining data and store the plot
     test_accuracy = classifier.score(X_test, y_test)

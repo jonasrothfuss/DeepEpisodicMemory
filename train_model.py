@@ -48,7 +48,8 @@ flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder 
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
-flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
+#flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
+flags.DEFINE_float('learning_rate_decay', 0.0, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
 flags.DEFINE_float('noise_std', 0.0, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 

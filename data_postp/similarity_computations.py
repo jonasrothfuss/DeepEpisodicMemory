@@ -28,7 +28,7 @@ import seaborn as sn
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
 # PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09
 # -06-48.pickle'
-PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv5_fc_128_5_5/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
+PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv5_fc_lstm_128_noise_0.1/metadata_and_hidden_rep_df_05-10-17_12-29-52.pickle'
 # PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private
 # repository/DeepEpisodicMemory/data/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 FLAGS = flags.FLAGS
@@ -492,7 +492,7 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
         # create linear SVM and find best C with shuffle split cv
         estimator = SVC(kernel='linear')
         # add more C values if necesssary (one is used here due to recomputability)
-        C_values = [10]
+        C_values = [1, 10, 100, 1000]
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
         classifier.fit(X_train, y_train)
         estimator = estimator.set_params(C=classifier.best_estimator_.C)
@@ -507,7 +507,7 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
 
     elif type is "rbf":
         estimator = SVC(kernel='rbf')
-        C_values = [10]
+        C_values = [1, 10, 100, 1000]
         gammas = np.logspace(-6, -1, 10)
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
         classifier.fit(X_train, y_train)
@@ -538,13 +538,13 @@ def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
 def main():
     df = pd.read_pickle(FLAGS.pickle_file)
     #print(df)
-    svm_cross_validate_and_test(df, type="linear")
+    svm_cross_validate_and_test(df, type="rbf")
 
-    # visualize_hidden_representations(df)
+    #visualize_hidden_representations(df)
 
 
-    # similarity_matrix(df, "shape")
-    # similarity_matrix(df, "motion_location")
+    #similarity_matrix(df, "shape")
+    #similarity_matrix(df, "motion_location")
     # classifier_analysis(df)
     # plot_similarity_shape_motion_matrix(df)
 

@@ -2,7 +2,6 @@ from math import *
 import os
 from datetime import datetime
 from tensorflow.python.platform import flags
-from tensorflow.python.platform import app
 import numpy as np
 import matplotlib as mpl
 
@@ -17,6 +16,8 @@ from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV
 from sklearn.svm import SVC
 from utils.io_handler import store_plot
 from sklearn.manifold import TSNE
+from sklearn import tree
+from sklearn import ensemble
 import collections
 import sklearn
 import scipy
@@ -26,13 +27,9 @@ import seaborn as sn
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
-# PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09
-# -06-48.pickle'
-PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv5_fc_128_5_5/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
-# PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Google Drive/Studium/Master/Praxis der Forschung/private
-# repository/DeepEpisodicMemory/data/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
+PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv4_fc_512_5_5/metadata_and_hidden_rep_df_06-12-17_16-23-53_300videos.pickle'
+
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('numVideos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
 
 
@@ -120,7 +117,7 @@ def visualize_hidden_representations(pickle_hidden_representations):
         if entry == 'triangle':
             Y_data[i] = '^'
 
-    model = TSNE(n_components=23, random_state=0, method='exact')
+    model = TSNE(n_components=128, random_state=0, method='exact')
     data = model.fit_transform(values)
 
     for xp, yp, m in zip(data[:, 0], data[:, 1], Y_data):
@@ -189,16 +186,241 @@ def distance_classifier(df):
     return df
 
 
-def logistic_regression(df):
+def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, train_sizes=np.linspace(.1, 1.0, 5)):
+    """
+    From scikit-learn.org:
+    Generate a simple plot of the test and training learning curve.
+
+    Parameters
+    ----------
+    estimator : object type that implements the "fit" and "predict" methods
+        An object of that type which is cloned for each validation.
+
+    title : string
+        Title for the chart.
+
+    X : array-like, shape (n_samples, n_features)
+        Training vector, where n_samples is the number of samples and
+        n_features is the number of features.
+
+    y : array-like, shape (n_samples) or (n_samples, n_features), optional
+        Target relative to X for classification or regression;
+        None for unsupervised learning.
+
+    ylim : tuple, shape (ymin, ymax), optional
+        Defines minimum and maximum yvalues plotted.
+
+    cv : int, cross-validation generator or an iterable, optional
+        Determines the cross-validation splitting strategy.
+        Possible inputs for cv are:
+          - None, to use the default 3-fold cross-validation,
+          - integer, to specify the number of folds.
+          - An object to be used as a cross-validation generator.
+          - An iterable yielding train/test splits.
+
+        For integer/None inputs, if ``y`` is binary or multiclass,
+        :class:`StratifiedKFold` used. If the estimator is not a classifier
+        or if ``y`` is neither binary nor multiclass, :class:`KFold` is used.
+
+        Refer :ref:`User Guide <cross_validation>` for the various
+        cross-validators that can be used here.
+
+    n_jobs : integer, optional
+        Number of jobs to run in parallel (default 1).
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    plt.title(title)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    plt.xlabel("Training examples")
+    plt.ylabel("Score")
+    train_sizes, train_scores, test_scores = learning_curve(estimator, X, y, cv=cv, n_jobs=n_jobs,
+                                                            train_sizes=train_sizes)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+    plt.grid()
+
+    plt.fill_between(train_sizes, train_scores_mean - train_scores_std, train_scores_mean + train_scores_std, alpha=0.1,
+                     color="r")
+    plt.fill_between(train_sizes, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1,
+                     color="g")
+    plt.plot(train_sizes, train_scores_mean, 'o-', color="r", label="Training score")
+    plt.plot(train_sizes, test_scores_mean, 'o-', color="g", label="Cross-validation score")
+
+    plt.legend(loc="lower right")
+
+    text_test_score = 'test score: %.4f' % test_scores_mean[-1]
+    text_train_score = 'train score: %.4f' % train_scores_mean[-1]
+
+    ax.text(0.05, 0.05, text_test_score + '\n' + text_train_score, horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+
+    return plt
+
+
+def export_svm_plot(hidden_representations_pickle, type="linear"):
+    """
+    The function:
+        1. splits the data from the pickle file into 80% train data and 20% test data
+        2. does a shuffle-split-cv on the 80% train data for optimizing parameter C of the linear SVM
+        3. uses the optimized and trained linear SVM for a final evaluation on the 20% test data
+
+    The C hyperparameter is cross-validated with the shuffle strategy
+    (alternative to k-fold), from scikit-learn.org:
+        The ShuffleSplit iterator will generate a user defined number of independent train / test dataset splits.
+        Samples are first shuffled and then split into a pair of train and test sets.
+        ShuffleSplit is thus a good alternative to KFold cross validation that allows both finer control on the number
+        of iterations and the proportion of samples on each side of the train / test split.
+
+    explanation of plot output
+            Since the training data is randomly split into a training and a test set 10 times (param n_iter=10),
+            each point on the training-score curve is the average over 10 scores in which the model was trained and
+            evaluated on the first x training samples. Each point on the shuffle-split-cross-validation score curve is the
+            average over 10 scores where the model was trained on the first x training samples and evaluated on all
+            examples of the test set.
+
+
+    :param hidden_representations_pickle: the pickle file containing the X and Y data
+    :param type: specifies the type of SVM being used. Possible values: "linear" or "rbf" will default to linear SVM.
+    :return: stores the cross-validation plot with the learning curves and returns the accuracy from the
+    evaluation on the 20% test data
+    """
+    labels = list(hidden_representations_pickle['shape'])
+    values = df_col_to_matrix(hidden_representations_pickle['hidden_repr'])
+    Y_data = np.asarray(labels)
+
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+    if type is "linear":
+        # create linear SVM and find best C with shuffle split cv
+        estimator = SVC(kernel='linear')
+        # add more C values if necesssary (one is used here due to recomputability)
+        C_values = [1, 10, 100, 1000]
+        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
+        classifier.fit(X_train, y_train)
+        estimator = estimator.set_params(C=classifier.best_estimator_.C)
+
+
+        title = 'Learning Curves (SVM (kernel=linear), C=%.1f, %i shuffle splits, %i train samples)' % (
+            classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size))
+
+        # train svm
+        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
+        file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+    elif type is "rbf":
+        estimator = SVC(kernel='rbf')
+        C_values = [1, 10, 100, 1000]
+        gammas = np.logspace(-6, -1, 10)
+        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
+        classifier.fit(X_train, y_train)
+        estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
+
+        title = 'Learning Curves (SVM (kernel=rbf), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (
+            classifier.best_estimator_.gamma, classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 -
+                                                                                                                cv.test_size))
+
+        # train svm
+        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
+        file_name = 'svm_rbf_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+    else:
+        print("No known SVM type specified. Known types are linear or rbf")
+        return None
+
+    # after hyperparameter search with cv, do final test with remaining data and store the plot
+    test_accuracy = classifier.score(X_test, y_test)
+    plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
+                        xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
+
+    store_plot(FLAGS.pickle_file, file_name)
+
+    return test_accuracy
+
+
+def export_random_forest_plot(df):
+    X = df_col_to_matrix(df['hidden_repr'])
+    Y = df['shape']
+
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+    n_estimators = [10, 30, 50, 80, 100]
+    max_depth = [2, 5, 10, 15, 20, 25, 30, 35]
+
+    rf = sklearn.ensemble.RandomForestClassifier()
+
+    classifier = GridSearchCV(estimator=rf, cv=cv, param_grid=dict(n_estimators=n_estimators, max_depth=max_depth))
+    # run fit with all hyperparameter values
+    classifier.fit(X_train, y_train)
+    rf = rf.set_params(n_estimators=classifier.best_estimator_.n_estimators,
+                       max_depth=classifier.best_estimator_.max_depth)
+
+
+    title = 'Learning Curves (Logistic Regression, n_trees=%i, depth=%i, %i shuffle splits, %i train samples)' %  (
+        classifier.best_estimator_.n_estimators, classifier.best_estimator_.max_depth, cv.get_n_splits(),
+        X_train.shape[0] * (1 - cv.test_size))
+
+    # train random forest
+    plt = plot_learning_curve(rf, title, X, Y, cv=cv)
+
+    file_name = 'random_forest_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+    test_accuracy = classifier.score(X_test, y_test)
+
+    plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
+                        xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
+
+    store_plot(FLAGS.pickle_file, file_name)
+
+
+def export_decision_tree_plot(df):
+    X = df_col_to_matrix(df['hidden_repr'])
+    Y = df['shape']
+
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
+        cv.get_n_splits(), len(X))
+
+    # train decision tree
+    dt = sklearn.tree.DecisionTreeClassifier()
+    plt = plot_learning_curve(dt, title, X, Y, cv=cv)
+
+    file_name = 'decision_tree_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+    store_plot(FLAGS.pickle_file, file_name)
+
+
+def export_logistic_regression_plot(df):
     """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the training accuracy"""
     X = df_col_to_matrix(df['hidden_repr'])
     Y = df['shape']
+
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
+        cv.get_n_splits(), len(X))
+
+    # train logistic regression model
     lr = sklearn.linear_model.LogisticRegression()
-    lr.fit(X, Y)
-    return lr.score(X, Y)
+    plt = plot_learning_curve(lr, title, X, Y, cv=cv)
+
+    file_name = 'logistic_regression_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+    store_plot(FLAGS.pickle_file, file_name)
 
 
-def svm(df):
+def svm_fit_and_score(df):
     """ Fits a SVM with linear kernel on the data and returns the training accuracy"""
     X = df_col_to_matrix(df['hidden_repr'])
     Y = df['shape']
@@ -261,14 +483,14 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
     print(df_cm)
     df_cm.to_pickle(os.path.join(os.path.dirname(FLAGS.pickle_file), 'sim_matrix_' + similarity_type + '.pickle'))
     plt.figure(figsize=(64, 64))
-    sn.set(font_scale=10)
-    ax = sn.heatmap(df_cm, annot=True, annot_kws={"size": 90})
+    sn.set(font_scale=15)
+    ax = sn.heatmap(df_cm, annot=True, annot_kws={"size": 160})
     if n > 5:
         # rotate x-axis labels
         for item in ax.get_xticklabels():
             item.set_rotation(90)
     heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),
-                                     'sim_matrix_' + df_label_col + '_' + similarity_type + '.png')
+                                     'sim_matrix_font_large_' + df_label_col + '_' + similarity_type + '.png')
     plt.savefig(heatmap_file_name, dpi=100)
     print('Dumped Heatmap to:', heatmap_file_name)
     plt.show()
@@ -377,174 +599,17 @@ def classifier_analysis(df):
         file.write(string_to_dump)
 
 
-def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, train_sizes=np.linspace(.1, 1.0, 5)):
-    """
-    From scikit-learn.org:
-    Generate a simple plot of the test and training learning curve.
-
-    Parameters
-    ----------
-    estimator : object type that implements the "fit" and "predict" methods
-        An object of that type which is cloned for each validation.
-
-    title : string
-        Title for the chart.
-
-    X : array-like, shape (n_samples, n_features)
-        Training vector, where n_samples is the number of samples and
-        n_features is the number of features.
-
-    y : array-like, shape (n_samples) or (n_samples, n_features), optional
-        Target relative to X for classification or regression;
-        None for unsupervised learning.
-
-    ylim : tuple, shape (ymin, ymax), optional
-        Defines minimum and maximum yvalues plotted.
-
-    cv : int, cross-validation generator or an iterable, optional
-        Determines the cross-validation splitting strategy.
-        Possible inputs for cv are:
-          - None, to use the default 3-fold cross-validation,
-          - integer, to specify the number of folds.
-          - An object to be used as a cross-validation generator.
-          - An iterable yielding train/test splits.
-
-        For integer/None inputs, if ``y`` is binary or multiclass,
-        :class:`StratifiedKFold` used. If the estimator is not a classifier
-        or if ``y`` is neither binary nor multiclass, :class:`KFold` is used.
-
-        Refer :ref:`User Guide <cross_validation>` for the various
-        cross-validators that can be used here.
-
-    n_jobs : integer, optional
-        Number of jobs to run in parallel (default 1).
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-    plt.title(title)
-    if ylim is not None:
-        plt.ylim(*ylim)
-    plt.xlabel("Training examples")
-    plt.ylabel("Score")
-    train_sizes, train_scores, test_scores = learning_curve(estimator, X, y, cv=cv, n_jobs=n_jobs,
-                                                            train_sizes=train_sizes)
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.std(test_scores, axis=1)
-    plt.grid()
-
-    plt.fill_between(train_sizes, train_scores_mean - train_scores_std, train_scores_mean + train_scores_std, alpha=0.1,
-                     color="r")
-    plt.fill_between(train_sizes, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1,
-                     color="g")
-    plt.plot(train_sizes, train_scores_mean, 'o-', color="r", label="Training score")
-    plt.plot(train_sizes, test_scores_mean, 'o-', color="g", label="Cross-validation score")
-
-    plt.legend(loc="lower right")
-
-    text_test_score = 'test (cv) score: %.4f' % test_scores_mean[-1]
-    text_train_score = 'train score: %.4f' % train_scores_mean[-1]
-
-    ax.text(0.05, 0.05, text_test_score + '\n' + text_train_score, horizontalalignment='left', verticalalignment='bottom',
-            transform=ax.transAxes)
-
-    return plt
-
-
-def svm_cross_validate_and_test(hidden_representations_pickle, type="linear"):
-    """
-    The function:
-        1. splits the data from the pickle file into 80% train data and 20% test data
-        2. does a shuffle-split-cv on the 80% train data for optimizing parameter C of the linear SVM
-        3. uses the optimized and trained linear SVM for a final evaluation on the 20% test data
-
-    The C hyperparameter is cross-validated with the shuffle strategy
-    (alternative to k-fold), from scikit-learn.org:
-        The ShuffleSplit iterator will generate a user defined number of independent train / test dataset splits.
-        Samples are first shuffled and then split into a pair of train and test sets.
-        ShuffleSplit is thus a good alternative to KFold cross validation that allows both finer control on the number
-        of iterations and the proportion of samples on each side of the train / test split.
-
-    explanation of plot output
-            Since the training data is randomly split into a training and a test set 10 times (param n_iter=10),
-            each point on the training-score curve is the average over 10 scores in which the model was trained and
-            evaluated on the first x training samples. Each point on the shuffle-split-cross-validation score curve is the
-            average over 10 scores where the model was trained on the first x training samples and evaluated on all
-            examples of the test set.
-
-
-    :param hidden_representations_pickle: the pickle file containing the X and Y data
-    :param type: specifies the type of SVM being used. Possible values: "linear" or "rbf" will default to linear SVM.
-    :return: stores the cross-validation plot with the learning curves and returns the accuracy from the
-    evaluation on the 20% test data
-    """
-    labels = list(hidden_representations_pickle['shape'])
-    values = df_col_to_matrix(hidden_representations_pickle['hidden_repr'])
-    Y_data = np.asarray(labels)
-
-    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
-    X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
-    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
-
-    if type is "linear":
-        # create linear SVM and find best C with shuffle split cv
-        estimator = SVC(kernel='linear')
-        # add more C values if necesssary (one is used here due to recomputability)
-        C_values = [10]
-        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
-        classifier.fit(X_train, y_train)
-        estimator = estimator.set_params(C=classifier.best_estimator_.C)
-
-
-        title = 'Learning Curves (SVM (kernel=linear), C=%.1f, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size))
-
-        # train svm
-        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
-        file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
-    elif type is "rbf":
-        estimator = SVC(kernel='rbf')
-        C_values = [10]
-        gammas = np.logspace(-6, -1, 10)
-        classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
-        classifier.fit(X_train, y_train)
-        estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
-
-        title = 'Learning Curves (SVM (kernel=rbf), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.gamma, classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 -
-                                                                                                                cv.test_size))
-
-        # train svm
-        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
-        file_name = 'svm_rbf_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
-    else:
-        print("No known SVM type specified. Known types are linear or rbf")
-        return None
-
-    # after hyperparameter search with cv, do final test with remaining data and store the plot
-    test_accuracy = classifier.score(X_test, y_test)
-    plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
-                        xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
-
-    store_plot(FLAGS.pickle_file, file_name)
-
-    return test_accuracy
-
 
 def main():
     df = pd.read_pickle(FLAGS.pickle_file)
     #print(df)
-    svm_cross_validate_and_test(df, type="linear")
+    #export_svm_plot(df, type="linear")
 
-    # visualize_hidden_representations(df)
+    #visualize_hidden_representations(df)
 
 
-    # similarity_matrix(df, "shape")
-    # similarity_matrix(df, "motion_location")
+    similarity_matrix(df, "shape")
+    #similarity_matrix(df, "motion_location")
     # classifier_analysis(df)
     # plot_similarity_shape_motion_matrix(df)
 
@@ -552,8 +617,10 @@ def main():
     # print(similarity_matrix(df, 'shape'))
 
     # plot_similarity_shape_motion_matrix(df)
-    # print(svm(df))
-    # print(logistic_regression(df))
+    # print(svm_fit_and_score(df))
+    # export_logistic_regression_plot(df)
+    # export_decision_tree_plot(df)
+    # export_random_forest_plot(df)
     # print(avg_distance(df, 'cos'))
 
 

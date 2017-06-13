@@ -3,6 +3,7 @@ import math, os, time, json
 import data_prep.model_input as input
 import data_postp.similarity_computations as similarity_computations
 from pprint import pprint
+from data_prep.TFRW2Images import createGif
 
 from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
 from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector
@@ -26,19 +27,19 @@ OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
 #DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
-DATA_PATH = '/data/rothfuss/data/ArtificialFlyingShapes_randomColoredShapes/tfrecords_meta'
+DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-08-17_12-40'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/06-09-17_16-10'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
-EXCLUDE_FROM_RESTORING = "convlstm0"
+EXCLUDE_FROM_RESTORING = None
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
@@ -126,13 +127,14 @@ class Model:
                                                False)
 
           val_batch = tf.cast(val_batch, tf.float32)
+          self.val_batch = val_batch
 
           with tf.device('/gpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
               tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch)
               tower_losses.append(tower_loss)
-              frames_pred_list.append(frames_pred)
-              frames_reconst_list.append(frames_reconst)
+              frames_pred_list.append(tf.pack(frames_pred))
+              frames_reconst_list.append(tf.pack(frames_reconst))
               hidden_repr_list.append(hidden_repr)
 
               val_batch_list.append(val_batch)
@@ -145,8 +147,8 @@ class Model:
           # compute average loss
           self.loss = average_losses(tower_losses)
           # concatenate outputs of towers to one large tensor each
-          self.frames_pred = tf.concat(0, frames_pred_list)
-          self.frames_reconst = tf.concat(0, frames_reconst_list)
+          self.frames_pred = tf.unstack(tf.concat(1, frames_pred_list))
+          self.frames_reconst = tf.unstack(tf.concat(1, frames_reconst_list))
           self.hidden_repr = tf.concat(0, hidden_repr_list)
           self.label = tf.concat(0, label_batch_list)
           self.metadata = tf.concat(0, metadata_batch_list)
@@ -222,7 +224,6 @@ class Initializer:
         vars_to_exclude = str(FLAGS.exclude_from_restoring).replace(' ','').split(',')
         global_vars = dict([(v.name, v) for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="train_model")])
         global_vars = remove_items_from_dict(global_vars, vars_to_exclude)
-        pprint(global_vars)
         self.saver_restore = tf.train.Saver(var_list=list(global_vars.values()), max_to_keep=0)
         self.saver_restore.restore(self.sess, latest_checkpoint)
       else:
@@ -326,11 +327,9 @@ def valid_run(output_dir):
 
   try:
     feed_dict = {val_model.learning_rate: 0.0}
-    val_summary_str = []
 
-
-    val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata = initializer.sess.run(
-      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
+    val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata, orig_frames = initializer.sess.run(
+      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
 
     if FLAGS.valid_mode == 'vector':
       # store encoder latent vector for analysing
@@ -341,6 +340,8 @@ def valid_run(output_dir):
     if FLAGS.valid_mode == 'gif':
       # summary and log
       val_model.iter_num = 1
+      #orig_videos = [orig_frames[i,:,:,:,:] for i in range(orig_frames.shape[0])]
+      createGif(orig_frames, labels, output_dir)
       tf.logging.info('Converting validation frame sequences to gif')
       store_output_frames_as_gif(output_frames, labels, output_dir)
       tf.logging.info('Dumped validation gifs in: ' + str(output_dir))

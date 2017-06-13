@@ -5,6 +5,7 @@ import os
 import sys
 import numpy as np
 import tensorflow as tf
+import moviepy.editor as mpy
 
 
 
@@ -52,12 +53,13 @@ def createImages(filenames):
     return image_batch
 
 
-def createGif(numVideos, videos, path):
+def createGif(videos, labels, output_dir):
     import moviepy.editor as mpy
-    for i in range(numVideos):
+    for i in range(videos.shape[0]):
         npy = videos[i]
         clip = mpy.ImageSequenceClip(list(npy), fps=10)
-        clip.write_gif(path + 'train' + str(i) +'.gif')
+        clip.write_gif(os.path.join(output_dir, 'original_clip_' + str(labels[i].decode('utf-8')) + '.gif'),
+                       program='ffmpeg')
 
 def storeSingleImages(numVideos, videos, path):
     init_op = tf.global_variables_initializer()

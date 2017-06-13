@@ -137,12 +137,16 @@ def store_output_frames_as_gif(output_frames, labels, output_dir):
   assert os.path.isdir(output_dir)
   batch_size = output_frames[0].shape[0]
   for i in range(batch_size): #iterate over validation instances
-    clip_array = [frame[i,:,:,:] for frame in output_frames]
-    print(type(clip_array))
-    print(type(clip_array[0]))
-    print(clip_array[0].shape)
-    clip = mpy.ImageSequenceClip(clip_array, fps=10)
-    clip.to_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'))
+    clip_array = [bgr_to_rgb(frame[i,:,:,:]) for frame in output_frames]
+    clip = mpy.ImageSequenceClip(clip_array, fps=10).to_RGB()
+    clip.write_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'), program='ffmpeg')
+
+def bgr_to_rgb(frame):
+  blue_channel = frame[:,:,0]
+  red_channel = frame[:,:,2]
+  frame[:, :, 2] = red_channel
+  frame[:, :, 0] = blue_channel
+  return frame
 
 
 def write_metainfo(output_dir, model, flags):

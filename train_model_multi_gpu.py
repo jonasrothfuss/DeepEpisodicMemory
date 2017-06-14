@@ -8,20 +8,18 @@ from data_prep.TFRW2Images import createGif
 from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
 from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector
 
-
-
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_800_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm_800_deep_64 as model
 """"""
 
 
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
-# constants for developing
+# constants for developinge
 FLAGS = flags.FLAGS
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
 #DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
@@ -30,7 +28,7 @@ OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
 DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/06-09-17_16-10'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/05-31-17_15-36'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
@@ -38,7 +36,7 @@ EXCLUDE_FROM_RESTORING = None
 
 
 # hyperparameters
-flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
+flags.DEFINE_integer('num_iterations', 2000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
@@ -68,7 +66,7 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable 
 # intervals
 flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 50, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 200, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 400, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -305,10 +303,13 @@ def train_valid_run(output_dir):
     initializer.coord.request_stop()
 
   tf.logging.info(' Saving Model ... ')
-  saver.save(initializer.sess, output_dir + '/model')
+  saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=initializer.itr_start + FLAGS.num_iterations)
 
+  # necessary for outer (train manager) loop to prevent variable conflicts with previously used graph
+  tf.reset_default_graph()
   # Wait for threads to finish.
   initializer.stop_session()
+
 
 def valid_run(output_dir):
   """ feeds validation batch through the model and stores produced frame sequence as gifs to output_dir
@@ -462,8 +463,7 @@ def average_losses(tower_losses):
   loss = tf.reduce_mean(loss, 0)
   return loss
 
-def main(unused_argv):
-
+def main():
   # run validation only
   if FLAGS.valid_only:
     assert FLAGS.pretrained_model

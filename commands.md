@@ -19,6 +19,7 @@ ssh -L 6007:127.0.0.1:6006 rothfuss@xxxxx032
 ## virtualenv
 ##### Run python 3.4 virtual environment:
 source ~/p3.4/bin/activate
+source /localhome/rothfuss/p3.4_local
 
 ## Using Docker
 Container content: TensorFlow r0.12.0 rc1 CUDA8.0 cuDNN 5 Python 3.4.3

@@ -13,7 +13,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm_800_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 """"""
 
 
@@ -21,23 +21,23 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developinge
 FLAGS = flags.FLAGS
-OUT_DIR = '/common/homes/students/rothfuss/Documents/training'
-#DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
+OUT_DIR = '/localhome/rothfuss/training/'
+DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
-DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
+#DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/05-31-17_15-36'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/06-09-17_16-10/'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
-EXCLUDE_FROM_RESTORING = None
+EXCLUDE_FROM_RESTORING = "convlstm0"
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 2000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
@@ -66,7 +66,7 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable 
 # intervals
 flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 50, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 400, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 1000, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -463,7 +463,7 @@ def average_losses(tower_losses):
   loss = tf.reduce_mean(loss, 0)
   return loss
 
-def main():
+def main(argv):
   # run validation only
   if FLAGS.valid_only:
     assert FLAGS.pretrained_model

@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def gradient_difference_loss(true, pred, alpha=2.0):
   """description here"""
-  tf.assert_equal(tf.shape(true), tf.shape(pred))
+  #tf.assert_equal(tf.shape(true), tf.shape(pred))
   # vertical
   true_pred_diff_vert = tf.pow(tf.abs(difference_gradient(true, vertical=True) - difference_gradient(pred, vertical=True)), alpha)
   # horizontal

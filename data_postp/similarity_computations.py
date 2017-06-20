@@ -8,7 +8,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib
 
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 # import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 # from matplotlib import text

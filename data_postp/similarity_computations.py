@@ -4,6 +4,8 @@ from datetime import datetime
 from tensorflow.python.platform import flags
 import numpy as np
 import matplotlib as mpl
+from joblib import Parallel, delayed
+import multiprocessing
 
 mpl.use('Agg')
 import matplotlib
@@ -27,7 +29,8 @@ import seaborn as sn
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
-PICKLE_FILE_DEFAULT = '/Users/fabioferreira/Dropbox/Deep_Learning_for_Object_Manipulation/3_Data/Analytics_Results/conv4_fc_512_5_5/metadata_and_hidden_rep_df_06-12-17_16-23-53_300videos.pickle'
+PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
+#PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
@@ -262,7 +265,7 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, tr
     return plt
 
 
-def export_svm_plot(hidden_representations_pickle, type="linear"):
+def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", plot=False):
     """
     The function:
         1. splits the data from the pickle file into 80% train data and 20% test data
@@ -289,7 +292,7 @@ def export_svm_plot(hidden_representations_pickle, type="linear"):
     :return: stores the cross-validation plot with the learning curves and returns the accuracy from the
     evaluation on the 20% test data
     """
-    labels = list(hidden_representations_pickle['shape'])
+    labels = list(hidden_representations_pickle[class_column])
     values = df_col_to_matrix(hidden_representations_pickle['hidden_repr'])
     Y_data = np.asarray(labels)
 
@@ -306,9 +309,9 @@ def export_svm_plot(hidden_representations_pickle, type="linear"):
         classifier.fit(X_train, y_train)
         estimator = estimator.set_params(C=classifier.best_estimator_.C)
 
-
         title = 'Learning Curves (SVM (kernel=linear), C=%.1f, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size))
+            classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size)) if plot else 0
+        print(title)
 
         # train svm
         plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
@@ -336,17 +339,48 @@ def export_svm_plot(hidden_representations_pickle, type="linear"):
 
     # after hyperparameter search with cv, do final test with remaining data and store the plot
     test_accuracy = classifier.score(X_test, y_test)
-    plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
+    if(plot):
+        plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
-    store_plot(FLAGS.pickle_file, file_name)
+        store_plot(FLAGS.pickle_file, file_name)
 
     return test_accuracy
 
 
-def export_random_forest_plot(df):
+def logistic_regression_fit_and_score(df, class_column="shape", plot=False):
+    """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
+    labels = list(df[class_column])
+    values = df_col_to_matrix(df['hidden_repr'])
+    Y_data = np.asarray(labels)
+
+    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+
+    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
+        cv.get_n_splits(), len(X_train)) if plot else 0
+
+    # train logistic regression model
+    lr = sklearn.linear_model.LogisticRegression()
+    plt = plot_learning_curve(lr, title, X_train, y_train, cv=cv)
+
+    # after hyperparameter search with cv, do final test with remaining data and store the plot
+    test_accuracy = lr.score(X_test, y_test)
+
+
+    if plot:
+        file_name = 'logistic_regression_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+
+        store_plot(FLAGS.pickle_file, file_name)
+
+    return test_accuracy
+
+
+def export_random_forest_plot(df, class_column="shape", plot=False):
     X = df_col_to_matrix(df['hidden_repr'])
-    Y = df['shape']
+    Y = df[class_column]
 
     # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
@@ -364,9 +398,9 @@ def export_random_forest_plot(df):
                        max_depth=classifier.best_estimator_.max_depth)
 
 
-    title = 'Learning Curves (Logistic Regression, n_trees=%i, depth=%i, %i shuffle splits, %i train samples)' %  (
+    title = 'Learning Curves (Random Forest, n_trees=%i, depth=%i, %i shuffle splits, %i train samples)' %  (
         classifier.best_estimator_.n_estimators, classifier.best_estimator_.max_depth, cv.get_n_splits(),
-        X_train.shape[0] * (1 - cv.test_size))
+        X_train.shape[0] * (1 - cv.test_size)) if plot else 0
 
     # train random forest
     plt = plot_learning_curve(rf, title, X, Y, cv=cv)
@@ -375,58 +409,44 @@ def export_random_forest_plot(df):
 
     test_accuracy = classifier.score(X_test, y_test)
 
-    plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
+    if plot:
+        plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
-    store_plot(FLAGS.pickle_file, file_name)
+        store_plot(FLAGS.pickle_file, file_name)
+
+    return test_accuracy
 
 
-def export_decision_tree_plot(df):
+def export_decision_tree_plot(df, class_column="shape", plot=False):
     X = df_col_to_matrix(df['hidden_repr'])
-    Y = df['shape']
+    Y = df[class_column]
 
     # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
 
-    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
-        cv.get_n_splits(), len(X))
+    dt = sklearn.tree.DecisionTreeClassifier()
+
+    classifier = GridSearchCV(estimator=dt, cv=cv)
+    # run fit with all hyperparameter values
+    classifier.fit(X_train, y_train)
+
+
+    title = 'Learning Curves (Decision Tree, %i shuffle splits, %i samples)' % (
+        cv.get_n_splits(), len(X_train)) if plot else 0
 
     # train decision tree
-    dt = sklearn.tree.DecisionTreeClassifier()
-    plt = plot_learning_curve(dt, title, X, Y, cv=cv)
+    plt = plot_learning_curve(dt, title, X_train, y_train, cv=cv)
 
-    file_name = 'decision_tree_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
+    test_accuracy = classifier.score(X_test, y_test)
 
-    store_plot(FLAGS.pickle_file, file_name)
+    if plot:
+        file_name = 'decision_tree_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
+        store_plot(FLAGS.pickle_file, file_name)
 
-def export_logistic_regression_plot(df):
-    """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the training accuracy"""
-    X = df_col_to_matrix(df['hidden_repr'])
-    Y = df['shape']
-
-    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
-    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
-
-    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
-        cv.get_n_splits(), len(X))
-
-    # train logistic regression model
-    lr = sklearn.linear_model.LogisticRegression()
-    plt = plot_learning_curve(lr, title, X, Y, cv=cv)
-
-    file_name = 'logistic_regression_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
-    store_plot(FLAGS.pickle_file, file_name)
-
-
-def svm_fit_and_score(df):
-    """ Fits a SVM with linear kernel on the data and returns the training accuracy"""
-    X = df_col_to_matrix(df['hidden_repr'])
-    Y = df['shape']
-    svc = sklearn.svm.SVC(kernel='linear')
-    svc.fit(X, Y)
-    return svc.score(X, Y)
+    return test_accuracy
 
 
 def avg_distance(df, similarity_type='cos'):
@@ -462,23 +482,36 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
     assert 'hidden_repr' in list(df) and df_label_col in list(df)
     assert similarity_type in ['cos', 'euc']
     labels = list(sorted(set(df[df_label_col])))
+    print(labels)
     n = len(labels)
+    print(n)
     sim_matrix = np.zeros([n, n])
     for i in range(n):
         for j in range(n):
-            print(i, j, labels[i], labels[j])
-            vectors1 = list(df[df[df_label_col] == labels[i]]['hidden_repr'])
-            vectors2 = list(df[df[df_label_col] == labels[j]]['hidden_repr'])
-            sim = []
-            for k, v1 in enumerate(vectors1):
-                for v2 in vectors2:
-                    if similarity_type is 'cos':
-                        sim.append(compute_cosine_similarity(v1, v2))
-                    else:
-                        sim.append(np.sqrt(np.sum((v1.flatten() - v2.flatten()) ** 2)))
-            assert (len(sim) == len(vectors1) * len(vectors2))
-            print(np.mean(sim))
-            sim_matrix[i, j] = np.mean(sim)
+            if i <= j: # since similarity matrix is mirrored along the diagonal, only compute one half
+                print(i, j, labels[i], labels[j])
+                vectors1 = list(df[df[df_label_col] == labels[i]]['hidden_repr'])
+                vectors2 = list(df[df[df_label_col] == labels[j]]['hidden_repr'])
+                sim = []
+                num_cores = multiprocessing.cpu_count()
+
+                sim = Parallel(n_jobs=num_cores)(delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
+
+                        #if similarity_type is 'cos':
+                        #    sim.append(compute_cosine_similarity(v1, v2))
+                        #else:
+                        #    sim.append(np.sqrt(np.sum((v1.flatten() - v2.flatten()) ** 2)))
+
+                assert (len(sim) == len(vectors1) * len(vectors2))
+                print(np.mean(sim))
+                sim_matrix[i, j] = np.mean(sim)
+
+    #mirror the second half
+    for i in range(n):
+        for j in range(n):
+            if i > j:
+                sim_matrix[i, j] = sim_matrix[j, i]
+
     df_cm = pd.DataFrame(sim_matrix, index=labels, columns=labels)
     print(df_cm)
     df_cm.to_pickle(os.path.join(os.path.dirname(FLAGS.pickle_file), 'sim_matrix_' + similarity_type + '.pickle'))
@@ -590,9 +623,10 @@ def compute_small_confusion_matrix(df, shape1, shape2):
     return confusion_matrix
 
 
-def classifier_analysis(df):
+def classifier_analysis(df, class_column='shape'):
     string_to_dump = str(datetime.now()) + '\n' + '---- SVM ----\nAccuracy: ' + str(
-        svm(df)) + '\n' + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(logistic_regression(df)) + '\n'
+        svm_fit_and_score(df, class_column=class_column)) + '\n' + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' \
+                     + str(logistic_regression_fit_and_score(df, class_column=class_column)) + '\n'
     dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis' + '.txt')
     print(string_to_dump)
     with open(dump_file_name, 'w') as file:
@@ -607,17 +641,16 @@ def main():
 
     #visualize_hidden_representations(df)
 
-
-    similarity_matrix(df, "shape")
+    #similarity_matrix(df, "category")
     #similarity_matrix(df, "motion_location")
-    # classifier_analysis(df)
+    classifier_analysis(df, "category")
     # plot_similarity_shape_motion_matrix(df)
 
 
     # print(similarity_matrix(df, 'shape'))
 
     # plot_similarity_shape_motion_matrix(df)
-    # print(svm_fit_and_score(df))
+    #print(svm_fit_and_score(df, class_column="category"))
     # export_logistic_regression_plot(df)
     # export_decision_tree_plot(df)
     # export_random_forest_plot(df)

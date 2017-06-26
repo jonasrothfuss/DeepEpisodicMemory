@@ -140,7 +140,7 @@ def mean_vector(vector_list):
         mean_vector += v
     mean_vector = mean_vector / len(vector_list)
     assert type(mean_vector) is np.ndarray
-    return mean_vector
+    # return mean_vector
 
 
 def df_col_to_matrix(panda_col):
@@ -265,7 +265,7 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, tr
     return plt
 
 
-def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", plot=False):
+def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", plot=False, C_values=[1]):
     """
     The function:
         1. splits the data from the pickle file into 80% train data and 20% test data
@@ -304,7 +304,6 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
         # create linear SVM and find best C with shuffle split cv
         estimator = SVC(kernel='linear')
         # add more C values if necesssary (one is used here due to recomputability)
-        C_values = [1, 10, 100, 1000]
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
         classifier.fit(X_train, y_train)
         estimator = estimator.set_params(C=classifier.best_estimator_.C)
@@ -319,7 +318,6 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
 
     elif type is "rbf":
         estimator = SVC(kernel='rbf')
-        C_values = [1, 10, 100, 1000]
         gammas = np.logspace(-6, -1, 10)
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
         classifier.fit(X_train, y_train)

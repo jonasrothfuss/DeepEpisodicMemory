@@ -1,35 +1,29 @@
 from math import *
-import os
+import os, collections, scipy, itertools, multiprocessing
 from datetime import datetime
+from pprint import pprint
 from tensorflow.python.platform import flags
-import numpy as np
-import matplotlib as mpl
+import matplotlib as mpl; from matplotlib import pyplot as plt
 from joblib import Parallel, delayed
-import multiprocessing
+import numpy as np
+import pandas as pd
+import seaborn as sn
+
+import sklearn
+from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
+from sklearn.svm import SVC, LinearSVC
+from sklearn.manifold import TSNE
+from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
+
+from utils.io_handler import store_plot
+
 
 mpl.use('Agg')
-import matplotlib
-
-#matplotlib.use('TkAgg')
-# import matplotlib.pyplot as plt
-from matplotlib import pyplot as plt
-# from matplotlib import text
-from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
-from sklearn.svm import SVC
-from utils.io_handler import store_plot
-from sklearn.manifold import TSNE
-from sklearn import tree
-from sklearn import ensemble
-import collections
-import sklearn
-import scipy
-import pandas as pd
-import itertools
-import seaborn as sn
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
-PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
+#PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
+PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
 #PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
 
 FLAGS = flags.FLAGS
@@ -265,7 +259,7 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, tr
     return plt
 
 
-def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", plot=False, C_values=[1]):
+def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", CV=False, plot=False):
     """
     The function:
         1. splits the data from the pickle file into 80% train data and 20% test data
@@ -289,89 +283,75 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
 
     :param hidden_representations_pickle: the pickle file containing the X and Y data
     :param type: specifies the type of SVM being used. Possible values: "linear" or "rbf" will default to linear SVM.
+    :param CV: indicates if CV + Gridsearch for optimizing hyperparams shall be performed, if not default hyperparams are used
+    :param plot: indicates if plot for CV is generated (requires CV to be True)
     :return: stores the cross-validation plot with the learning curves and returns the accuracy from the
     evaluation on the 20% test data
     """
+    assert type in ["linear", "rbf"],  "No known SVM type specified. Known types are linear or rbf"
+    assert not plot or CV
+
     labels = list(hidden_representations_pickle[class_column])
     values = df_col_to_matrix(hidden_representations_pickle['hidden_repr'])
     Y_data = np.asarray(labels)
 
     # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
     X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
-    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
 
-    if type is "linear":
-        # create linear SVM and find best C with shuffle split cv
-        estimator = SVC(kernel='linear')
-        # add more C values if necesssary (one is used here due to recomputability)
+    estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True), n_jobs=-1) #if type is 'rbf' else LinearSVC(verbose=True)
+
+    if CV:
+      cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+      C_values = [0.1, 1, 10, 100, 1000]
+      gammas = np.logspace(-6, -1, 10)
+
+      if type is "linear":
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
         classifier.fit(X_train, y_train)
         estimator = estimator.set_params(C=classifier.best_estimator_.C)
-
-        title = 'Learning Curves (SVM (kernel=linear), C=%.1f, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size)) if plot else 0
-        print(title)
-
-        # train svm
-        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
-        file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
-    elif type is "rbf":
-        estimator = SVC(kernel='rbf')
-        gammas = np.logspace(-6, -1, 10)
+      else: # rbf
         classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
         classifier.fit(X_train, y_train)
         estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
 
-        title = 'Learning Curves (SVM (kernel=rbf), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (
-            classifier.best_estimator_.gamma, classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 -
-                                                                                                                cv.test_size))
+      title = 'Learning Curves (SVM (kernel=%s), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (type,
+        classifier.best_estimator_.gamma, classifier.best_estimator_.C, cv.get_n_splits(), X_train.shape[0] * (1 - cv.test_size))
+      print(title)
+      file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
-        # train svm
-        plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
-        file_name = 'svm_rbf_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
     else:
-        print("No known SVM type specified. Known types are linear or rbf")
-        return None
+      classifier = estimator.fit(X_train, y_train)
 
-    # after hyperparameter search with cv, do final test with remaining data and store the plot
+
+    #do final test with remaining data and store the
     test_accuracy = classifier.score(X_test, y_test)
-    if(plot):
-        plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
-                        xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
-        store_plot(FLAGS.pickle_file, file_name)
+    if plot:
+      plt = plot_learning_curve(estimator, title, X_train, y_train, cv=cv)
+      plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy),
+                          xy=(0.05, 0.0),
+                          xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
+      store_plot(FLAGS.pickle_file, file_name)
     return test_accuracy
 
 
-def logistic_regression_fit_and_score(df, class_column="shape", plot=False):
+def logistic_regression_fit_and_score(df, class_column="shape"):
     """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
     labels = list(df[class_column])
     values = df_col_to_matrix(df['hidden_repr'])
     Y_data = np.asarray(labels)
 
-    # prepare shuffle split cross-validation, set random_state to a arbitrary constant for recomputability
+    # prepare train/test split
     X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
-    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
-
-
-    title = 'Learning Curves (Logistic Regression, %i shuffle splits, %i samples)' % (
-        cv.get_n_splits(), len(X_train)) if plot else 0
 
     # train logistic regression model
     lr = sklearn.linear_model.LogisticRegression()
-    plt = plot_learning_curve(lr, title, X_train, y_train, cv=cv)
+    lr = lr.fit(X_train, y_train)
 
     # after hyperparameter search with cv, do final test with remaining data and store the plot
     test_accuracy = lr.score(X_test, y_test)
-
-
-    if plot:
-        file_name = 'logistic_regression_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
-        store_plot(FLAGS.pickle_file, file_name)
 
     return test_accuracy
 
@@ -622,18 +602,82 @@ def compute_small_confusion_matrix(df, shape1, shape2):
 
 
 def classifier_analysis(df, class_column='shape'):
-    string_to_dump = str(datetime.now()) + '\n' + '---- SVM ----\nAccuracy: ' + str(
-        svm_fit_and_score(df, class_column=class_column)) + '\n' + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' \
-                     + str(logistic_regression_fit_and_score(df, class_column=class_column)) + '\n'
+    svm_linear_accuracy = svm_fit_and_score(df, class_column=class_column, type='linear')
+    svm_rbf_accuracy = svm_fit_and_score(df, class_column=class_column, type='rbf')
+    lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
+    string_to_dump = str(datetime.now()) + '\n' \
+                     + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' \
+                     + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
+                     + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
     dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis' + '.txt')
     print(string_to_dump)
     with open(dump_file_name, 'w') as file:
         file.write(string_to_dump)
 
+def mean_vectors_of_classes(df, class_column='shape'):
+  """
+  Computes mean vector for each class in class_column
+  :param df: dataframe containing hidden vectors + metadata
+  :param class_column: column_name corresponding to class labels
+  :return: dataframe with classes as index and mean vectors for each class
+  """
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  labels = list(df[class_column])
+  values = df_col_to_matrix(df['hidden_repr'])
+  vector_dict = collections.defaultdict(list)
+  for label, vector in zip(labels, values):
+    vector_dict[label].append(vector)
+
+  return pd.DataFrame.from_dict(dict([(label, np.mean(vectors, axis=0)) for label, vectors in vector_dict.items()]), orient='index')
+
+def inter_class_variance_plot(df, class_column='shape'):
+  """
+  Plots inter-class variance of mean vectors for each dimension of the hidden representation
+  :param df: dataframe containing hidden vectors + metadata
+  :param class_column: column_name corresponding to class labels
+  """
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  variance_df = mean_vectors_of_classes(df, class_column=class_column).var(axis=0)
+  plt.figure()
+  variance_df.plot(kind='bar')
+  plt.show()
+
+def inter_class_pca(df, class_column='shape', n_components=50):
+  """
+  Performs PCA on mean vactors of classes
+  :param df: dataframe containing hidden vectors + metadata
+  :param class_column: column_name corresponding to class labels
+  :param n_components: number of principal components
+  :return: fitted pca sklean object
+  """
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  mean_vector_df = mean_vectors_of_classes(df, class_column=class_column)
+  pca = sklearn.decomposition.PCA(n_components).fit(mean_vector_df)
+  relative_variance_explained = np.sum(pca.explained_variance_)/np.sum(mean_vector_df.var(axis=0))
+  print("PCA (n_components= %i: relative variance explained:" % n_components, relative_variance_explained, '\n',pca.explained_variance_)
+  variance_df = mean_vectors_of_classes(df, class_column=class_column).var(axis=0)
+  return pca
+
+def transform_vectors_with_inter_class_pca(df, class_column='shape', n_components=50):
+  """
+    Performs PCA on mean vactors of classes and applies transformation to all hidden_reps in df
+    :param df: dataframe containing hidden vectors + metadata
+    :param class_column: column_name corresponding to class labels
+    :param n_components: number of principal components
+    :return: dataframe with transformed vectors
+    """
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  df = df.copy()
+  pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
+  transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df['hidden_repr']))
+  df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
+  return df
+
 
 
 def main():
     df = pd.read_pickle(FLAGS.pickle_file)
+
     #print(df)
     #export_svm_plot(df, type="linear")
 
@@ -641,7 +685,10 @@ def main():
 
     #similarity_matrix(df, "category")
     #similarity_matrix(df, "motion_location")
-    classifier_analysis(df, "category")
+    #print(svm_fit_and_score(df, class_column="category"))
+    transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
+
+    #classifier_analysis(transformed_df, "category")
     # plot_similarity_shape_motion_matrix(df)
 
 

@@ -9,11 +9,13 @@ import pandas as pd
 import json
 from matplotlib import pyplot as plt
 import numpy as np
+import seaborn as sn
 
 
 def files_from_directory(dir_str, file_type):
   file_paths = gfile.Glob(os.path.join(dir_str, file_type))
   return [os.path.basename(i) for i in file_paths]
+
 
 def file_paths_from_directory(dir_str, file_type):
   file_paths = gfile.Glob(os.path.join(dir_str, file_type))
@@ -141,6 +143,7 @@ def store_output_frames_as_gif(output_frames, labels, output_dir):
     clip = mpy.ImageSequenceClip(clip_array, fps=10).to_RGB()
     clip.write_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'), program='ffmpeg')
 
+
 def bgr_to_rgb(frame):
   blue_channel = frame[:,:,0]
   red_channel = frame[:,:,2]
@@ -232,3 +235,30 @@ def store_plot(output_dir, name1, name2="", name3="", suffix=".png"):
 
   plt.savefig(file_name, dpi=100)
   print('Dumped plot to:', file_name)
+
+
+def export_plot_from_pickle(pickle_file_path, plot_options=((64, 64), 15, 15), show=False):
+  """
+  Loads a pickle file, generates a seaborn heatmap from its data and saves it to the dir of the specified pickle_file.
+
+  :param pickle_file_path: the full path to the pickle file.
+  :param plot_options: list of settings for matplotlib and seaborn. First list element specifies figure size as a
+  tuple e.g. 64x64. Second list element specifies font_scale for seaborn as a single integer, e.g. 15. Third list
+  element specifies annotation font size as a single integer, e.g. 15)
+  :param show: defines wheter this function should also show the generated plot in the GUI.
+  :return: the plot
+  """
+  assert os.path.isfile(pickle_file_path)
+  df = pd.read_pickle(pickle_file_path)
+  plt.figure(figsize=plot_options[0])
+  sn.set(font_scale=plot_options[1])
+  ax = sn.heatmap(df, annot=True, annot_kws={"size": plot_options[2]})
+
+  if show:
+    plt.show()
+
+  heatmap_file_name = os.path.join(os.path.dirname(pickle_file_path),
+                                   'pickle_heatmap_plot.png')
+  plt.savefig(heatmap_file_name, dpi=100)
+
+  return plt

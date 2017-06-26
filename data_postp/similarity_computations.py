@@ -3,7 +3,7 @@ import os, collections, scipy, itertools, multiprocessing
 from datetime import datetime
 from pprint import pprint
 from tensorflow.python.platform import flags
-import matplotlib as mpl; from matplotlib import pyplot as plt
+import matplotlib as mpl; mpl.use('Agg'); from matplotlib import pyplot as plt
 from joblib import Parallel, delayed
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
 from utils.io_handler import store_plot
 
 
-mpl.use('Agg')
+
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
@@ -86,9 +86,9 @@ def compute_hidden_representation_similarity(hidden_representations, labels, typ
 
 def compute_cosine_similarity(vector_a, vector_b):
     "vectors similar: cosine similarity is 1"
-    if vector_a.ndim > 2:
+    if vector_a.ndim >= 2:
         vector_a = vector_a.flatten()
-    if vector_b.ndim > 2:
+    if vector_b.ndim >= 2:
         vector_b = vector_b.flatten()
 
     numerator = sum(a * b for a, b in zip(vector_a, vector_b))
@@ -458,11 +458,9 @@ def avg_distance(df, similarity_type='cos'):
 
 def similarity_matrix(df, df_label_col, similarity_type='cos'):
     assert 'hidden_repr' in list(df) and df_label_col in list(df)
-    assert similarity_type in ['cos', 'euc']
+    assert similarity_type in ['cos'] #euclidean no longer supported
     labels = list(sorted(set(df[df_label_col])))
-    print(labels)
     n = len(labels)
-    print(n)
     sim_matrix = np.zeros([n, n])
     for i in range(n):
         for j in range(n):
@@ -474,11 +472,6 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
                 num_cores = multiprocessing.cpu_count()
 
                 sim = Parallel(n_jobs=num_cores)(delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
-
-                        #if similarity_type is 'cos':
-                        #    sim.append(compute_cosine_similarity(v1, v2))
-                        #else:
-                        #    sim.append(np.sqrt(np.sum((v1.flatten() - v2.flatten()) ** 2)))
 
                 assert (len(sim) == len(vectors1) * len(vectors2))
                 print(np.mean(sim))
@@ -673,8 +666,6 @@ def transform_vectors_with_inter_class_pca(df, class_column='shape', n_component
   df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
   return df
 
-
-
 def main():
     df = pd.read_pickle(FLAGS.pickle_file)
 
@@ -683,10 +674,11 @@ def main():
 
     #visualize_hidden_representations(df)
 
-    #similarity_matrix(df, "category")
     #similarity_matrix(df, "motion_location")
     #print(svm_fit_and_score(df, class_column="category"))
     transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
+    similarity_matrix(transformed_df, "category")
+
 
     #classifier_analysis(transformed_df, "category")
     # plot_similarity_shape_motion_matrix(df)

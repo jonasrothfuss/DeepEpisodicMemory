@@ -13,7 +13,7 @@ from tensorflow.python.platform import flags
 from models import loss_functions
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm2_800_deep_64 as model
 """"""
 
 
@@ -375,6 +375,7 @@ def tower_operations(video_batch):
   frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
                                                                    FLAGS.decoder_future_length,
                                                                    FLAGS.decoder_reconst_length,
+                                                                   noise_std=FLAGS.noise_std,
                                                                    uniform_init=FLAGS.uniform_init,
                                                                    num_channels=FLAGS.num_channels,
                                                                    fc_conv_layer=FLAGS.fc_layer)

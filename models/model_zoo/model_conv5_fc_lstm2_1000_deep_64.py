@@ -166,12 +166,14 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, sco
   return frame_gen
 
 
-def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst_len=5, uniform_init=True, num_channels=3, fc_conv_layer=True):
+def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst_len=5, noise_std=0.0,
+                    uniform_init=True, num_channels=3, fc_conv_layer=True):
   """
   Args:
     frames: 5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)
     encoder_len: number of frames that shall be encoded
     decoder_future_sequence_length: number of frames that shall be decoded from the hidden_repr
+    noise_std: standard deviation of the gaussian noise to be added to the hidden representation
     uniform_init: specifies if the weight initialization should be drawn from gaussian or uniform distribution (default:uniform)
     num_channels: number of channels for generated frames
     fc_conv_layer: indicates whether fully connected layer shall be added between encoder and decoder
@@ -181,6 +183,12 @@ def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst
   assert all([len > 0 for len in [encoder_len, decoder_future_len, decoder_reconst_len]])
   initializer = tf_layers.xavier_initializer(uniform=uniform_init)
   hidden_repr = encoder_model(frames, encoder_len, initializer, fc_conv_layer=fc_conv_layer)
+
+  # add noise
+  if noise_std != 0.0:
+    hidden_repr = hidden_repr + tf.random_normal(shape=hidden_repr.get_shape(), mean=0.0, stddev=noise_std,
+                                                 dtype=tf.float32)
+
   frames_pred = decoder_model(hidden_repr, decoder_future_len, initializer, num_channels=num_channels,
                               scope='decoder_pred', fc_conv_layer=fc_conv_layer)
   frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, initializer, num_channels=num_channels,

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sn
 
-import sklearn
+import sklearn, sklearn.ensemble
 from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
 from sklearn.svm import SVC, LinearSVC
 from sklearn.manifold import TSNE
@@ -356,6 +356,25 @@ def logistic_regression_fit_and_score(df, class_column="shape"):
     return test_accuracy
 
 
+def gradient_boosting_fit_and_score(df, class_column="shape"):
+  """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
+  labels = list(df[class_column])
+  values = df_col_to_matrix(df['hidden_repr'])
+  Y_data = np.asarray(labels)
+
+  # prepare train/test split
+  X_train, X_test, y_train, y_test = train_test_split(values, Y_data, test_size=0.2, random_state=0)
+
+  # train logistic regression model
+  gb = sklearn.ensemble.GradientBoostingClassifier(verbose=True)
+  gb = gb.fit(X_train, y_train)
+
+  # after hyperparameter search with cv, do final test with remaining data and store the plot
+  test_accuracy = gb.score(X_test, y_test)
+
+  return test_accuracy
+
+
 def export_random_forest_plot(df, class_column="shape", plot=False):
     X = df_col_to_matrix(df['hidden_repr'])
     Y = df[class_column]
@@ -677,10 +696,10 @@ def main():
     #similarity_matrix(df, "motion_location")
     #print(svm_fit_and_score(df, class_column="category"))
     transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
-    similarity_matrix(transformed_df, "category")
+    #similarity_matrix(transformed_df, "category")
 
-
-    #classifier_analysis(transformed_df, "category")
+    print(gradient_boosting_fit_and_score(df, class_column="category"))
+    #classifier_analysis(df, "category")
     # plot_similarity_shape_motion_matrix(df)
 
 

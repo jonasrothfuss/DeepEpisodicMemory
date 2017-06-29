@@ -6,14 +6,15 @@ from pprint import pprint
 from data_prep.TFRW2Images import createGif
 
 from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
-from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector
+from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector, file_paths_from_directory
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 from models import loss_functions
+import numpy as np
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_800_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 """"""
 
 
@@ -22,21 +23,21 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 # constants for developinge
 FLAGS = flags.FLAGS
 OUT_DIR = '/localhome/rothfuss/training/'
-DATA_PATH = '/localhome/rothfuss/data/ucf101/tf_records'
+DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 #DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/localhome/rothfuss/training/06-09-17_16-10/'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc'
 # use pre-trained model and run validation only
-VALID_ONLY = False
-VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
-EXCLUDE_FROM_RESTORING = "convlstm0"
+VALID_ONLY = True
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
+EXCLUDE_FROM_RESTORING = None
 
 
 # hyperparameters
-flags.DEFINE_integer('num_iterations', 2000, 'specify number of training iterations, defaults to 100000')
+flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
@@ -113,7 +114,7 @@ class Model:
       self.elapsed_time = tf.placeholder(tf.float32, [])
       self.summaries.append(tf.summary.scalar('batch_duration', self.elapsed_time))
 
-    else: # validation model (single gpu)
+    else: # validation model
       with tf.variable_scope(reuse_scope, reuse=True):
         tower_losses, frames_pred_list, frames_reconst_list, hidden_repr_list, label_batch_list, \
         metadata_batch_list, val_batch_list = [], [], [], [], [], [], []
@@ -316,6 +317,12 @@ def valid_run(output_dir):
     :param
       output_dir: path to output directory where validation summary and gifs are stored
   """
+
+  #Calculate number of validation samples
+  valid_filenames = file_paths_from_directory(FLAGS.path, 'valid*')
+  num_valid_samples = input.get_number_of_records(valid_filenames)
+  print('Detected %i validation samples' % num_valid_samples)
+
   _, val_model = create_model()
 
   initializer = Initializer(output_dir)
@@ -351,7 +358,15 @@ def valid_run(output_dir):
       print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
 
     if FLAGS.valid_mode == 'data_frame':
+      #evaluate multiple batches to cover all available validation samples
+      for i in range((num_valid_samples//(FLAGS.valid_batch_size * FLAGS.num_gpus))-1):
+        hidden_representations_new, labels_new, metadata_new = initializer.sess.run([val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
+        hidden_representations = np.concatenate((hidden_representations, hidden_representations_new))
+        labels = np.concatenate((labels, labels_new))
+        metadata = np.concatenate((metadata, metadata_new))
+
       store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
+
 
     summary_writer.add_summary(val_summary_str, 1)
 

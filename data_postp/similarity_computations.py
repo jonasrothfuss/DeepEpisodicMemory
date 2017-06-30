@@ -15,16 +15,17 @@ from sklearn.svm import SVC, LinearSVC
 from sklearn.manifold import TSNE
 from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
 
-from utils.io_handler import store_plot
+from utils.io_handler import store_plot, export_plot_from_pickle
 
+NUM_CORES = multiprocessing.cpu_count()
 
 
 
 # PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
 #PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
-PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
-#PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle'
+#PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
+PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc/valid_run/metadata_and_hidden_rep_df_06-29-17_12-53-39.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
@@ -475,7 +476,7 @@ def avg_distance(df, similarity_type='cos'):
     return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
 
 
-def similarity_matrix(df, df_label_col, similarity_type='cos'):
+def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type = ""):
     assert 'hidden_repr' in list(df) and df_label_col in list(df)
     assert similarity_type in ['cos'] #euclidean no longer supported
     labels = list(sorted(set(df[df_label_col])))
@@ -487,10 +488,8 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
                 print(i, j, labels[i], labels[j])
                 vectors1 = list(df[df[df_label_col] == labels[i]]['hidden_repr'])
                 vectors2 = list(df[df[df_label_col] == labels[j]]['hidden_repr'])
-                sim = []
-                num_cores = multiprocessing.cpu_count()
 
-                sim = Parallel(n_jobs=num_cores)(delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
+                sim = Parallel(n_jobs=NUM_CORES)(delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
 
                 assert (len(sim) == len(vectors1) * len(vectors2))
                 print(np.mean(sim))
@@ -504,7 +503,7 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
 
     df_cm = pd.DataFrame(sim_matrix, index=labels, columns=labels)
     print(df_cm)
-    df_cm.to_pickle(os.path.join(os.path.dirname(FLAGS.pickle_file), 'sim_matrix_' + similarity_type + '.pickle'))
+    df_cm.to_pickle(os.path.join(os.path.dirname(FLAGS.pickle_file), 'sim_matrix_' + similarity_type + '_' + vector_type + '.pickle'))
     plt.figure(figsize=(64, 64))
     sn.set(font_scale=15)
     ax = sn.heatmap(df_cm, annot=True, annot_kws={"size": 160})
@@ -513,7 +512,7 @@ def similarity_matrix(df, df_label_col, similarity_type='cos'):
         for item in ax.get_xticklabels():
             item.set_rotation(90)
     heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),
-                                     'sim_matrix_font_large_' + df_label_col + '_' + similarity_type + '.png')
+                                     'sim_matrix_font_large_' + df_label_col + '_' + similarity_type + '_' + vector_type + '.png')
     plt.savefig(heatmap_file_name, dpi=100)
     print('Dumped Heatmap to:', heatmap_file_name)
     plt.show()
@@ -685,6 +684,40 @@ def transform_vectors_with_inter_class_pca(df, class_column='shape', n_component
   df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
   return df
 
+def find_closest_vectors(df, query_idx, class_column='shape', n_closest_matches=5):
+    """
+    finds the closest vector matches (cos_similarity) for a given query vector
+    :param df: dataframe containing hidden vectors + metadata
+    :param query_idx: index of the query vector in the df
+    :param num_vectors: denotes how many of the closest vector matches shall be returned
+    :return: list of tuples (i, cos_sim, label) correspondig to the num_vectors closest vector matches
+    """
+    assert 'hidden_repr' in df.columns
+    assert query_idx in df.index
+    query_row = df.iloc[query_idx]
+    query_class = query_row[class_column]
+    query_v_id = query_row["video_id"]
+    remaining_df = df[df.index != query_idx]
+    cos_distances = [(i, compute_cosine_similarity(v, query_row['hidden_repr']), l, v_id) for i, v, l, v_id in
+                     zip(remaining_df.index, remaining_df['hidden_repr'], remaining_df[class_column], remaining_df['video_id'])]
+    sorted_distances = sorted(cos_distances, key=lambda tup: tup[1], reverse=True)
+    sorted_distances = [tup for tup in sorted_distances if tup[3] != query_v_id]
+    print([l for _, _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
+    return sorted_distances[:n_closest_matches]
+
+def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
+    #construct pairwise similarity matrix
+    assert 'hidden_repr' in df.columns and class_column in df.columns
+
+    for i in df.index:
+        label = df.iloc[i][class_column]
+        closest_vectors = find_closest_vectors(df, i, class_column=class_column, n_closest_matches=n_closest_matches)
+        print(label)
+        pprint(closest_vectors)
+
+    #sim = Parallel(n_jobs=NUM_CORES)(
+    #    delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
+
 def main():
     df = pd.read_pickle(FLAGS.pickle_file)
 
@@ -695,10 +728,18 @@ def main():
 
     #similarity_matrix(df, "motion_location")
     #print(svm_fit_and_score(df, class_column="category"))
-    transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
-    #similarity_matrix(transformed_df, "category")
 
-    print(gradient_boosting_fit_and_score(df, class_column="category"))
+    similarity_matrix(df, "category", vector_type='no_pca')
+
+    transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
+    similarity_matrix(transformed_df, "category", vector_type='pca')
+
+    #export_plot_from_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc/valid_run/sim_matrix_cos.pickle',
+    #                        plot_options=((100, 100), 5, 40))
+
+    #print(transformed_df)
+    #closest_vector_analysis(transformed_df, class_column="category", n_closest_matches=20)
+
     #classifier_analysis(df, "category")
     # plot_similarity_shape_motion_matrix(df)
 

@@ -10,6 +10,7 @@ import json
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sn
+from moviepy.editor import VideoFileClip
 
 
 def files_from_directory(dir_str, file_type):
@@ -35,20 +36,19 @@ def get_metadata_dict_as_bytes(value):
 
 def get_video_id_from_path(path_str, type=None):
   video_name = os.path.basename(path_str)
-  if type == 'UCF101':
+  if type == 'activity_net':
     p = re.compile('^([a-zA-Z0-9_-]+_[0-9]+)_\d{3}')
-    video_id = p.match(video_name).group(1)
-    return video_id
   elif type == 'youtube8m':
     p = re.compile('^([a-zA-Z0-9_-]+)_[0-9]+x[0-9]+')
-    video_id = p.match(video_name).group(1)
-    return video_id
+  elif type == 'ucf101':
+    p = re.compile('^([a-zA-Z0-9_-]+)_[0-9]+x[0-9]+')
   elif type == 'flyingshapes':
     video_id = video_name.split('_')[0]
     return video_id
   else: #just return filename without extension
     return video_name.replace('.avi', '').replace('.mp4', '')
-
+  video_id = p.match(video_name).group(1)
+  return video_id
 
 def shuffle_files_in_list(paths_list, seed=5):
   """
@@ -262,3 +262,19 @@ def export_plot_from_pickle(pickle_file_path, plot_options=((64, 64), 15, 15), s
   plt.savefig(heatmap_file_name, dpi=100)
 
   return plt
+
+def folder_names_from_dir(directory):
+  return [f for f in os.listdir(directory) if os.path.isdir(os.path.join(directory, f))]
+
+def folder_files_dict(directory):
+  ff_dict = {}
+  for folder in folder_names_from_dir(directory):
+    folder_path = os.path.join(directory, folder)
+    ff_dict[folder] = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+  return ff_dict
+
+def video_length(video_path):
+  clip = VideoFileClip(video_path)
+  duration = clip.duration
+  clip.__del__()
+  return duration

@@ -7,6 +7,8 @@ import random, multiprocessing, subprocess, scenedetect
 import pandas as pd
 from pprint import pprint
 from joblib import Parallel, delayed
+import traceback
+
 
 NUM_CORES = multiprocessing.cpu_count()
 
@@ -14,7 +16,7 @@ CSV_TRAIN_20BN = '/PDFData/rothfuss/data/20bn-something/something-something-v1-t
 CSV_VALID_20BN = '/PDFData/rothfuss/data/20bn-something/something-something-v1-validation.csv'
 
 DATASETS = ['youtube8m', 'UCF101']
-NUM_TIME_CROPS = 3
+NUM_TIME_CROPS = 1
 
 NUM_CORES = multiprocessing.cpu_count()
 
@@ -187,7 +189,7 @@ def create_ucf101_metadata_dicts(video_dir, metadata_json_file, file_type="*.avi
   meta_dict = {}
 
   for i, video_path in enumerate(filenames):
-   video_id = io_handler.get_video_id_from_path(video_path, 'ucf101')
+   video_id = io_handler.get_video_id_from_path(video_path, 'UCF101')
    subclip_dict_entry = clip_dict[video_id]
    subclip_dict_entry.update({'label': subclip_dict_entry['category'], 'filetype': 'avi', 'video_id': video_id })
    meta_dict.update({video_id: subclip_dict_entry})
@@ -277,7 +279,7 @@ def prepare_and_store_video(source_video_path, output_dir, target_time_interval,
                                        relative_crop_displacement=relative_crop_displacement)
 
   print("writing video: " + target_video_path)
-  clip_resized.write_videofile(target_video_path, codec='rawvideo')
+  clip_resized.write_videofile(target_video_path, codec='rawvideo', progress_bar=False, verbose=False)
   kill_process(clip_resized)
 
 def generate_video_name(source_video_name, target_format, relative_crop_displacement, time_interval):
@@ -285,11 +287,7 @@ def generate_video_name(source_video_name, target_format, relative_crop_displace
                       + str("%.2f" % relative_crop_displacement) + '_' + "(%.1f,%.1f)" % time_interval\
                       + '.avi'
 
-def prepare_and_store_all_videos(output_dir, subclip_json_file_location=None, input_dir=None, target_format=(128,128), type='json'):
-  assert type in ['json', 'folders']
-  assert (type != 'json' or subclip_json_file_location), 'If type is json, subclip_json_file_location must be provided'
-  assert (type != 'folders' or input_dir), 'If type is folders, input_dir must be specified'
-
+def get_metadata_dict(input_dir, output_dir, subclip_json_file_location, type):
   if type is 'json':
     # load dictionaries
     with open(subclip_json_file_location) as file:
@@ -302,7 +300,7 @@ def prepare_and_store_all_videos(output_dir, subclip_json_file_location=None, in
       print('Loaded metadata dict from:', os.path.join(output_dir, 'metadata.json'))
 
     else:
-      #generate metadata dict for videos
+      # generate metadata dict for videos
       ff_dict = io_handler.folder_files_dict(input_dir)
       metadata_dict = {}
 
@@ -313,57 +311,66 @@ def prepare_and_store_all_videos(output_dir, subclip_json_file_location=None, in
           duration = io_handler.video_length(video_path)
           metadata_dict[video.replace('.avi', '')] = {'category': category, 'path': video_path, 'duration': duration}
 
-      #dump metadata dict as json to output dir
+      # dump metadata dict as json to output dir
       with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
         json.dump(metadata_dict, f)
       print('Dumped metadata dict to:', os.path.join(output_dir, 'metadata.json'))
+  return metadata_dict
+
+def generate_video_snippets(i, key, clip, file_names, output_dir, target_format, num_clips):
+  if not key[0] == '-':  # file system cannot handle filenames that start with '-'
+    try:
+      video_path, duration = clip['path'], clip['duration']
+      video_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
+      if any(str(video_name) in x for x in file_names):
+        print("Skipping video (already_exists): " + video_name)
+      else:
+        interval_suggestions = video_time_interval_suggestions(duration, max_num_suggestions=NUM_TIME_CROPS)
+        if len(interval_suggestions) == 1:
+          num_random_crops = 4
+        elif len(interval_suggestions) == 2:
+          num_random_crops = 1
+        else:
+          num_random_crops = 1
+
+        for time_interval in interval_suggestions:
+          for _ in range(num_random_crops):
+            sample_rel_crop_displacement = random.uniform(-0.7, 0.7)
+            try:
+              prepare_and_store_video(video_path, output_dir, target_time_interval=time_interval,
+                                      relative_crop_displacement=sample_rel_crop_displacement,
+                                      target_format=target_format)
+            except Exception as e:
+              print('Failed to process video (' + str(video_path) + ') ---' + str(e))
+            finally:
+              subprocess.call(["pkill -9 -f " + video_path], shell=True)
+
+        print('[%d of %d]  ' % (i, num_clips) + 'Successfully processed video (' + str(video_path) + ')')
+    except Exception as e:
+      print('[%d of %d]  ' % (i, num_clips) + 'Failed to process video (' + str(video_path) + ') ---' + str(e))
+
+def prepare_and_store_all_videos(output_dir, subclip_json_file_location=None, input_dir=None, target_format=(128,128), type='json'):
+  assert type in ['json', 'folders']
+  assert (type != 'json' or subclip_json_file_location), 'If type is json, subclip_json_file_location must be provided'
+  assert (type != 'folders' or input_dir), 'If type is folders, input_dir must be specified'
+
+  metadata_dict = get_metadata_dict(input_dir, output_dir, subclip_json_file_location, type)
 
   #get files that were already processed
   file_names = io_handler.files_from_directory(output_dir, '*.avi')
 
   num_clips = len(metadata_dict)
 
-  for i, (key, clip) in enumerate(metadata_dict.items()):
-    if key[0] == '-':  # file system cannot handle filenames that start with '-'
-      continue
-    try:
-      video_path, duration = clip['path'], clip['duration']
-      video_name = os.path.basename(video_path).replace('.mp4', '').replace('.avi', '')
-      if any(str(video_name) in x for x in file_names):
-        print("Skipping video (already_exists): " + video_name)
-        continue
-
-      interval_suggestions = video_time_interval_suggestions(duration, max_num_suggestions=NUM_TIME_CROPS)
-      if len(interval_suggestions) == 1:
-        num_random_crops = 4
-      elif len(interval_suggestions) == 2:
-        num_random_crops = 3
-      else:
-        num_random_crops = 2
-
-      for time_interval in interval_suggestions:
-        for _ in range(num_random_crops):
-          sample_rel_crop_displacement = random.uniform(-0.7, 0.7)
-          try:
-            prepare_and_store_video(video_path, output_dir, target_time_interval=time_interval,
-                                    relative_crop_displacement=sample_rel_crop_displacement,
-                                    target_format=target_format)
-          except Exception as e:
-            print('Failed to process video (' + str(video_path) + ') ---' + str(e))
-          finally:
-            subprocess.call(["pkill -9 -f " + video_path], shell=True)
-
-      print('[%d of %d]  ' % (i, num_clips) + 'Successfully processed video (' + str(video_path) + ')')
-    except Exception as e:
-      print('[%d of %d]  ' % (i, num_clips) + 'Failed to process video (' + str(video_path) + ') ---' + str(e))
+  Parallel(n_jobs=NUM_CORES)(
+    delayed(generate_video_snippets)(i, key, clip, file_names, output_dir, target_format, num_clips)
+    for i, (key, clip) in enumerate(metadata_dict.items()))
 
 def kill_process(process):
-  if hasattr(process, 'reader'):
-    process.reader.close()
-  if hasattr(process, 'audio'):
-    process.audio.reader.close_proc()
-
   try:
+    if hasattr(process, 'reader'):
+      process.reader.close()
+    if hasattr(process, 'audio'):
+      process.audio.reader.close_proc()
     process.__del__()
   except:
     pass
@@ -445,23 +452,35 @@ def convert_20bn_dataset_to_videos(source_dir, target_dir):
   Parallel(n_jobs=NUM_CORES)(
     delayed(process_folder_with_frames)(i, frames_dir, target_dir, id_dict, num_dirs) for i, frames_dir in enumerate(frames_directories))
 
+def split_ucf_in_train_valid(source_dir, train_list, test_list):
+  train_videos = pd.read_csv(train_list, sep=' ', names=['vid_name', 'label'])['vid_name']
+  valid_videos = pd.read_csv(test_list, names=['vid_name'])['vid_name']
+  train_val_dict = {}
+  for v in train_videos:
+    train_val_dict[v.split('/')[1].replace('.avi', '')] = 'train'
+  for v in valid_videos:
+    train_val_dict[v.split('/')[1].replace('.avi', '')] = 'valid'
+  videos = io_handler.files_from_directory(source_dir, file_type='*.avi')
+
+  for i, v in enumerate(videos):
+    v_id = io_handler.get_video_id_from_path(v, type='UCF101')
+    os.rename(os.path.join(source_dir, v), os.path.join(os.path.join(source_dir, train_val_dict[v_id]), v))
+    print(i, '- moved ', v_id)
+
 def main():
   # load subclip dict
   json_file_location = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
   #json_file_location_taxonomy = '/common/homes/students/rothfuss/Downloads/metadata.json'
   #output_dir = '/data/rothfuss/data/ucf101_prepared_videos/'
-  #input_dir = '/common/homes/students/rothfuss/Downloads/UCF-101'
-  #output_dir = '/PDFData/rothfuss/data/UCF101/prepared_videos'
+  input_dir = '/common/homes/students/rothfuss/Downloads/UCF-101'
+  output_dir = '/PDFData/rothfuss/data/UCF101/prepared_videos'
 
+  #frames_dir = '/PDFData/rothfuss/data/20bn-something-something-v1'
+  #traget_dir = '/PDFData/rothfuss/data/20bn-something/videos'
 
-  frames_dir = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  traget_dir = '/PDFData/rothfuss/data/20bn-something/videos'
+  #convert_20bn_dataset_to_videos(frames_dir, traget_dir)
 
-  convert_20bn_dataset_to_videos(frames_dir, traget_dir)
-
-
-  #prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
-
+  prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
 
 if __name__ == '__main__':
  main()

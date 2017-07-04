@@ -3,18 +3,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import re
-import math
-import warnings
+import os, re, math, warnings
 from tensorflow.python.platform import gfile
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 import cv2 as cv2
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import json
-from data_prep.video_preparation import create_activity_net_metadata_dicts, create_youtube8m_metadata_dicts, create_20bn_metadata_dicts
+from data_prep.video_preparation import create_activity_net_metadata_dicts, create_youtube8m_metadata_dicts, create_20bn_metadata_dicts, create_ucf101_metadata_dicts
 import utils.io_handler as io_handler
 from pprint import pprint
 
@@ -35,6 +33,7 @@ METADATA_y8m_031 = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 METADATA_DICT = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 CSV_20BN_TRAIN = '/PDFData/rothfuss/data/20bn-something/something-something-v1-train_test.csv'
 CSV_20BN_VALID = '/PDFData/rothfuss/data/20bn-something/something-something-v1-validation.csv'
+METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.json'
 
 
 FLAGS = flags.FLAGS
@@ -43,7 +42,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', '20bn', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', 'UCF101', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -185,7 +184,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None):
         else:
           getNextFrame(cap)
 
-    print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
+    #print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
 
     data[i, :, :, :, :] = video
     cap.release()
@@ -222,7 +221,9 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   elif type == 'youtube8m':
     meta_dict = create_youtube8m_metadata_dicts(FLAGS.source, METADATA_DICT, FILE_FILTER)
   elif type == '20bn':
-    meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_TRAIN, FILE_FILTER)
+    meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_VALID, FILE_FILTER)
+  elif type == 'UCF101':
+    meta_dict = create_ucf101_metadata_dicts(FLAGS.source, METADATA_DICT_UCF101, FILE_FILTER)
   else:
     meta_dict = None
 
@@ -279,6 +280,8 @@ def getNextFrame(cap):
 
   return np.asarray(frame)
 
+
+
 def main(argv):
   #_, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
 
@@ -290,6 +293,7 @@ def main(argv):
   #  all_files_shuffled = content.split('\n')
   #print('Collected %i Video Files'%len(all_files_shuffled))
   #all_files_shuffled = all_files_shuffled[0:140000]
+
   save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type)
 
 if __name__ == '__main__':

@@ -1,35 +1,32 @@
 import tensorflow as tf
 
 def gradient_difference_loss(true, pred, alpha=2.0):
-  """description here"""
+  """
+  computes gradient difference loss of two images
+  :param ground truth image: Tensor of shape (batch_size, frame_height, frame_width, num_channels)
+  :param predicted image: Tensor of shape (batch_size, frame_height, frame_width, num_channels)
+  :param alpha parameter of the used l-norm
+  """
   #tf.assert_equal(tf.shape(true), tf.shape(pred))
   # vertical
   true_pred_diff_vert = tf.pow(tf.abs(difference_gradient(true, vertical=True) - difference_gradient(pred, vertical=True)), alpha)
   # horizontal
   true_pred_diff_hor = tf.pow(tf.abs(difference_gradient(true, vertical=False) - difference_gradient(pred, vertical=False)), alpha)
   # normalization over all dimensions
-  return tf.reduce_sum(true_pred_diff_vert) + tf.reduce_sum(true_pred_diff_hor) / tf.to_float(2*tf.size(pred))
+  return (tf.reduce_mean(true_pred_diff_vert) + tf.reduce_mean(true_pred_diff_hor)) / tf.to_float(2)
 
 
 def difference_gradient(image, vertical=True):
-  # two dimensional tensor
-  # rank = ndim in numpy
-  #tf.assert_rank(tf.rank(image), 4)
-
-  # careful! begin is zero-based; size is one-based
+  """
+  :param image: Tensor of shape (batch_size, frame_height, frame_width, num_channels)
+  :param vertical: boolean that indicates whether vertical or horizontal pixel gradient shall be computed
+  :return: difference_gradient -> Tenor of shape (:, frame_height-1, frame_width, :) if vertical and (:, frame_height, frame_width-1, :) else
+  """
+  s = tf.shape(image)
   if vertical:
-    begin0 = [0, 0, 0]
-    begin1 = [1, 0, 0]
-    size = [tf.shape(image)[1] - 1, tf.shape(image)[2], tf.shape(image)[3]]
-  else: # horizontal
-    begin0 = [0, 0, 0]
-    begin1 = [0, 1, 0]
-    size = [tf.shape(image)[1], tf.shape(image)[2] - 1, tf.shape(image)[3]]
-
-  slice0 = tf.slice(image[0, :, :, :], begin0, size)
-  slice1 = tf.slice(image[0, :, :, :], begin1, size)
-  return tf.abs(tf.sub(slice0, slice1))
-
+    return tf.abs(image[:, 0:s[1] - 1, :, :] - image[:, 1:s[1], :, :])
+  else:
+    return tf.abs(image[:, :, 0:s[2]-1,:] - image[:, :, 1:s[2], :])
 
 def mean_squared_error(true, pred):
   """L2 distance between tensors true and pred.

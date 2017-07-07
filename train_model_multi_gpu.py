@@ -23,16 +23,17 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 # constants for developinge
 FLAGS = flags.FLAGS
 OUT_DIR = '/localhome/rothfuss/training/'
-DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
+#DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
+DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records'
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 #DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_20bn'
 # use pre-trained model and run validation only
-VALID_ONLY = True
-VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_ONLY = False
+VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
 EXCLUDE_FROM_RESTORING = None
 
 
@@ -51,6 +52,7 @@ flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer sha
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
 flags.DEFINE_float('noise_std', 0.0, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
+flags.DEFINE_float('keep_prob_dopout', 0.9, 'keep probability for dropout during training, for valid automatically 1')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -91,7 +93,7 @@ class Model:
         train_batch = tf.cast(train_batch, tf.float32)
         with tf.device('/gpu:%d' % i):
           with tf.name_scope('%s_%d' % ('tower', i)):
-            tower_loss, _, _, _ = tower_operations(train_batch)
+            tower_loss, _, _, _ = tower_operations(train_batch, train=True)
             tower_losses.append(tower_loss)
 
             # Reuse variables for the next tower.
@@ -130,7 +132,7 @@ class Model:
 
           with tf.device('/gpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
-              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch)
+              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch, train=False)
               tower_losses.append(tower_loss)
               frames_pred_list.append(tf.pack(frames_pred))
               frames_reconst_list.append(tf.pack(frames_reconst))
@@ -380,16 +382,20 @@ def valid_run(output_dir):
   # Wait for threads to finish.
   initializer.stop_session()
 
-def tower_operations(video_batch):
+def tower_operations(video_batch, train=True):
   """
   Build the computation graph from input frame sequences till loss of batch
   :param device number for assining queue runner to CPU
+  :param train: boolean that indicates whether train or validation mode
   :return batch loss (scalar)
   """
+  #only dropout in train mode
+  keep_prob_dropout = FLAGS.keep_prob_dopout if train else 1.0
 
   frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
                                                                    FLAGS.decoder_future_length,
                                                                    FLAGS.decoder_reconst_length,
+                                                                   keep_prob_dropout=keep_prob_dropout,
                                                                    noise_std=FLAGS.noise_std,
                                                                    uniform_init=FLAGS.uniform_init,
                                                                    num_channels=FLAGS.num_channels,

@@ -14,7 +14,7 @@ from tensorflow.python.platform import flags
 FLAGS = flags.FLAGS
 
 #statics for data
-NUM_IMAGES = 20
+NUM_IMAGES = 15
 NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128

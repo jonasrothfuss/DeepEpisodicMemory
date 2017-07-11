@@ -22,25 +22,24 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # constants for developinge
 FLAGS = flags.FLAGS
-OUT_DIR = '/localhome/rothfuss/training/'
+OUT_DIR = '/localhome/rothfuss/training'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
-DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records'
+DATA_PATH = '/data/rothfuss/data/20bn-something/tf_records'
 #OUT_DIR = '/home/ubuntu/training'
-#DATA_PATH = '/home/ubuntu/Dropbox-Uploader/tf_records_activity_net'
 #DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
 
 # use pretrained model
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_20bn'
+PRETRAINED_MODEL = '/data/rothfuss/training/06-09-17_16-10_1000fc_noise_20bn_v2'
 # use pre-trained model and run validation only
 VALID_ONLY = False
-VALID_MODE = 'gif' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_MODE = 'data_frame gif' # 'vector', 'gif', 'similarity', 'data_frame'
 EXCLUDE_FROM_RESTORING = None
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 64, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
@@ -51,8 +50,8 @@ flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the 
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
-flags.DEFINE_float('noise_std', 0.0, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
-flags.DEFINE_float('keep_prob_dopout', 0.9, 'keep probability for dropout during training, for valid automatically 1')
+flags.DEFINE_float('noise_std', 0.01, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
+flags.DEFINE_float('keep_prob_dopout', 0.7, 'keep probability for dropout during training, for valid automatically 1')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -67,9 +66,9 @@ flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
 flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable names to exclude from saving and restoring')
 
 # intervals
-flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
-flags.DEFINE_integer('summary_interval', 50, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 1000, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
+flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
+flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -341,13 +340,13 @@ def valid_run(output_dir):
     val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata, orig_frames = initializer.sess.run(
       [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
 
-    if FLAGS.valid_mode == 'vector':
+    if 'vector' in FLAGS.valid_mode:
       # store encoder latent vector for analysing
 
       hidden_repr_dir = create_subfolder(output_dir, 'hidden_repr')
       store_encoder_latent_vector(hidden_repr_dir, hidden_representations, labels, True)
 
-    if FLAGS.valid_mode == 'gif':
+    if 'gif' in FLAGS.valid_mode:
       # summary and log
       val_model.iter_num = 1
       #orig_videos = [orig_frames[i,:,:,:,:] for i in range(orig_frames.shape[0])]
@@ -356,10 +355,10 @@ def valid_run(output_dir):
       store_output_frames_as_gif(output_frames, labels, output_dir)
       tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
 
-    if FLAGS.valid_mode == 'similarity':
+    if 'similarity' in FLAGS.valid_mode:
       print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
 
-    if FLAGS.valid_mode == 'data_frame':
+    if 'data_frame' in FLAGS.valid_mode:
       #evaluate multiple batches to cover all available validation samples
       for i in range((num_valid_samples//(FLAGS.valid_batch_size * FLAGS.num_gpus))-1):
         hidden_representations_new, labels_new, metadata_new = initializer.sess.run([val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
@@ -368,7 +367,6 @@ def valid_run(output_dir):
         metadata = np.concatenate((metadata, metadata_new))
 
       store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
-
 
     summary_writer.add_summary(val_summary_str, 1)
 

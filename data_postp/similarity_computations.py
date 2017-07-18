@@ -8,9 +8,11 @@ from joblib import Parallel, delayed
 import numpy as np
 import pandas as pd
 import seaborn as sn
+import scipy
 
 import sklearn, sklearn.ensemble
 from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.manifold import TSNE
 from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
@@ -25,11 +27,14 @@ NUM_CORES = multiprocessing.cpu_count()
 # /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
 #PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
 #PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
-PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/06-26-17_14_32_noise1/valid_run/metadata_and_hidden_rep_df_06-30-17_17-03-42.pickle'
+PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
-
+flags.DEFINE_string('pickle_file_train', PICKLE_FILE_TRAIN, 'path of panda dataframe pickle training file')
+flags.DEFINE_string('pickle_file_test', PICKLE_FILE_TEST, 'path of panda dataframe pickle training file')
 
 def compute_hidden_representation_similarity_matrix(hidden_representations, labels, type):
     if type == 'cos':
@@ -330,6 +335,23 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
       store_plot(FLAGS.pickle_file, file_name)
     return test_accuracy
 
+def svm_train_test_separate(train_df, test_df, class_column="shape", type="linear"):
+  assert type in ["linear", "rbf"],  "No known SVM type specified. Known types are linear or rbf"
+
+  X_train = df_col_to_matrix(train_df['hidden_repr'])
+  y_train = np.asarray(list(train_df[class_column]))
+
+  X_test = df_col_to_matrix(test_df['hidden_repr'])
+  y_test= np.asarray(list(test_df[class_column]))
+
+  if type=='linear':
+    estimator = OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1)
+  else:
+    estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True), n_jobs=-1)  # if type is 'rbf' else LinearSVC(verbose=True)
+  classifier = estimator.fit(X_train, y_train)
+
+  test_accuracy = classifier.score(X_test, y_test)
+  return test_accuracy
 
 def logistic_regression_fit_and_score(df, class_column="shape"):
     """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
@@ -349,6 +371,37 @@ def logistic_regression_fit_and_score(df, class_column="shape"):
 
     return test_accuracy
 
+def knn_fit_and_score(train_df, test_df, class_column="shape", CV=False, PCA=False, n_pca_components=500):
+  # prepare train/test split
+  if PCA:
+    pca = inter_class_pca(test_df, class_column='category', n_components=n_pca_components)
+    X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+    X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+  else:
+    X_train = df_col_to_matrix(train_df['hidden_repr'])
+    X_test = df_col_to_matrix(test_df['hidden_repr'])
+
+  y_train = np.asarray(list(train_df[class_column]))
+  y_test = np.asarray(list(test_df[class_column]))
+
+  estimator = sklearn.neighbors.KNeighborsRegressor()
+
+  if CV:
+    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+    weights = ['uniform', 'distance']
+    n_neighbors = [2, 3, 4, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 80]
+    classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(weights=weights, n_neighbors=n_neighbors))
+    classifier.fit(X_train, y_train)
+    estimator = estimator.set_params(weights=classifier.best_estimator_.weights, n_neighbors=classifier.best_estimator_.n_neighbors)
+    print("best parameters set. weights: %i, n: %i" % classifier.best_estimator_.weights, classifier.best_estimator_.n_neighbors)
+  else:
+    classifier = estimator.fit(X_train, y_train)
+
+  # do final test with remaining data and store the
+  test_accuracy = classifier.score(X_test, y_test)
+
+
+  return test_accuracy
 
 def gradient_boosting_fit_and_score(df, class_column="shape"):
   """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
@@ -620,6 +673,21 @@ def classifier_analysis(df, class_column='shape'):
     with open(dump_file_name, 'w') as file:
         file.write(string_to_dump)
 
+def classifier_analysis_train_test_separate(train_df, test_df, class_column='shape'):
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis_separate' + '.txt')
+  svm_linear_accuracy = svm_train_test_separate(train_df, test_df, class_column=class_column, type='linear')
+  with open(dump_file_name, 'w') as file:
+    file.write(str(datetime.now()) + '\n' \
+                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' )
+  svm_rbf_accuracy = svm_train_test_separate(train_df, test_df, class_column=class_column, type='rbf')
+  string_to_dump = str(datetime.now()) + '\n' \
+                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' \
+                   + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
+
+  print(string_to_dump)
+  with open(dump_file_name, 'w') as file:
+    file.write(string_to_dump)
+
 def mean_vectors_of_classes(df, class_column='shape'):
   """
   Computes mean vector for each class in class_column
@@ -693,11 +761,11 @@ def find_closest_vectors(df, query_idx, class_column='shape', n_closest_matches=
     query_class = query_row[class_column]
     query_v_id = query_row["video_id"]
     remaining_df = df[df.index != query_idx]
-    cos_distances = [(i, compute_cosine_similarity(v, query_row['hidden_repr']), l, v_id) for i, v, l, v_id in
+    cos_distances = [(compute_cosine_similarity(v, query_row['hidden_repr']), l, int(v_id)) for _, v, l, v_id in
                      zip(remaining_df.index, remaining_df['hidden_repr'], remaining_df[class_column], remaining_df['video_id'])]
-    sorted_distances = sorted(cos_distances, key=lambda tup: tup[1], reverse=True)
-    sorted_distances = [tup for tup in sorted_distances if tup[3] != query_v_id]
-    print([l for _, _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
+    sorted_distances = sorted(cos_distances, key=lambda tup: tup[0], reverse=True)
+    sorted_distances = [tup for tup in sorted_distances if tup[2] != query_v_id]
+    print([l for _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
     return sorted_distances[:n_closest_matches]
 
 def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
@@ -713,41 +781,86 @@ def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
     #sim = Parallel(n_jobs=NUM_CORES)(
     #    delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
 
+def dnq_metric(sim_matr):
+  sim_matr_rad = np.arccos(sim_matr.as_matrix())
+  diagonal = np.diagonal(sim_matr_rad)
+  diag_mean = np.mean(diagonal)
+  np.fill_diagonal(sim_matr_rad, np.zeros(sim_matr_rad.shape[0]))
+  non_diag_mean = np.sum(sim_matr_rad)/float(sim_matr_rad.shape[0]*(sim_matr_rad.shape[0]-1))
+  return (1-diag_mean/non_diag_mean)
+
+def general_result_analysis(df):
+  df = pd.read_pickle(FLAGS.pickle_file)
+
+  similarity_matrix(df, "category", vector_type='no_pca', plot_options=((100, 100), 5, 10))
+
+  transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
+  similarity_matrix(transformed_df, "category", vector_type='pca', plot_options=((100, 100), 5, 10))
+
+  classifier_analysis(df, "category")
+
+def lr_analysis_train_test_separate(train_df, test_df, class_column="category", PCA=False, n_pca_components=500):
+    train_df = train_df
+    test_df = test_df
+
+    if PCA:
+      pca = inter_class_pca(test_df, class_column='category', n_components=n_pca_components)
+      X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+      X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+    else:
+      X_train = df_col_to_matrix(train_df['hidden_repr'])
+      X_test = df_col_to_matrix(test_df['hidden_repr'])
+
+    y_train = np.asarray(list(train_df[class_column]))
+    y_test = np.asarray(list(test_df[class_column]))
+
+    # train logistic regression model
+    lr = sklearn.linear_model.LogisticRegression()
+    lr = lr.fit(X_train, y_train)
+
+    # after hyperparameter search with cv, do final test with remaining data and store the plot
+    print('Top 5 Accuracy:', top_n_accuracy(lr, X_test, y_test))
+    print('Accuracy', lr.score(X_test, y_test))
+
+def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
+    log_prob_matrix = trained_classifier.predict_proba(X_test)
+    classes_dict = dict([(label, i) for i, label in enumerate(trained_classifier.classes_)])
+    in_top_n_array = []
+    for i in range(log_prob_matrix.shape[0]):
+      label_index = classes_dict[y_test[i]]
+      top_n_label_indices = np.argsort(log_prob_matrix[i,:])[-n:]
+      in_top_n_array.append(label_index in top_n_label_indices)
+
+    top_n_acc = np.mean(in_top_n_array)
+    return top_n_acc
+
+
 def main():
-    df = pd.read_pickle(FLAGS.pickle_file)
-    print(df)
-    #print(df)
-    #export_svm_plot(df, type="linear")
-
-    #visualize_hidden_representations(df)
-
-    #similarity_matrix(df, "motion_location")
-    #print(svm_fit_and_score(df, class_column="category"))
-
-    similarity_matrix(df, "category", vector_type='no_pca', plot_options=((100, 100), 5, 10))
-
-    transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
-    similarity_matrix(transformed_df, "category", vector_type='pca', plot_options=((100, 100), 5, 10))
-
-    #export_plot_from_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc/valid_run/sim_matrix_cos_pca.pickle',
-    #                        plot_options=((100, 100), 5, 10))
-
-    #print(transformed_df)
-    #closest_vector_analysis(transformed_df, class_column="category", n_closest_matches=20)
-
-    #classifier_analysis(df, "category")
-    # plot_similarity_shape_motion_matrix(df)
+    #df = pd.read_pickle(FLAGS.pickle_file)
 
 
-    # print(similarity_matrix(df, 'shape'))
+    #general_result_analysis(df)
 
-    # plot_similarity_shape_motion_matrix(df)
-    #print(svm_fit_and_score(df, class_column="category"))
-    # export_logistic_regression_plot(df)
-    # export_decision_tree_plot(df)
-    # export_random_forest_plot(df)
-    # print(avg_distance(df, 'cos'))
+    #transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
+    #classifier_analysis(transformed_df, "category")
 
+    #transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
+    #closest_vector_analysis(transformed_df, class_column="category")
+
+    test_df = pd.read_pickle(FLAGS.pickle_file_test)
+    train_df = pd.read_pickle(FLAGS.pickle_file_train)
+
+    knn_fit_and_score(train_df, test_df, class_column="category", CV=True)
+
+    #lr_analysis_train_test_separate(train_df, test_df, class_column="category")
+
+    #classifier_analysis_train_test_separate(train_df, test_df, class_column="category")
+
+    #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
+    #sim_matr_pca = pd.read_pickle(
+    #  '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_pca.pickle')
+    #print(dnq_metric(sim_matr_pca))
+    #print(dnq_metric(sim_matr_no_pca))
 
 if __name__ == "__main__":
     main()

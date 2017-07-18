@@ -8,6 +8,7 @@ import pandas as pd
 from pprint import pprint
 from joblib import Parallel, delayed
 import traceback
+import shutil
 
 
 NUM_CORES = multiprocessing.cpu_count()
@@ -467,6 +468,18 @@ def split_ucf_in_train_valid(source_dir, train_list, test_list):
     os.rename(os.path.join(source_dir, v), os.path.join(os.path.join(source_dir, train_val_dict[v_id]), v))
     print(i, '- moved ', v_id)
 
+def select_subset_from_20bn(source_dir, goal_dir, csv_file, classes):
+  df = pd.read_csv(csv_file, sep=',', names=['video_id', 'label'])
+  print(df)
+  for id, label in zip(df['video_id'], df['label']):
+    if label in classes:
+      try:
+        shutil.copy2(os.path.join(source_dir, str(id) + '.avi'), os.path.join(goal_dir, str(id) + '.avi'))
+        print('Successfully copied ', str(id) + '.avi')
+      except:
+        print('Failed to copy ', str(id) + '.avi')
+
+
 def main():
   # load subclip dict
   json_file_location = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
@@ -480,7 +493,25 @@ def main():
 
   #convert_20bn_dataset_to_videos(frames_dir, traget_dir)
 
-  prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
+  #prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
+
+  source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
+  goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/valid/'
+  csv_file = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
+  classes = [
+    'Folding something',
+    'Covering something with something',
+    'Hitting something with something',
+    'Pulling something from left to right',
+    'Pulling something from right to left',
+    'Pulling two ends of something so that it separates into two pieces',
+    'Pushing something off of something',
+    'Plugging something into something',
+    'Closing something',
+    'Tipping something over' 
+  ]
+  select_subset_from_20bn(source_dir, goal_dir, csv_file, classes)
+
 
 if __name__ == '__main__':
  main()

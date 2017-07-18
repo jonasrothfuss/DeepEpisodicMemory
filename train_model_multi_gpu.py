@@ -24,22 +24,22 @@ LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 FLAGS = flags.FLAGS
 OUT_DIR = '/localhome/rothfuss/training'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
-DATA_PATH = '/data/rothfuss/data/20bn-something/tf_records'
+DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 #OUT_DIR = '/home/ubuntu/training'
-#DATA_PATH = '/PDFData/rothfuss/data/ucf101/tf_records'
+#DATA_PATH = '/PDFData/rothfuss/data/UCF101/tf_record'
 
 # use pretrained model
-PRETRAINED_MODEL = '/data/rothfuss/training/06-09-17_16-10_1000fc_noise_20bn_v2'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/07-15-17_15-09'
 # use pre-trained model and run validation only
 VALID_ONLY = False
-VALID_MODE = 'data_frame gif' # 'vector', 'gif', 'similarity', 'data_frame'
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 EXCLUDE_FROM_RESTORING = None
 
 
 # hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
@@ -49,9 +49,9 @@ flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
-flags.DEFINE_integer('learning_rate', 0.0005, 'initial learning rate for Adam optimizer')
-flags.DEFINE_float('noise_std', 0.01, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
-flags.DEFINE_float('keep_prob_dopout', 0.7, 'keep probability for dropout during training, for valid automatically 1')
+flags.DEFINE_integer('learning_rate', 0.0001, 'initial learning rate for Adam optimizer')
+flags.DEFINE_float('noise_std', 0.1, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
+flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout during training, for valid automatically 1')
 
 #IO specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')

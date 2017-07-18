@@ -384,7 +384,7 @@ def knn_fit_and_score(train_df, test_df, class_column="shape", CV=False, PCA=Fal
   y_train = np.asarray(list(train_df[class_column]))
   y_test = np.asarray(list(test_df[class_column]))
 
-  estimator = sklearn.neighbors.KNeighborsRegressor()
+  estimator = sklearn.neighbors.KNeighborsRegressor(n_jobs=-1)
 
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)

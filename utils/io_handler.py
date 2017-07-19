@@ -263,8 +263,10 @@ def export_plot_from_pickle(pickle_file_path, plot_options=((64, 64), 15, 15), s
 
   return plt
 
+
 def folder_names_from_dir(directory):
   return [f for f in os.listdir(directory) if os.path.isdir(os.path.join(directory, f))]
+
 
 def folder_files_dict(directory):
   ff_dict = {}
@@ -273,8 +275,49 @@ def folder_files_dict(directory):
     ff_dict[folder] = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
   return ff_dict
 
+
 def video_length(video_path):
   clip = VideoFileClip(video_path)
   duration = clip.duration
   clip.__del__()
   return duration
+
+
+def get_class_mapping(mapping_document_path):
+  """returns a pandas data frame that specifies the mapping given by a csv document that defines an association.
+
+  @:param mapping_document: the csv file, contains two columns (1st column specifies the dict key, 2nd specifies the dict value)"""
+  df_mapping = pd.read_csv(mapping_document_path, sep=',', names=['subclass', 'class'])
+  df_mapping.set_index('subclass')
+  return df_mapping
+
+def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_path):
+  """According to a mapping (given by the 2nd argument) that specifies the relation 'subclass -> general class', 
+  this function inserts a new column 'class' into the dataframe (given by the 1st argument) with the corresponding 
+  class value from the mapping. 
+  
+  @:param dataframe_path: path to the dataframe
+  @:param mapping_document_path: path to the mapping document (csv file) with two columns (subclass, class)
+
+  """
+  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+  assert os.path.exists(mapping_document_path), "invalid path to mapping document"
+  dataframe = pd.read_pickle(dataframe_path)
+  df_mapping = get_class_mapping(mapping_document_path)
+
+  count = 0
+  for index, row in dataframe.iterrows():
+    # assuming the sub class label is named 'category' and mother category 'class'
+    sub_label = row['category']
+    result = df_mapping.loc[df_mapping['subclass']==sub_label, 'class']
+    try:
+     label = result.item()
+    except ValueError:
+     label = 'test'
+     count += 1
+     
+    dataframe.loc[index, 'class'] = label
+  print("%d times subclass could not be found in mapping" % (count)) 
+
+  return dataframe
+  

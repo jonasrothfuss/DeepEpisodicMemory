@@ -384,13 +384,15 @@ def knn_fit_and_score(train_df, test_df, class_column="shape", CV=False, PCA=Fal
   y_train = np.asarray(list(train_df[class_column]))
   y_test = np.asarray(list(test_df[class_column]))
 
-  estimator = sklearn.neighbors.KNeighborsRegressor(n_jobs=-1)
+  estimator = sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
 
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
     weights = ['uniform', 'distance']
     n_neighbors = [2, 3, 4, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 80]
     classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(weights=weights, n_neighbors=n_neighbors))
+    print(X_train, y_train)
+
     classifier.fit(X_train, y_train)
     estimator = estimator.set_params(weights=classifier.best_estimator_.weights, n_neighbors=classifier.best_estimator_.n_neighbors)
     print("best parameters set. weights: %i, n: %i" % classifier.best_estimator_.weights, classifier.best_estimator_.n_neighbors)
@@ -399,9 +401,10 @@ def knn_fit_and_score(train_df, test_df, class_column="shape", CV=False, PCA=Fal
 
   # do final test with remaining data and store the
   test_accuracy = classifier.score(X_test, y_test)
-
+  print(test_accuracy)
 
   return test_accuracy
+
 
 def gradient_boosting_fit_and_score(df, class_column="shape"):
   """ Fits a logistic regression model (MaxEnt classifier) on the data and returns the test accuracy"""
@@ -850,7 +853,7 @@ def main():
     test_df = pd.read_pickle(FLAGS.pickle_file_test)
     train_df = pd.read_pickle(FLAGS.pickle_file_train)
 
-    knn_fit_and_score(train_df, test_df, class_column="category", CV=True)
+    knn_fit_and_score(train_df, test_df, class_column="category", CV=False)
 
     #lr_analysis_train_test_separate(train_df, test_df, class_column="category")
 

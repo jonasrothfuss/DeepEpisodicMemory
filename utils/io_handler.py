@@ -160,6 +160,16 @@ def write_metainfo(output_dir, model, flags):
       f.write(str(key) + ':  ' + str(value) + '\n')
 
 
+def store_dataframe(dataframe, output_dir, file_name):
+  assert os.path.exists(output_dir), "invalid path to output directory"
+  full_path = os.path.join(output_dir, file_name)
+  dataframe.to_pickle(full_path)
+  print("Dumped df pickle to ", full_path)
+
+
+
+
+
 def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, filename = None):
   """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
   and the video metadata as a pandas dataframe in python3 pickle format
@@ -291,6 +301,7 @@ def get_class_mapping(mapping_document_path):
   df_mapping.set_index('subclass')
   return df_mapping
 
+
 def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_path):
   """According to a mapping (given by the 2nd argument) that specifies the relation 'subclass -> general class', 
   this function inserts a new column 'class' into the dataframe (given by the 1st argument) with the corresponding 
@@ -298,7 +309,6 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
   
   @:param dataframe_path: path to the dataframe
   @:param mapping_document_path: path to the mapping document (csv file) with two columns (subclass, class)
-
   """
   assert os.path.exists(dataframe_path), "invalid path to dataframe"
   assert os.path.exists(mapping_document_path), "invalid path to mapping document"
@@ -307,13 +317,14 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
 
   count = 0
   for index, row in dataframe.iterrows():
-    # assuming the sub class label is named 'category' and mother category 'class'
-    sub_label = row['category']
-    result = df_mapping.loc[df_mapping['subclass']==sub_label, 'class']
+    # assuming the sub class label is named 'category' and mother category 'class', also accounts for escape characters
+    sub_label = row['category'].lower().replace("\\", "")
+    result = df_mapping.loc[df_mapping['subclass'].str.lower()==sub_label, 'class']
     try:
      label = result.item()
     except ValueError:
-     label = 'test'
+     print(sub_label + " could not be found in mapping")
+     label = "not identified"
      count += 1
      
     dataframe.loc[index, 'class'] = label
@@ -321,3 +332,23 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
 
   return dataframe
   
+
+def remove_rows_from_dataframe(dataframe_path, category_to_remove):
+  """conditionally removes rows which category value does not match the string given by 'category_to_remove'"""
+  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+  assert category_to_remove is not None
+  dataframe = pd.read_pickle(dataframe_path)
+  pre_count = len(dataframe)
+
+  dataframe = dataframe[dataframe.category != category_to_remove]
+  print("%i rows deleted" % (pre_count-len(dataframe)))
+  return dataframe
+
+
+def replace_char_from_dataframe(dataframe_path, category, old_character, new_character):
+  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+  assert category and old_character is not None
+  dataframe = pd.read_pickle(dataframe_path)
+  dataframe[category] = dataframe[category].str.replace(old_character, new_character)
+  return dataframe
+

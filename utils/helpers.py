@@ -14,6 +14,7 @@ def get_iter_from_pretrained_model(checkpoint_file_name):
 def learning_rate_decay(initial_learning_rate, itr, decay_factor=0.0):
   return initial_learning_rate * math.e**(- decay_factor * itr)
 
+
 def remove_items_from_dict(string_dict, strings_to_remove):
   result_dict = {}
   for v_name, v in string_dict.items():

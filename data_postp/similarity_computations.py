@@ -17,24 +17,27 @@ from sklearn.svm import SVC, LinearSVC
 from sklearn.manifold import TSNE
 from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
 
-from utils.io_handler import store_plot, export_plot_from_pickle
+#from utils.io_handler import store_plot, export_plot_from_pickle, insert_general_classes_to_20bn_dataframe, remove_rows_from_dataframe
+import utils.io_handler as io_handler
 
 NUM_CORES = multiprocessing.cpu_count()
 
 
-
-# PICKLE_FILE_DEFAULT = './metadata_and_hidden_rep_df.pickle' #'/localhome/rothfuss/data/df.pickle'
-# /localhome/rothfuss/training/04-27-17_20-40/valid_run/metadata_and_hidden_rep_df_05-04-17_09-06-48.pickle
-#PICKLE_FILE_DEFAULT = '/localhome/rothfuss/training/06-09-17_16-10/valid_run/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
-#PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/metadata_and_hidden_rep_df_06-22-17_18-41-25.pickle'
 PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
-PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean_grouped.pickle'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/'
+MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped.csv'
+
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file', PICKLE_FILE_DEFAULT, 'path of panda dataframe pickle file ')
 flags.DEFINE_string('pickle_file_train', PICKLE_FILE_TRAIN, 'path of panda dataframe pickle training file')
 flags.DEFINE_string('pickle_file_test', PICKLE_FILE_TEST, 'path of panda dataframe pickle training file')
+flags.DEFINE_string('mapping_csv', MAPPING_DOCUMENT, 'path to the csv mapping file which specifies the subclass -> class relation')
+flags.DEFINE_string('pickle_dir_main', PICKLE_DIR_MAIN, 'path to the main validation directory of a training')
+
 
 def compute_hidden_representation_similarity_matrix(hidden_representations, labels, type):
     if type == 'cos':
@@ -332,7 +335,7 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
                           xy=(0.05, 0.0),
                           xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
-      store_plot(FLAGS.pickle_file, file_name)
+      io_handler.store_plot(FLAGS.pickle_file, file_name)
     return test_accuracy
 
 def svm_train_test_separate(train_df, test_df, class_column="shape", type="linear"):
@@ -389,7 +392,7 @@ def knn_fit_and_score(train_df, test_df, class_column="shape", CV=False, PCA=Fal
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
     weights = ['uniform', 'distance']
-    n_neighbors = [2, 3, 4, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 80]
+    n_neighbors = [8, 15, 30, 35] # 10, 12, 14, 16, 18, 20, 25,
     classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(weights=weights, n_neighbors=n_neighbors))
     print(X_train, y_train)
 
@@ -460,7 +463,7 @@ def export_random_forest_plot(df, class_column="shape", plot=False):
         plt.axes().annotate('test accuracy (on remaining %i samples): %.2f' % (len(X_test), test_accuracy), xy=(0.05, 0.0),
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
-        store_plot(FLAGS.pickle_file, file_name)
+        io_handler.store_plot(FLAGS.pickle_file, file_name)
 
     return test_accuracy
 
@@ -491,7 +494,7 @@ def export_decision_tree_plot(df, class_column="shape", plot=False):
     if plot:
         file_name = 'decision_tree_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
 
-        store_plot(FLAGS.pickle_file, file_name)
+        io_handler.store_plot(FLAGS.pickle_file, file_name)
 
     return test_accuracy
 
@@ -676,20 +679,70 @@ def classifier_analysis(df, class_column='shape'):
     with open(dump_file_name, 'w') as file:
         file.write(string_to_dump)
 
-def classifier_analysis_train_test_separate(train_df, test_df, class_column='shape'):
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis_separate' + '.txt')
-  svm_linear_accuracy = svm_train_test_separate(train_df, test_df, class_column=class_column, type='linear')
-  with open(dump_file_name, 'w') as file:
-    file.write(str(datetime.now()) + '\n' \
-                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' )
-  svm_rbf_accuracy = svm_train_test_separate(train_df, test_df, class_column=class_column, type='rbf')
-  string_to_dump = str(datetime.now()) + '\n' \
-                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' \
-                   + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
 
-  print(string_to_dump)
-  with open(dump_file_name, 'w') as file:
-    file.write(string_to_dump)
+def classifier_analysis_train_test_separate(train_df, test_df, class_column='shape'):
+  #prepare dump file
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'full_classifier_analysis' + '.txt')
+
+  valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
+                          'SVM_RBF': [-1, 200, 500],
+                          'Logistic_Regression': ([-1, 200, 500]),
+                          'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
+
+  classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1),
+                     'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
+                     'Logistic_Regression': sklearn.linear_model.LogisticRegression(n_jobs=-1),
+                     'KNN': sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
+  }
+
+  configurations = [(classifier_name, param) for classifier_name, params in valid_procedure_spec.items() for param in params]
+
+  #actually run that shit
+  for classifier_name, param in configurations:
+    append_write = 'a' if os.path.exists(dump_file_name) else 'w'
+    string_to_dump = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' -- ' + classifier_name + ': ' + str(
+      param) + ' --> Start Training' + '\n'
+    with open(dump_file_name, append_write) as f:
+      f.write(string_to_dump)
+    print(string_to_dump)
+
+    if classifier_name is 'KNN' and param[0] > 0:
+      pca = inter_class_pca(test_df, class_column='category', n_components=param[0])
+      X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+      X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+    elif classifier_name is not 'KNN' and param > 0:
+      pca = inter_class_pca(test_df, class_column='category', n_components=param)
+      X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+      X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+    else:
+      X_train = df_col_to_matrix(train_df['hidden_repr'])
+      X_test = df_col_to_matrix(test_df['hidden_repr'])
+
+    y_train = np.asarray(list(train_df[class_column]))
+    y_test = np.asarray(list(test_df[class_column]))
+
+    # choose and parametrize classifier model
+    estimator = classifier_dict[classifier_name]
+    if classifier_name is 'KNN':
+      estimator.set_params(n_neighbors=param[1])
+
+    # fit model and calculate accuracy:
+    estimator.fit(X_train, y_train)
+    top_n_acc = top_n_accuracy(estimator, X_test, y_test)
+    acc = estimator.score(X_test, y_test)
+
+
+    string_to_dump = str(datetime.now().strftime("%Y-%m-%d %H:%H:%S")) + ' -- ' + classifier_name + ': ' + str(
+      param) + ' --> Training Done' + '\n' + \
+                     'Accuracy: ' + str(acc) + '\n' + \
+                     'Top-5-Accuracy: ' + str(top_n_acc) + '\n'
+    with open(dump_file_name, append_write) as f:
+      f.write(string_to_dump)
+    print(string_to_dump)
+
+
+
+
 
 def mean_vectors_of_classes(df, class_column='shape'):
   """
@@ -803,8 +856,6 @@ def general_result_analysis(df):
   classifier_analysis(df, "category")
 
 def lr_analysis_train_test_separate(train_df, test_df, class_column="category", PCA=False, n_pca_components=500):
-    train_df = train_df
-    test_df = test_df
 
     if PCA:
       pca = inter_class_pca(test_df, class_column='category', n_components=n_pca_components)
@@ -837,10 +888,19 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
     top_n_acc = np.mean(in_top_n_array)
     return top_n_acc
 
+def io_calls():
+  #dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_test, "category", "”", "")
+  #dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "test")
+  #filename = 'metadata_and_hidden_rep_from_test_clean' + '.pickle'
+  #io_handler.store_dataframe(dataframe_cleaned, FLAGS.pickle_dir_main, filename)
+
+  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_test, FLAGS.mapping_csv)
+  #filename = 'metadata_and_hidden_rep_from_test_clean_grouped' + '.pickle'
+  #io_handler.store_dataframe(dataframe_grouped, FLAGS.pickle_dir_main, filename)
+  return None
 
 def main():
     #df = pd.read_pickle(FLAGS.pickle_file)
-
 
     #general_result_analysis(df)
 
@@ -853,17 +913,18 @@ def main():
     test_df = pd.read_pickle(FLAGS.pickle_file_test)
     train_df = pd.read_pickle(FLAGS.pickle_file_train)
 
-    knn_fit_and_score(train_df, test_df, class_column="category", CV=False)
+    #knn_fit_and_score(train_df, test_df, class_column="category", CV=True)
 
     #lr_analysis_train_test_separate(train_df, test_df, class_column="category")
 
-    #classifier_analysis_train_test_separate(train_df, test_df, class_column="category")
+    #io_calls()
+
+    classifier_analysis_train_test_separate(train_df, test_df, class_column="category")
 
     #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
     #sim_matr_pca = pd.read_pickle(
     #  '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_pca.pickle')
-    #print(dnq_metric(sim_matr_pca))
-    #print(dnq_metric(sim_matr_no_pca))
-
 if __name__ == "__main__":
     main()
+
+

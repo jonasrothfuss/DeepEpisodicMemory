@@ -18,9 +18,8 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 """"""
 
 
-LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
-# constants for developinge
+# I/O constants
 FLAGS = flags.FLAGS
 OUT_DIR = '/localhome/rothfuss/training'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
@@ -28,7 +27,12 @@ DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/PDFData/rothfuss/data/UCF101/tf_record'
 
-# use pretrained model
+# other constants
+LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
+IMAGE_RANGE_START = 5 # parameter that controls the index of the starting image for the train/valid batch
+NUMBER_OVERALL_IMAGES = 20
+
+# for pretraining-mode only
 PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/07-15-17_15-09'
 # use pre-trained model and run validation only
 VALID_ONLY = False
@@ -36,7 +40,7 @@ VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 EXCLUDE_FROM_RESTORING = None
 
 
-# hyperparameters
+# model hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
@@ -53,7 +57,7 @@ flags.DEFINE_integer('learning_rate', 0.0001, 'initial learning rate for Adam op
 flags.DEFINE_float('noise_std', 0.1, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout during training, for valid automatically 1')
 
-#IO specifications
+#IO flags specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
@@ -81,6 +85,12 @@ class Model:
     self.noise_std = tf.placeholder_with_default(FLAGS.noise_std, ())
     self.opt = tf.train.AdamOptimizer(self.learning_rate)
 
+
+    assert IMAGE_RANGE_START + FLAGS.encoder_length + FLAGS.decoder_future_length <= NUMBER_OVERALL_IMAGES and IMAGE_RANGE_START >= 0, \
+            "settings for encoder/decoder lengths along with starting range exceed number of available images"
+    assert FLAGS.encoder_length >= FLAGS.decoder_reconst_length, "encoder must be at least as long as reconstructer"
+
+
     if reuse_scope is None:  # train model
       tower_grads = []
       tower_losses = []
@@ -92,7 +102,7 @@ class Model:
         train_batch = tf.cast(train_batch, tf.float32)
         with tf.device('/gpu:%d' % i):
           with tf.name_scope('%s_%d' % ('tower', i)):
-            tower_loss, _, _, _ = tower_operations(train_batch, train=True)
+            tower_loss, _, _, _ = tower_operations(train_batch[:,IMAGE_RANGE_START:,:,:,:], train=True)
             tower_losses.append(tower_loss)
 
             # Reuse variables for the next tower.
@@ -131,7 +141,7 @@ class Model:
 
           with tf.device('/gpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
-              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch, train=False)
+              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch[:,IMAGE_RANGE_START:,:,:,:], train=False)
               tower_losses.append(tower_loss)
               frames_pred_list.append(tf.pack(frames_pred))
               frames_reconst_list.append(tf.pack(frames_reconst))
@@ -157,7 +167,7 @@ class Model:
       self.add_image_summary(summary_prefix, val_set, FLAGS.encoder_length, FLAGS.decoder_future_length,
                            FLAGS.decoder_reconst_length)
 
-    if reuse_scope and FLAGS.valid_only: # only valid mode - evaluate frame predictions for storage on disk
+    if reuse_scope and FLAGS.valid_only: # only valid mode - evaluate frame predictions for storing on disk
       self.output_frames = self.frames_reconst + self.frames_pred #join arrays of tensors
 
     self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))

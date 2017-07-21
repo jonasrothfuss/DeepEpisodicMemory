@@ -728,8 +728,13 @@ def classifier_analysis_train_test_separate(train_df, test_df, class_column='sha
 
     # fit model and calculate accuracy:
     estimator.fit(X_train, y_train)
-    top_n_acc = top_n_accuracy(estimator, X_test, y_test)
     acc = estimator.score(X_test, y_test)
+    
+    #can only perform top_n_acc with classifiers that can be interpreted probabilitically
+    if classifier_name is 'Logistic_Regression':
+      top_n_acc = top_n_accuracy(estimator, X_test, y_test)
+    else:
+      top_n_acc = '-'
 
 
     string_to_dump = str(datetime.now().strftime("%Y-%m-%d %H:%H:%S")) + ' -- ' + classifier_name + ': ' + str(
@@ -868,7 +873,7 @@ def lr_analysis_train_test_separate(train_df, test_df, class_column="category", 
     y_train = np.asarray(list(train_df[class_column]))
     y_test = np.asarray(list(test_df[class_column]))
 
-    # train logistic regression model
+    # train logistic regression modelpredict_proba
     lr = sklearn.linear_model.LogisticRegression()
     lr = lr.fit(X_train, y_train)
 

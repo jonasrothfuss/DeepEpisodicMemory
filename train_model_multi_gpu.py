@@ -29,11 +29,9 @@ DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 
 # other constants
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
-IMAGE_RANGE_START = 5 # parameter that controls the index of the starting image for the train/valid batch
-NUMBER_OVERALL_IMAGES = 20
 
 # for pretraining-mode only
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/07-15-17_15-09'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/07-21-17_15-07'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
@@ -43,19 +41,22 @@ EXCLUDE_FROM_RESTORING = None
 # model hyperparameters
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 128, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
-flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
+flags.DEFINE_integer('image_range_start', 5, 'parameter that controls the index of the starting image for the train/valid batch')
+flags.DEFINE_integer('overall_images_count', 20, 'specifies the number of images that are available to create the train/valid batches')
+flags.DEFINE_string('encoder_length', 8, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_string('decoder_future_length', 2, 'specifies how many images the future prediction decoder receives, defaults to 5')
+flags.DEFINE_string('decoder_reconst_length', 8, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
 flags.DEFINE_integer('learning_rate', 0.0001, 'initial learning rate for Adam optimizer')
 flags.DEFINE_float('noise_std', 0.1, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout during training, for valid automatically 1')
+
 
 #IO flags specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
@@ -68,6 +69,7 @@ flags.DEFINE_string('valid_mode', VALID_MODE, 'When set to '
                                               '"gif": gifs are generated from the videos'
                                               '"similarity": compute (cos) similarity matrix')
 flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable names to exclude from saving and restoring')
+
 
 # intervals
 flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
@@ -86,7 +88,7 @@ class Model:
     self.opt = tf.train.AdamOptimizer(self.learning_rate)
 
 
-    assert IMAGE_RANGE_START + FLAGS.encoder_length + FLAGS.decoder_future_length <= NUMBER_OVERALL_IMAGES and IMAGE_RANGE_START >= 0, \
+    assert FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length <= FLAGS.overall_images_count and FLAGS.image_range_start >= 0, \
             "settings for encoder/decoder lengths along with starting range exceed number of available images"
     assert FLAGS.encoder_length >= FLAGS.decoder_reconst_length, "encoder must be at least as long as reconstructer"
 
@@ -102,7 +104,7 @@ class Model:
         train_batch = tf.cast(train_batch, tf.float32)
         with tf.device('/gpu:%d' % i):
           with tf.name_scope('%s_%d' % ('tower', i)):
-            tower_loss, _, _, _ = tower_operations(train_batch[:,IMAGE_RANGE_START:,:,:,:], train=True)
+            tower_loss, _, _, _ = tower_operations(train_batch[:,FLAGS.image_range_start:,:,:,:], train=True)
             tower_losses.append(tower_loss)
 
             # Reuse variables for the next tower.
@@ -141,7 +143,7 @@ class Model:
 
           with tf.device('/gpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
-              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch[:,IMAGE_RANGE_START:,:,:,:], train=False)
+              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch[:,FLAGS.image_range_start:,:,:,:], train=False)
               tower_losses.append(tower_loss)
               frames_pred_list.append(tf.pack(frames_pred))
               frames_reconst_list.append(tf.pack(frames_reconst))

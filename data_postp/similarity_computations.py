@@ -680,9 +680,9 @@ def classifier_analysis(df, class_column='shape'):
         file.write(string_to_dump)
 
 
-def classifier_analysis_train_test_separate(train_df, test_df, class_column='shape'):
+def classifier_analysis_train_test_separate(train_df, test_df, class_column='category'):
   #prepare dump file
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'full_classifier_analysis' + '.txt')
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'full_classifier_analysis_class' + '.txt')
 
   valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
                           'SVM_RBF': [-1, 200, 500],
@@ -740,7 +740,8 @@ def classifier_analysis_train_test_separate(train_df, test_df, class_column='sha
     string_to_dump = str(datetime.now().strftime("%Y-%m-%d %H:%H:%S")) + ' -- ' + classifier_name + ': ' + str(
       param) + ' --> Training Done' + '\n' + \
                      'Accuracy: ' + str(acc) + '\n' + \
-                     'Top-5-Accuracy: ' + str(top_n_acc) + '\n'
+                     'Top-5-Accuracy: ' + str(top_n_acc) + '\n' + \
+                     'label used: ' + class_column + '\n'
     with open(dump_file_name, append_write) as f:
       f.write(string_to_dump)
     print(string_to_dump)
@@ -924,7 +925,7 @@ def main():
 
     #io_calls()
 
-    classifier_analysis_train_test_separate(train_df, test_df, class_column="category")
+    classifier_analysis_train_test_separate(train_df, test_df, class_column="class")
 
     #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
     #sim_matr_pca = pd.read_pickle(

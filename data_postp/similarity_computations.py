@@ -27,6 +27,7 @@ PICKLE_FILE_DEFAULT = '/common/homes/students/rothfuss/Documents/training/06-09-
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
 PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean_grouped.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean.pickle'
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped.csv'
 
@@ -108,7 +109,7 @@ def compute_cosine_similarity(vector_a, vector_b):
 def square_rooted(x):
     return round(sqrt(sum([a * a for a in x])), 3)
 
-def visualize_hidden_representations(pickle_hidden_representations):
+def visualize_hidden_representations_tsne(pickle_hidden_representations):
     # shatter 1000x8x8x16 to 1000x1024 dimensions
     labels = list(pickle_hidden_representations['shape'])
     values = df_col_to_matrix(pickle_hidden_representations['hidden_repr'])
@@ -527,7 +528,8 @@ def avg_distance(df, similarity_type='cos'):
                 out_class_dist_array.append(distance)
     return np.mean(same_class_dist_array), np.mean(out_class_dist_array)
 
-def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type = "", plot_options=((64, 64), 15, 15)):
+
+def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type = "", file_name="sim_matrix_font_large_", plot_options=((64, 64), 15, 15)):
   """
   Computes a matrix the mean pairwise cosine similarities of the hidden vectors belongining to different classes
 
@@ -569,11 +571,12 @@ def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type = "",
       for item in ax.get_xticklabels():
           item.set_rotation(90)
   heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file),
-                                   'sim_matrix_font_large_' + df_label_col + '_' + similarity_type + '_' + vector_type + '.png')
+                                   file_name + df_label_col + '_' + similarity_type + '_' + vector_type + '.png')
   plt.savefig(heatmap_file_name, dpi=100)
   print('Dumped Heatmap to:', heatmap_file_name)
   plt.show()
   return sim_matrix
+
 
 def plot_similarity_shape_motion_matrix(df):
     """This function computes the large square confusion matrix with the dimensions being of shape (num_shapes * num_directions) and plots it using matplotlib"""
@@ -614,6 +617,7 @@ def plot_similarity_shape_motion_matrix(df):
     heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'large_sim_matrix.png')
     plt.savefig(heatmap_file_name, dpi=100)
     sn.plt.show()
+
 
 def compute_small_confusion_matrix(df, shape1, shape2):
     """Used to compute a square confusion matrix with the dimensions being of shape
@@ -665,6 +669,7 @@ def compute_small_confusion_matrix(df, shape1, shape2):
                 str(shape1) + '_' + str(shape2) + '_' + str(direction1) + '_' + str(direction2))
 
     return confusion_matrix
+
 
 def classifier_analysis(df, class_column='shape'):
     svm_linear_accuracy = svm_fit_and_score(df, class_column=class_column, type='linear')
@@ -747,9 +752,6 @@ def classifier_analysis_train_test_separate(train_df, test_df, class_column='cat
     print(string_to_dump)
 
 
-
-
-
 def mean_vectors_of_classes(df, class_column='shape'):
   """
   Computes mean vector for each class in class_column
@@ -766,6 +768,7 @@ def mean_vectors_of_classes(df, class_column='shape'):
 
   return pd.DataFrame.from_dict(dict([(label, np.mean(vectors, axis=0)) for label, vectors in vector_dict.items()]), orient='index')
 
+
 def inter_class_variance_plot(df, class_column='shape'):
   """
   Plots inter-class variance of mean vectors for each dimension of the hidden representation
@@ -777,6 +780,7 @@ def inter_class_variance_plot(df, class_column='shape'):
   plt.figure()
   variance_df.plot(kind='bar')
   plt.show()
+
 
 def inter_class_pca(df, class_column='shape', n_components=50):
   """
@@ -794,6 +798,7 @@ def inter_class_pca(df, class_column='shape', n_components=50):
   variance_df = mean_vectors_of_classes(df, class_column=class_column).var(axis=0)
   return pca
 
+
 def transform_vectors_with_inter_class_pca(df, class_column='shape', n_components=50):
   """
     Performs PCA on mean vactors of classes and applies transformation to all hidden_reps in df
@@ -808,6 +813,7 @@ def transform_vectors_with_inter_class_pca(df, class_column='shape', n_component
   transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df['hidden_repr']))
   df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
   return df
+
 
 def find_closest_vectors(df, query_idx, class_column='shape', n_closest_matches=5):
     """
@@ -830,6 +836,7 @@ def find_closest_vectors(df, query_idx, class_column='shape', n_closest_matches=
     print([l for _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
     return sorted_distances[:n_closest_matches]
 
+
 def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
     #construct pairwise similarity matrix
     assert 'hidden_repr' in df.columns and class_column in df.columns
@@ -843,6 +850,7 @@ def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
     #sim = Parallel(n_jobs=NUM_CORES)(
     #    delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
 
+
 def dnq_metric(sim_matr):
   sim_matr_rad = np.arccos(sim_matr.as_matrix())
   diagonal = np.diagonal(sim_matr_rad)
@@ -851,15 +859,15 @@ def dnq_metric(sim_matr):
   non_diag_mean = np.sum(sim_matr_rad)/float(sim_matr_rad.shape[0]*(sim_matr_rad.shape[0]-1))
   return (1-diag_mean/non_diag_mean)
 
-def general_result_analysis(df):
-  df = pd.read_pickle(FLAGS.pickle_file)
 
-  similarity_matrix(df, "category", vector_type='no_pca', plot_options=((100, 100), 5, 10))
+def general_result_analysis(df, class_column="category"):
+  similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_font_large_cleaned_grouped_", plot_options=((100, 100), 5, 10))
 
-  transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=200)
-  similarity_matrix(transformed_df, "category", vector_type='pca', plot_options=((100, 100), 5, 10))
+  transformed_df = transform_vectors_with_inter_class_pca(df, class_column, n_components=200)
+  similarity_matrix(transformed_df, class_column, vector_type='pca', file_name="sim_matrix_font_large_cleaned_grouped_", plot_options=((100, 100), 5, 10))
 
-  classifier_analysis(df, "category")
+  #classifier_analysis(df, class_column)
+
 
 def lr_analysis_train_test_separate(train_df, test_df, class_column="category", PCA=False, n_pca_components=500):
 
@@ -882,6 +890,7 @@ def lr_analysis_train_test_separate(train_df, test_df, class_column="category", 
     print('Top 5 Accuracy:', top_n_accuracy(lr, X_test, y_test))
     print('Accuracy', lr.score(X_test, y_test))
 
+
 def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
     log_prob_matrix = trained_classifier.predict_proba(X_test)
     classes_dict = dict([(label, i) for i, label in enumerate(trained_classifier.classes_)])
@@ -894,6 +903,7 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
     top_n_acc = np.mean(in_top_n_array)
     return top_n_acc
 
+
 def io_calls():
   #dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_test, "category", "”", "")
   #dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "test")
@@ -905,10 +915,11 @@ def io_calls():
   #io_handler.store_dataframe(dataframe_grouped, FLAGS.pickle_dir_main, filename)
   return None
 
-def main():
-    #df = pd.read_pickle(FLAGS.pickle_file)
 
-    #general_result_analysis(df)
+def main():
+    df = pd.read_pickle(FLAGS.pickle_file_test)
+
+    general_result_analysis(df, class_column="class")
 
     #transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
     #classifier_analysis(transformed_df, "category")
@@ -916,8 +927,8 @@ def main():
     #transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
     #closest_vector_analysis(transformed_df, class_column="category")
 
-    test_df = pd.read_pickle(FLAGS.pickle_file_test)
-    train_df = pd.read_pickle(FLAGS.pickle_file_train)
+    #test_df = pd.read_pickle(FLAGS.pickle_file_test)
+    #train_df = pd.read_pickle(FLAGS.pickle_file_train)
 
     #knn_fit_and_score(train_df, test_df, class_column="category", CV=True)
 
@@ -925,7 +936,7 @@ def main():
 
     #io_calls()
 
-    classifier_analysis_train_test_separate(train_df, test_df, class_column="class")
+    #classifier_analysis_train_test_separate(train_df, test_df, class_column="class")
 
     #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
     #sim_matr_pca = pd.read_pickle(

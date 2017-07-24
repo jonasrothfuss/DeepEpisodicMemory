@@ -684,17 +684,22 @@ def classifier_analysis(df, class_column='shape'):
         file.write(string_to_dump)
 
 
-def classifier_analysis_train_test(train_df, test_df=None, class_column='category'):
+def classifier_analysis_train_test(train_df_path, test_df_path=None, class_column='category'):
+  train_df = pd.read_pickle(train_df_path)
   split = False
-  if not test_df:
+  # pca fit on all data
+  full_data = train_df
+  if not test_df_path:
     #create own test split
     msk = np.random.rand(len(train_df)) < 0.8
     test_df = train_df[~msk]
     train_df = train_df[msk]
     split = True
+  else:
+    test_df = pd.read_pickle(test_df_path)
 
   #prepare dump file
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main), 'full_classifier_analysis_' + str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S")) + '.txt')
+  dump_file_name = os.path.join(os.path.dirname(train_df_path), 'full_classifier_analysis_' + str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S")) + '.txt')
 
   valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
                           #'SVM_RBF': [-1, 200, 500],
@@ -709,8 +714,10 @@ def classifier_analysis_train_test(train_df, test_df=None, class_column='categor
 
   configurations = [(classifier_name, param) for classifier_name, params in valid_procedure_spec.items() for param in params]
 
-  string_summary = "--Summary--\nused classifiers: " + str([key for key in valid_procedure_spec.keys()]) + "\nlabels used: " + class_column
+  string_summary = "--Summary--\nused classifiers: " + str([key for key in valid_procedure_spec.keys()]) + "\nlabel(column) used: " + class_column +\
+                    "\ntrain_df used: " + str(train_df_path) + "\ntest_df used: " + str(test_df_path)
   string_summary += "\n" if not split else "\nwith 80/20 split of train_df (100/0 for pca)\n"
+  print(string_summary)
 
   #actually run that shit
   for classifier_name, param in configurations:
@@ -724,7 +731,7 @@ def classifier_analysis_train_test(train_df, test_df=None, class_column='categor
     n_components = param[0] if classifier_name is 'KNN' else param
 
     if n_components > 0:
-      pca = inter_class_pca(train_df.append(test_df), class_column=class_column, n_components=n_components)
+      pca = inter_class_pca(full_data, class_column=class_column, n_components=n_components)
       X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
       X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
     else:
@@ -926,7 +933,7 @@ def io_calls():
 
 
 def main():
-    df = pd.read_pickle(FLAGS.pickle_file_train)
+    #df = pd.read_pickle(FLAGS.pickle_file_train)
 
     #general_result_analysis(df, class_column="class")
 
@@ -945,7 +952,7 @@ def main():
 
     #io_calls()
 
-    classifier_analysis_train_test(df, class_column="category")
+    classifier_analysis_train_test(FLAGS.pickle_file_train, class_column="category")
 
     #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
     #sim_matr_pca = pd.read_pickle(

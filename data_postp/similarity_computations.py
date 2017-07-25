@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sn
 import scipy
+import json
 
 import sklearn, sklearn.ensemble
 from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
@@ -24,7 +25,7 @@ NUM_CORES = multiprocessing.cpu_count()
 
 
 #PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
-PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped.pickle'
 PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean_grouped.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean.pickle'
@@ -703,7 +704,7 @@ def classifier_analysis_train_test(train_df_path, test_df_path=None, class_colum
 
   valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
                           #'SVM_RBF': [-1, 200, 500],
-                          'Logistic_Regression': ([-1, 200, 500]),
+                         'Logistic_Regression': ([-1, 200, 500]),
                           'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
 
   classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1),
@@ -766,6 +767,95 @@ def classifier_analysis_train_test(train_df_path, test_df_path=None, class_colum
       f.write(string_to_dump)
     print(string_to_dump)
     string_summary = ""
+
+
+def classifier_analysis_train_test_different_splits(train_df_path, class_column='category'):
+  train_df = pd.read_pickle(train_df_path)
+  # pca fit on all data
+  full_data = train_df
+
+  accuracies_dict = {'SVM_Linear': {},
+                     'Logistic_Regression': {},
+                     'KNN': {}
+                     }
+
+  valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
+                          #'SVM_RBF': [-1, 200, 500],
+                         'Logistic_Regression': ([-1, 200, 500]),
+                          'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
+
+  classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1),
+                     # 'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
+                     'Logistic_Regression': sklearn.linear_model.LogisticRegression(n_jobs=-1),
+                     'KNN': sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
+                     }
+
+  configurations = [(classifier_name, param) for classifier_name, params in valid_procedure_spec.items() for param in
+                    params]
+
+
+  # prepare dump file
+  dump_file_name = os.path.join(os.path.dirname(train_df_path), 'full_classifier_analysis_' + str(
+    datetime.now().strftime("%Y-%m-%d_%H-%M-%S")) + '.txt')
+
+  for ratio in np.arange(0.4, 1.0, 0.1):
+    append_write = 'a' if os.path.exists(dump_file_name) else 'w'
+    # create own test split
+    msk = np.random.rand(len(train_df)) < ratio
+    test_df = train_df[~msk]
+    train_df = train_df[msk]
+
+    string_summary = "\nlabel(column) used: " + class_column + "\ntrain_df used: " + str(train_df_path) +\
+                      "\nSplit(train percentage): " + str(ratio) + "\n"
+
+    print(string_summary)
+
+    # actually run that shit
+    for classifier_name, param in configurations:
+      # assign keys and values to accuracies dict
+      print(param)
+      accuracies_dict[classifier_name][(param)] = {'top_n_acc': list(), 'acc': list()}
+
+      # knn only with pca due to curse of dimensionality resulting in tuple: (#pca components, #neighbors)
+      n_components = param[0] if classifier_name is 'KNN' else param
+      if n_components > 0:
+        pca = inter_class_pca(full_data, class_column=class_column, n_components=n_components)
+        X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+        X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+
+      else:
+        X_train = df_col_to_matrix(train_df['hidden_repr'])
+        X_test = df_col_to_matrix(test_df['hidden_repr'])
+
+      y_train = np.asarray(list(train_df[class_column]))
+      y_test = np.asarray(list(test_df[class_column]))
+
+      # choose and parametrize classifier model
+      estimator = classifier_dict[classifier_name]
+      if classifier_name is 'KNN':
+        estimator.set_params(n_neighbors=param[1])
+
+      # fit model and calculate accuracy:
+      estimator.fit(X_train, y_train)
+      acc = estimator.score(X_test, y_test)
+
+      # can only perform top_n_acc with classifiers that can be interpreted probabilitically
+      if classifier_name is 'Logistic_Regression':
+        top_n_acc = top_n_accuracy(estimator, X_test, y_test)
+      else:
+        top_n_acc = '-'
+
+      accuracies_dict[classifier_name][param]['top_n_acc'].append(top_n_acc if type(top_n_acc) is str else '%.3f' % float(top_n_acc))
+      accuracies_dict[classifier_name][param]['acc'].append('%.3f' % float(acc))
+
+
+    string_to_dump = string_summary + str(accuracies_dict)
+    print("cleared dict")
+
+
+    with open(dump_file_name, append_write) as f:
+      f.write(string_to_dump)
+    print(string_to_dump)
 
 
 def mean_vectors_of_classes(df, class_column='shape'):
@@ -921,13 +1011,14 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
 
 
 def io_calls():
-  #dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_test, "category", "”", "")
+  #df = pd.read_pickle(FLAGS.pickle_file_train)
+  #dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_train, "category", "”", "")
   #dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "test")
-  #filename = 'metadata_and_hidden_rep_from_test_clean' + '.pickle'
+  #filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned' + '.pickle'
   #io_handler.store_dataframe(dataframe_cleaned, FLAGS.pickle_dir_main, filename)
 
-  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_test, FLAGS.mapping_csv)
-  #filename = 'metadata_and_hidden_rep_from_test_clean_grouped' + '.pickle'
+  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_train, FLAGS.mapping_csv)
+  #filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped' + '.pickle'
   #io_handler.store_dataframe(dataframe_grouped, FLAGS.pickle_dir_main, filename)
   return None
 
@@ -952,7 +1043,8 @@ def main():
 
     #io_calls()
 
-    classifier_analysis_train_test(FLAGS.pickle_file_train, class_column="category")
+    #classifier_analysis_train_test(FLAGS.pickle_file_train, class_column="category")
+    classifier_analysis_train_test_different_splits(FLAGS.pickle_file_train, class_column="class")
 
     #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
     #sim_matr_pca = pd.read_pickle(

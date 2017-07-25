@@ -1,5 +1,5 @@
 from math import *
-import os, collections, scipy, itertools, multiprocessing
+import os, collections, scipy, itertools, multiprocessing, shutil
 from datetime import datetime
 from pprint import pprint
 from tensorflow.python.platform import flags
@@ -26,7 +26,7 @@ NUM_CORES = multiprocessing.cpu_count()
 
 #PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped_no_pretending_other.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean_grouped.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean.pickle'
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/'
@@ -798,7 +798,7 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
   dump_file_name = os.path.join(os.path.dirname(train_df_path), 'full_classifier_analysis_' + str(
     datetime.now().strftime("%Y-%m-%d_%H-%M-%S")) + '.txt')
 
-  for ratio in np.arange(0.4, 1.0, 0.1):
+  for ratio in np.arange(0.1, 0.9, 0.1):
     append_write = 'a' if os.path.exists(dump_file_name) else 'w'
     # create own test split
     msk = np.random.rand(len(train_df)) < ratio
@@ -905,56 +905,97 @@ def inter_class_pca(df, class_column='shape', n_components=50):
   return pca
 
 
-def transform_vectors_with_inter_class_pca(df, class_column='shape', n_components=50):
+def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='shape', n_components=50):
   """
     Performs PCA on mean vactors of classes and applies transformation to all hidden_reps in df
     :param df: dataframe containing hidden vectors + metadata
+    :param df_2: optional 2nd dataframe that shall be transformed with the pca computed on df
     :param class_column: column_name corresponding to class labels
     :param n_components: number of principal components
-    :return: dataframe with transformed vectors
+    :return: dataframe with transformed vectors, if two dfs were provided, both are returned with pca-transformed hidden_reps
     """
   assert 'hidden_repr' in df.columns and class_column in df.columns
   df = df.copy()
   pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
   transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df['hidden_repr']))
   df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
-  return df
+  if df_2 is not None:
+    df_2 = df_2.copy()
+    transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df_2['hidden_repr']))
+    df_2['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
+    return df, df_2
+  else:
+    return df
 
 
-def find_closest_vectors(df, query_idx, class_column='shape', n_closest_matches=5):
+def find_closest_vectors(df, query_idx=None, hidden_repr=None, class_column='shape', n_closest_matches=5):
     """
     finds the closest vector matches (cos_similarity) for a given query vector
     :param df: dataframe containing hidden vectors + metadata
     :param query_idx: index of the query vector in the df
+    :param hidden_repr: query vector
     :param num_vectors: denotes how many of the closest vector matches shall be returned
     :return: list of tuples (i, cos_sim, label) correspondig to the num_vectors closest vector matches
     """
     assert 'hidden_repr' in df.columns
-    assert query_idx in df.index
-    query_row = df.iloc[query_idx]
-    query_class = query_row[class_column]
-    query_v_id = query_row["video_id"]
-    remaining_df = df[df.index != query_idx]
-    cos_distances = [(compute_cosine_similarity(v, query_row['hidden_repr']), l, int(v_id)) for _, v, l, v_id in
+    assert bool(query_idx is not None) != bool(hidden_repr is not None), "Either query_idx or hidden_repr can be set, but not both at the same time"
+    assert not query_idx or query_idx in df.index
+
+    if query_idx:
+      query_row = df.iloc[query_idx]
+      query_class = query_row[class_column]
+      query_v_id = query_row["video_id"]
+      remaining_df = df[df.index != query_idx]
+      hidden_repr = query_row['hidden_repr']
+    else:
+      remaining_df = df
+
+    cos_distances = [(compute_cosine_similarity(v, hidden_repr), l, int(v_id)) for _, v, l, v_id in
                      zip(remaining_df.index, remaining_df['hidden_repr'], remaining_df[class_column], remaining_df['video_id'])]
     sorted_distances = sorted(cos_distances, key=lambda tup: tup[0], reverse=True)
-    sorted_distances = [tup for tup in sorted_distances if tup[2] != query_v_id]
-    print([l for _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
+
+    if query_idx:
+      sorted_distances = [tup for tup in sorted_distances if tup[2] != query_v_id]
+      print([l for _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
     return sorted_distances[:n_closest_matches]
 
 
-def closest_vector_analysis(df, class_column='shape', n_closest_matches=5):
+def closest_vector_analysis(df, df_query=None, class_column='shape', n_closest_matches=5):
     #construct pairwise similarity matrix
     assert 'hidden_repr' in df.columns and class_column in df.columns
 
-    for i in df.index:
-        label = df.iloc[i][class_column]
-        closest_vectors = find_closest_vectors(df, i, class_column=class_column, n_closest_matches=n_closest_matches)
+
+    if df_query is not None:
+      for hidden_repr, label in zip (df_query['hidden_repr'], df_query['label']):
+        closest_vectors = find_closest_vectors(df, hidden_repr=hidden_repr, class_column=class_column, n_closest_matches=n_closest_matches)
         print(label)
         pprint(closest_vectors)
+    else:
+      for i in df.index:
+          label = df.iloc[i][class_column]
+          closest_vectors = find_closest_vectors(df, i, class_column=class_column, n_closest_matches=n_closest_matches)
+          print(label)
+          pprint(closest_vectors)
 
-    #sim = Parallel(n_jobs=NUM_CORES)(
-    #    delayed(compute_cosine_similarity)(v1, v2) for v1, v2 in itertools.product(vectors1, vectors2))
+def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, target_dir, input_image_dir,
+                                               class_column='shape', n_closest_matches=5):
+    for hidden_repr, label in zip (df_query['hidden_repr'], df_query['label']):
+      try:
+        closest_vectors = find_closest_vectors(df, hidden_repr=hidden_repr, class_column=class_column, n_closest_matches=n_closest_matches)
+        print(label)
+        pprint(closest_vectors)
+        label_dir = os.path.join(target_dir, label)
+        os.mkdir(label_dir)
+        shutil.copy(os.path.join(input_image_dir, label + '.bmp'), label_dir)
+        for i, (cos_dist, v_label, v_id) in enumerate(closest_vectors):
+          try:
+            shutil.copytree(os.path.join(base_dir_20bn, str(v_id)), os.path.join(label_dir, str(v_id)))
+          except Exception as e:
+            print(e)
+          os.rename(os.path.join(label_dir, str(v_id)), os.path.join(label_dir, "match_%i:%s_%.4f_%s"%(i,str(v_id),cos_dist, v_label)))
+      except Exception as e:
+        print(e)
+
 
 
 def dnq_metric(sim_matr):
@@ -1014,17 +1055,19 @@ def io_calls():
   #df = pd.read_pickle(FLAGS.pickle_file_train)
   #dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_train, "category", "”", "")
   #dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "test")
-  #filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned' + '.pickle'
+  #dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "Pretending", column="class")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "Other", column="class")
+  #filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped_no_pretending_other' + '.pickle'
   #io_handler.store_dataframe(dataframe_cleaned, FLAGS.pickle_dir_main, filename)
 
-  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_train, FLAGS.mapping_csv)
-  #filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped' + '.pickle'
+  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_test, FLAGS.mapping_csv)
+  #filename = 'metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped_grouped' + '.pickle'
   #io_handler.store_dataframe(dataframe_grouped, FLAGS.pickle_dir_main, filename)
   return None
 
 
 def main():
-    #df = pd.read_pickle(FLAGS.pickle_file_train)
+    df = pd.read_pickle(FLAGS.pickle_file_test)
 
     #general_result_analysis(df, class_column="class")
 
@@ -1044,11 +1087,23 @@ def main():
     #io_calls()
 
     #classifier_analysis_train_test(FLAGS.pickle_file_train, class_column="category")
-    classifier_analysis_train_test_different_splits(FLAGS.pickle_file_train, class_column="class")
 
-    #sim_matr_no_pca = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_no_pca.pickle')
-    #sim_matr_pca = pd.read_pickle(
-    #  '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise/valid_run/sim_matrix_cos_pca.pickle')
+    # -->
+    #classifier_analysis_train_test_different_splits(FLAGS.pickle_file_train, class_column="category")
+
+
+    #print((df["category"]=="Pretending to be tearing something that is not tearable").any())
+
+
+    df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/valid_run/metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped.pickle')
+    df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
+
+
+    base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
+    target_dir = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/matching_cropped_cleaned_500'
+    input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
+    closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
+
 if __name__ == "__main__":
     main()
 

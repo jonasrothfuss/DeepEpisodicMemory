@@ -422,7 +422,7 @@ def crap_detect(video_dir):
       pass
 
 def convert_frames_to_avi(frames_dir, output_dir, image_type='.jpg'):
-  """ converts a folder with images to a gif """
+  """ converts a folder with images to an avi file"""
   file_names = sorted((os.path.join(frames_dir, fn) for fn in os.listdir(frames_dir) if fn.endswith(image_type)))
   #images = [imageio.imread(fn) for fn in file_names]
   filename = os.path.join(output_dir, os.path.basename(frames_dir) + '.avi')
@@ -479,6 +479,22 @@ def select_subset_from_20bn(source_dir, goal_dir, csv_file, classes):
       except:
         print('Failed to copy ', str(id) + '.avi')
 
+def image_to_stationary_avi(image_file, output_dir, n_frames=20):
+  image_files = [image_file for _ in range(n_frames)]
+  filename = os.path.join(output_dir, os.path.basename(image_file).replace('.bmp','').replace('.jpg','') + '.avi')
+  clip = ImageSequenceClip(image_files, fps=24)
+  clip = moviepy.video.fx.all.crop(clip, x_center=320, y_center=240,
+       width=380, height=380)
+  clip = crop_and_resize_video_clip(video_file_clip=clip,
+                                       target_format=(128,128),
+                                       relative_crop_displacement=0.0)
+  clip.write_videofile(filename, codec='rawvideo', verbose=False, progress_bar=False)
+
+def generate_stationary_videos_from_dir(images_dir, output_dir, n_frames=20, image_type='.bmp'):
+  file_names = (os.path.join(images_dir, fn) for fn in os.listdir(images_dir) if fn.endswith(image_type))
+  for image_file in file_names:
+    print(image_file)
+    image_to_stationary_avi(image_file, output_dir, n_frames=n_frames)
 
 def main():
   # load subclip dict
@@ -495,9 +511,9 @@ def main():
 
   #prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
 
-  source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
-  goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/valid/'
-  csv_file = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
+  #source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
+  #goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/valid/'
+  #csv_file = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
   classes = [
     'Folding something',
     'Covering something with something',
@@ -510,8 +526,9 @@ def main():
     'Closing something',
     'Tipping something over' 
   ]
-  select_subset_from_20bn(source_dir, goal_dir, csv_file, classes)
+  #select_subset_from_20bn(source_dir, goal_dir, csv_file, classes)
 
+  generate_stationary_videos_from_dir('/common/temp/toEren/4PdF_ArmarSampleImages/input/', '/common/temp/toEren/4PdF_ArmarSampleImages/stationary_image_videos_cropped')
 
 if __name__ == '__main__':
  main()

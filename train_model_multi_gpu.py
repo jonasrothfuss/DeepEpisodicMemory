@@ -23,7 +23,11 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 FLAGS = flags.FLAGS
 OUT_DIR = '/localhome/rothfuss/training'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_pc031'
-DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
+
+#DATA_PATH = '/localhome/rothfuss/data/20bn-something/tf_records_train'
+DATA_PATH = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/tf_records_train'
+#DATA_PATH = '/common/temp/toEren/4PdF_ArmarSampleImages/tf_records_cropped'
+
 #OUT_DIR = '/home/ubuntu/training'
 #DATA_PATH = '/PDFData/rothfuss/data/UCF101/tf_record'
 
@@ -31,11 +35,17 @@ DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # for pretraining-mode only
-PRETRAINED_MODEL = '/localhome/rothfuss/training/07-21-17_15-07'
+PRETRAINED_MODEL = '/localhome/rothfuss/training/07-21-17_15-07_finetuned'
+#PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching'
 # use pre-trained model and run validation only
 VALID_ONLY = False
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame'
 EXCLUDE_FROM_RESTORING = None
+FINE_TUNING_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
+                        'train_model/encoder/fc_conv', 'train_model/encoder/convlstm6', 'train_model/decoder_pred/upconv4',
+                        'train_model/decoder_pred/conv4', 'train_model/decoder_pred/convlstm5', 'train_model/decoder_pred/upconv5',
+                        'train_model/decoder_reconst/conv4', 'train_model/decoder_reconst/convlstm5', 'train_model/decoder_reconst/upconv5',
+                        'train_model/decoder_reconst/upconv4']
 
 
 # model hyperparameters
@@ -53,7 +63,7 @@ flags.DEFINE_string('decoder_future_length', 2, 'specifies how many images the f
 flags.DEFINE_string('decoder_reconst_length', 8, 'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_bool('fc_layer', True, 'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
-flags.DEFINE_integer('learning_rate', 0.0001, 'initial learning rate for Adam optimizer')
+flags.DEFINE_integer('learning_rate', 0.00001, 'initial learning rate for Adam optimizer')
 flags.DEFINE_float('noise_std', 0.1, 'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout during training, for valid automatically 1')
 
@@ -72,9 +82,9 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING, 'variable 
 
 
 # intervals
-flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
+flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 2000, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
 
 
 class Model:
@@ -110,7 +120,14 @@ class Model:
             # Reuse variables for the next tower.
             tf.get_variable_scope().reuse_variables()
 
-            grads = self.opt.compute_gradients(tower_loss)
+            if FINE_TUNING_LIST is not None:
+              train_vars = []
+              for scope_i in FINE_TUNING_LIST:
+                train_vars += tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_i)
+              print('Finetuning! Training only specified weights.')
+              grads = self.opt.compute_gradients(tower_loss, var_list=train_vars)
+            else:
+              grads = self.opt.compute_gradients(tower_loss)
             tower_grads.append(grads)
 
       with tf.device('/cpu:0'):

@@ -333,14 +333,13 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
   return dataframe
   
 
-def remove_rows_from_dataframe(dataframe_path, category_to_remove):
+def remove_rows_from_dataframe(dataframe_path, to_remove, column="category"):
   """conditionally removes rows which category value does not match the string given by 'category_to_remove'"""
   assert os.path.exists(dataframe_path), "invalid path to dataframe"
-  assert category_to_remove is not None
+  assert to_remove is not None
   dataframe = pd.read_pickle(dataframe_path)
   pre_count = len(dataframe)
-
-  dataframe = dataframe[dataframe.category != category_to_remove]
+  dataframe = dataframe[dataframe[column] != to_remove]
   print("%i rows deleted" % (pre_count-len(dataframe)))
   return dataframe
 

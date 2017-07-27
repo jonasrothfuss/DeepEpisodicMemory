@@ -297,12 +297,29 @@ def get_class_mapping(mapping_document_path):
   """returns a pandas data frame that specifies the mapping given by a csv document that defines an association.
 
   @:param mapping_document: the csv file, contains two columns (1st column specifies the dict key, 2nd specifies the dict value)"""
+  assert os.path.exists(mapping_document_path), "invalid path to mapping document"
   df_mapping = pd.read_csv(mapping_document_path, sep=',', names=['subclass', 'class'])
   df_mapping.set_index('subclass')
   return df_mapping
 
 
-def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_path):
+def insert_general_classes_to_20bn_dataframe(df, mappings):
+  assert mappings is not None
+  assert df is not None
+
+  if ',' in mappings:
+    mappings = mappings.split(",")
+    for i, mapping in enumerate(mappings):
+      insert_general_class_to_20bn_dataframe(df, mapping, "class_"+str(i))
+      print("all columns:" + str(list(df.columns.values)))
+      print("added column class_" + str(i) + " to dataframe")
+  else:
+    insert_general_class_to_20bn_dataframe(df, mappings)
+
+  return df
+
+
+def insert_general_class_to_20bn_dataframe(df, mapping_document_path, new_column_string="class_0", class_column="category"):
   """According to a mapping (given by the 2nd argument) that specifies the relation 'subclass -> general class', 
   this function inserts a new column 'class' into the dataframe (given by the 1st argument) with the corresponding 
   class value from the mapping. 
@@ -310,15 +327,15 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
   @:param dataframe_path: path to the dataframe
   @:param mapping_document_path: path to the mapping document (csv file) with two columns (subclass, class)
   """
-  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+  assert df is not None
+  print("processing: " + mapping_document_path)
   assert os.path.exists(mapping_document_path), "invalid path to mapping document"
-  dataframe = pd.read_pickle(dataframe_path)
   df_mapping = get_class_mapping(mapping_document_path)
 
   count = 0
-  for index, row in dataframe.iterrows():
-    # assuming the sub class label is named 'category' and mother category 'class', also accounts for escape characters
-    sub_label = row['category'].lower().replace("\\", "")
+  for index, row in df.iterrows():
+    # assuming the sub class label is named 'category' and mother category 'class'
+    sub_label = row[class_column].lower()
     result = df_mapping.loc[df_mapping['subclass'].str.lower()==sub_label, 'class']
     try:
      label = result.item()
@@ -327,27 +344,25 @@ def insert_general_classes_to_20bn_dataframe(dataframe_path, mapping_document_pa
      label = "not identified"
      count += 1
      
-    dataframe.loc[index, 'class'] = label
+    df.loc[index, new_column_string] = label
   print("%d times subclass could not be found in mapping" % (count)) 
 
-  return dataframe
+  return df
   
 
-def remove_rows_from_dataframe(dataframe_path, to_remove, column="category"):
+def remove_rows_from_dataframe(df, to_remove, column="category"):
   """conditionally removes rows which category value does not match the string given by 'category_to_remove'"""
-  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+  assert df is not None
   assert to_remove is not None
-  dataframe = pd.read_pickle(dataframe_path)
-  pre_count = len(dataframe)
-  dataframe = dataframe[dataframe[column] != to_remove]
-  print("%i rows deleted" % (pre_count-len(dataframe)))
-  return dataframe
+  pre_count = len(df)
+  df = df[df[column] != to_remove]
+  print("%i rows deleted" % (pre_count-len(df)))
+  return df
 
 
-def replace_char_from_dataframe(dataframe_path, category, old_character, new_character):
-  assert os.path.exists(dataframe_path), "invalid path to dataframe"
+def replace_char_from_dataframe(df, category, old_character, new_character):
+  assert df is not None
   assert category and old_character is not None
-  dataframe = pd.read_pickle(dataframe_path)
-  dataframe[category] = dataframe[category].str.replace(old_character, new_character)
-  return dataframe
+  df[category] = df[category].str.replace(old_character, new_character)
+  return df
 

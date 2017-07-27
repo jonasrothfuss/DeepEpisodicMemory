@@ -30,13 +30,11 @@ NUM_CORES = multiprocessing.cpu_count()
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-27-17_15-51-00_train.pickle'
-# PICKLE_FILE_TEST = '/localhome/rothfuss/training/07-21-17_15-07_288k_iters/valid_run/metadata_and_hidden_rep_df_07-26-17_14-56-33_valid.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/07-07-17_15-56_gdl/valid_run/metadata_and_hidden_rep_df_07-27-17_02-14-36.pickle'
-# PICKLE_FILE_TEST = '/localhome/rothfuss/training/07-21-17_15-07_finetuned_v2/valid_run/metadata_and_hidden_rep_df_07-26-17_10-09-52.pickle'
-# PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean_grouped.pickle'
-# PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_test_clean.pickle'
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/07-07-17_15-56_gdl/valid_run'
-MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped.csv'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_valid.pickle'
+
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/'
+MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv,' \
+                   '/PDFData/rothfuss/data/20bn-something/something-something-grouped-first-word.csv'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file_train', PICKLE_FILE_TRAIN, 'path of panda dataframe pickle training file')
@@ -815,7 +813,7 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
                           'Logistic_Regression': ([-1, 200, 500]),
                           'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
 
-  classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1),
+  classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=False, max_iter=2000), n_jobs=-1),
                      # 'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
                      'Logistic_Regression': sklearn.linear_model.LogisticRegression(n_jobs=-1),
                      'KNN': sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
@@ -860,11 +858,12 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
       if classifier_name is 'KNN':
         estimator.set_params(n_neighbors=param[1])
 
+      print(classifier_name, param, (n_samples_per_class, len(train_df_subset.index)))
+
       # fit model and calculate accuracy:
       estimator.fit(X_train, y_train)
       acc = estimator.score(X_test, y_test)
 
-      print(classifier_name, param, (n_samples_per_class, len(train_df_subset.index)))
       accuracies_dict[classifier_name][str(param)][str((n_samples_per_class, len(train_df_subset.index)))] = acc
 
       with open(dump_file_name, 'w') as f:
@@ -1072,19 +1071,13 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
   return top_n_acc
 
 
-def io_calls():
-  # df = pd.read_pickle(FLAGS.pickle_file_train)
-  # dataframe_cleaned = io_handler.replace_char_from_dataframe(FLAGS.pickle_file_train, "category")
-  # dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "test")
-  # dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "Pretending", column="class")
-  # dataframe_cleaned = io_handler.remove_rows_from_dataframe(FLAGS.pickle_file_test, "Other", column="class")
-  # filename = 'metadata_and_hidden_rep_df_07-13-17_09-47-43_cleaned_grouped_no_pretending_other' + '.pickle'
-  # io_handler.store_dataframe(dataframe_cleaned, FLAGS.pickle_dir_main, filename)
+def dataframe_processing(df):
+  assert df is not None
+  dataframe_cleaned = io_handler.replace_char_from_dataframe(df, "category", "”", "")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "test")
+  dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(dataframe_cleaned, FLAGS.mapping_csv)
 
-  # dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(FLAGS.pickle_file_test, FLAGS.mapping_csv)
-  # filename = 'metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped_grouped' + '.pickle'
-  # io_handler.store_dataframe(dataframe_grouped, FLAGS.pickle_dir_main, filename)
-  return None
+  return dataframe_grouped
 
 
 def n_sample_per_class_train_set(df, n_samples=3, class_column="category"):
@@ -1131,8 +1124,13 @@ def plot_classifier_analysis_n_samples(json_dump_path):
 
 def main():
   df = pd.read_pickle(FLAGS.pickle_file_test)
+  #dataframe_processed = dataframe_processing(df)
 
-  # general_result_analysis(df, class_column="category")
+  #filename = 'metadata_and_hidden_rep_df_07-26-17_16-52-09_with_class_0_and_class_1_valid.pickle'
+  #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
+
+
+  #general_result_analysis(df, class_column="class_1")
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
   # classifier_analysis(transformed_df, "category")
@@ -1147,31 +1145,27 @@ def main():
 
   # lr_analysis_train_test_separate(train_df, test_df, class_column="category")
 
-  # io_calls()
-
   # classifier_analysis_train_test(FLAGS.pickle_file_test, class_column="category")
 
 
 
-  for ratio in np.arange(0.1, 0.9, 0.1):
-    print("Full classification with " + str(ratio) + " train_split_ratio")
-    classifier_analysis_train_test_different_splits(FLAGS.pickle_file_train, class_column="category")
+  classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
 
 
-    # json_dump_path = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/full_classifier_analysis_2017-07-26_18-21-45.json'
-    # plot_classifier_analysis_n_samples(json_dump_path)
+  # json_dump_path = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/full_classifier_analysis_2017-07-26_18-21-45.json'
+  # plot_classifier_analysis_n_samples(json_dump_path)
 
-    # print((df["category"]=="Pretending to be tearing something that is not tearable").any())
-
-
-    # df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/valid_run/metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped.pickle')
-    # df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
+  # print((df["category"]=="Pretending to be tearing something that is not tearable").any())
 
 
-    # base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-    # target_dir = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/matching_cropped_cleaned_500'
-    # input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
-    # closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
+  # df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/valid_run/metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped.pickle')
+  # df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
+
+
+  # base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
+  # target_dir = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/matching_cropped_cleaned_500'
+  # input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
+  # closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
 
 
 if __name__ == "__main__":

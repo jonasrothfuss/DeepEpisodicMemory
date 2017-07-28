@@ -818,9 +818,9 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
   number_of_samples_per_class_list = [1, 3, 5, 10, 15, 30, 50, 200]
 
   valid_procedure_spec = {'SVM Linear': [-1, 100, 300],
-                          # 'SVM_RBF': [-1, 200, 500],
                           'Logistic Regression': ([-1, 100, 300]),
-                          'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
+                          # index 0: number of pca components, index 1: number of knn neighbors
+                          'KNN': tuple(itertools.product([20, 50], [15, 50]))}
 
   classifier_dict = {'SVM Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=False, max_iter=2000), n_jobs=-1),
                      # 'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
@@ -1195,7 +1195,7 @@ def main():
   #general_result_analysis(df, class_column="category", n_pca_components=50)
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
-  # classifier_analysis(transformed_df, "category")
+  #classifier_analysis(transformed_df, "category")
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
   # closest_vector_analysis(transformed_df, class_column="category")
@@ -1210,7 +1210,7 @@ def main():
   # classifier_analysis_train_test(FLAGS.pickle_file_test, class_column="category")
 
   #plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
-  #classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
+  classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
 
 
 

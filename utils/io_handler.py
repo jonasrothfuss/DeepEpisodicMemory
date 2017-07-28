@@ -328,7 +328,7 @@ def insert_general_class_to_20bn_dataframe(df, mapping_document_path, new_column
   @:param mapping_document_path: path to the mapping document (csv file) with two columns (subclass, class)
   """
   assert df is not None
-  print("processing: " + mapping_document_path)
+  print("adding classes given by mapping from:" + mapping_document_path)
   assert os.path.exists(mapping_document_path), "invalid path to mapping document"
   df_mapping = get_class_mapping(mapping_document_path)
 

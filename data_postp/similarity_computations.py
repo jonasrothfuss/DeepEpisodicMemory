@@ -6,6 +6,7 @@ from tensorflow.python.platform import flags
 import matplotlib as mpl
 
 #mpl.use('Agg')
+from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 # import matplotlib as mpl;  from matplotlib import pyplot as plt #mpl.use('Agg'); #use Agg (non-interactive) mode when using ssh
 from joblib import Parallel, delayed
@@ -15,6 +16,7 @@ import seaborn as sn
 import scipy
 import json
 from ast import literal_eval as make_tuple
+
 
 import sklearn, sklearn.ensemble
 from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
@@ -30,14 +32,13 @@ NUM_CORES = multiprocessing.cpu_count()
 PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
-PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-27-17_15-51-00_train.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_valid.pickle'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_with_class_0_and_class_1_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/full_classifier_analysis_0.7_class_column_category_2017-07-27_19-33-19.json'
 
 
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/'
-MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv,' \
-                   '/PDFData/rothfuss/data/20bn-something/something-something-grouped-first-word.csv'
+MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('pickle_file_train', PICKLE_FILE_TRAIN, 'path of panda dataframe pickle training file')
@@ -122,23 +123,25 @@ def square_rooted(x):
 
 def visualize_hidden_representations_tsne(pickle_hidden_representations):
   # shatter 1000x8x8x16 to 1000x1024 dimensions
-  labels = list(pickle_hidden_representations['shape'])
-  values = df_col_to_matrix(pickle_hidden_representations['hidden_repr'])
+  labels = list(pickle_hidden_representations['class_0'])[:2000]
+  values = df_col_to_matrix(pickle_hidden_representations['hidden_repr'])[:2000]
   Y_data = np.asarray(labels)
 
-  for i, entry in enumerate(Y_data):
-    if entry == 'square':
-      Y_data[i] = 's'
-    if entry == 'circular':
-      Y_data[i] = 'o'
-    if entry == 'triangle':
-      Y_data[i] = '^'
+  colors = ['red', 'green', 'blue', 'purple', 'cyan', 'coral', 'brown', 'dodgerblue', 'navy', 'm', 'chocolate', 'c', 'black']
+  labels = list(set(Y_data))
+  colormap = []
 
-  model = TSNE(n_components=128, random_state=0, method='exact')
+  for i, entry in enumerate(Y_data):
+    idx = labels.index(entry)
+    colormap.append(colors[idx])
+
+  model = TSNE(n_components=18, random_state=0, perplexity=23, learning_rate=8, n_iter=1000)
   data = model.fit_transform(values)
 
-  for xp, yp, m in zip(data[:, 0], data[:, 1], Y_data):
-    plt.scatter([xp], [yp], marker=m)
+  plt.scatter(data[:, 0], data[:, 1], c=colormap, cmap=ListedColormap(colors))
+  #for xp, yp, m in zip(data[:, 0], data[:, 1], Y_data):
+  #  plt.annotate(m, (xp, yp))
+    #plt.scatter([xp], [yp], c=Y_data, marker='x')
 
   plt.show()
 
@@ -1081,9 +1084,9 @@ def dataframe_processing(df):
   assert df is not None
   dataframe_cleaned = io_handler.replace_char_from_dataframe(df, "category", "”", "")
   dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "test")
-  dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(dataframe_cleaned, FLAGS.mapping_csv)
+  #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(dataframe_cleaned, FLAGS.mapping_csv)
 
-  return dataframe_grouped
+  return dataframe_cleaned
 
 
 def n_sample_per_class_train_set(df, n_samples=3, class_column="category"):
@@ -1138,6 +1141,9 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
   for i, (classifier, data) in enumerate(acc_dict.items()):
     legend = data.keys()
 
+    #legend = [''.join([pca, ' pca components']) if pca != "-1" or "(" in pca else "no pca" for pca in legend]
+    legend = [ "no pca" if pca == "-1" else ''.join([pca, ' pca components']) for pca in legend]
+
     if plot_setting is 'one_fig_subplots':
       if fig is None:
         fig = plt.figure()
@@ -1183,7 +1189,7 @@ def main():
   df = pd.read_pickle(FLAGS.pickle_file_test)
   #dataframe_processed = dataframe_processing(df)
 
-  #filename = 'metadata_and_hidden_rep_df_07-26-17_16-52-09_with_class_0_and_class_1_valid.pickle'
+  #filename = 'metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
   #general_result_analysis(df, class_column="category", n_pca_components=50)
@@ -1203,25 +1209,22 @@ def main():
 
   # classifier_analysis_train_test(FLAGS.pickle_file_test, class_column="category")
 
-
-  plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
+  #plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
   #classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
 
 
-  # json_dump_path = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/full_classifier_analysis_2017-07-26_18-21-45.json'
-  # plot_classifier_analysis_n_samples(json_dump_path)
 
-  # print((df["category"]=="Pretending to be tearing something that is not tearable").any())
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/valid_run/metadata_and_hidden_rep_df_07-27-17_23-51-23.pickle')
 
 
-  # df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/valid_run/metadata_and_hidden_rep_df_07-25-17_13-57-11_cropped.pickle')
-  # df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
+  #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=10)
+  df_1 = transform_vectors_with_inter_class_pca(df, class_column="class_0", n_components=20)
+  visualize_hidden_representations_tsne(df_1)
 
-
-  # base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  # target_dir = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching/matching_cropped_cleaned_500'
-  # input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
-  # closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
+  #base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
+  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/matching_cropped_10'
+  #input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
+  #closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
 
 
 if __name__ == "__main__":

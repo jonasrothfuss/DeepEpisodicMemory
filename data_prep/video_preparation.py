@@ -213,8 +213,9 @@ def create_20bn_metadata_dicts(video_dir, csv_file, file_type="*.avi"):
 
   filenames = io_handler.files_from_directory(video_dir, file_type)
   assert filenames, 'There must be %s files in the provided directory' % file_type
-
-  label_id_df = pd.read_csv(csv_file, sep=',', names=['video_id', 'label'])
+  # valid csv files are separated by ; whereas train csv files are by ','
+  separator = ',' if 'valid' in csv_file else ';'
+  label_id_df = pd.read_csv(csv_file, sep=separator, names=['video_id', 'label'])
 
   label_id_df = label_id_df.set_index('video_id')
 
@@ -471,13 +472,16 @@ def split_ucf_in_train_valid(source_dir, train_list, test_list):
 def select_subset_from_20bn(source_dir, goal_dir, csv_file, classes):
   df = pd.read_csv(csv_file, sep=',', names=['video_id', 'label'])
   print(df)
+  video_count = 0
   for id, label in zip(df['video_id'], df['label']):
     if label in classes:
+      video_count += 1
       try:
         shutil.copy2(os.path.join(source_dir, str(id) + '.avi'), os.path.join(goal_dir, str(id) + '.avi'))
         print('Successfully copied ', str(id) + '.avi')
       except:
         print('Failed to copy ', str(id) + '.avi')
+  print(video_count) 
 
 def image_to_stationary_avi(image_file, output_dir, n_frames=20):
   image_files = [image_file for _ in range(n_frames)]
@@ -496,6 +500,9 @@ def generate_stationary_videos_from_dir(images_dir, output_dir, n_frames=20, ima
     print(image_file)
     image_to_stationary_avi(image_file, output_dir, n_frames=n_frames)
 
+
+
+
 def main():
   # load subclip dict
   json_file_location = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
@@ -511,24 +518,84 @@ def main():
 
   #prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
 
-  #source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
-  #goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/valid/'
-  #csv_file = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
+  source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
+  goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/videos_valid'
+  # classes = [
+  #   'Moving something up', #replaced Folding something
+  #   'Throwing something', #replaced Covering something
+  #   'Turning something upside down', #replaced Hitting something with something
+  #   'Pulling something from left to right',
+  #   'Pulling something from right to left',
+  #   'Moving something and something away from each other', #replaced seperates into two pieces
+  #   'Taking something from somewhere', #replaced pushing something off of something
+  #   'Moving something and something closer to each other', #replaced Plugging something into something
+  #   'Turning something upside down', #replaced Closing something
+  #   'Moving something up' #replaced Tipping something over
+  # ]
   classes = [
-    'Folding something',
-    'Covering something with something',
-    'Hitting something with something',
+    'Lifting a surface with something on it but not enough for it to slide down',
+    'Lifting a surface with something on it until it starts sliding down',
+    'Lifting something up completely',
+    'Lifting something up completely without letting it drop down',
+    'Lifting something with something on it',
+    'Lifting up one end of something',
+    'Lifting up one end of something without letting it drop down'
+    'Moving part of something'
+    'Moving something across a surface until it falls down',
+    'Moving something across a surface without it falling down',
+    'Moving something and something away from each other',
+    'Moving something and something closer to each other',
+    'Moving something and something so they collide with each other',
+    'Moving something and something so they pass each other',
+    'Moving something away from something',
+    'Moving something closer to something',
+    'Moving something down',
+    'Moving something up'
+    'Poking a stack of something so the stack collapses',
+    'Poking something so it slightly moves',
+    'Poking something so that it falls over',
+    'Poking something so that it spins around'
+    'Pouring something into something',
+    'Pouring something into something until it overflows',
+    'Pouring something out of something'
     'Pulling something from left to right',
-    'Pulling something from right to left',
-    'Pulling two ends of something so that it separates into two pieces',
+    'Pulling something from right to left'
+    'Pulling something onto something',
+    'Pushing something from left to right',
+    'Pushing something from right to left',
     'Pushing something off of something',
-    'Plugging something into something',
-    'Closing something',
-    'Tipping something over' 
+    'Pushing something onto something',
+    'Pushing something so it spins',
+    'Pushing something so that it falls off the table',
+    'Pushing something so that it slightly moves',
+    'Pushing something with something'
+    'Putting number of something onto something',
+    'Putting something',
+    'Putting something into something',
+    'Putting something next to something',
+    'Putting something on a flat surface without letting it roll',
+    'Putting something on a surface',
+    'Putting something on the edge of something so it is not supported and falls down',
+    'Putting something onto something'
+    'Putting something onto something else that cannot support it so it falls down',
+    'Putting something similar to other things that are already on the table',
+    'Putting something that cannot actually stand upright upright on the table',
+    'Putting something upright on the table'
+    'Throwing something',
+    'Throwing something in the air and catching it',
+    'Throwing something in the air and letting it fall',
+    'Throwing something onto a surface'
+    'Squeezing something'
+    'Taking one of many similar things on the table',
+    'Taking something from somewhere',
+    'Taking something out of something'
   ]
-  #select_subset_from_20bn(source_dir, goal_dir, csv_file, classes)
 
-  generate_stationary_videos_from_dir('/common/temp/toEren/4PdF_ArmarSampleImages/input/', '/common/temp/toEren/4PdF_ArmarSampleImages/stationary_image_videos_cropped')
+
+
+  select_subset_from_20bn(source_dir, goal_dir, CSV_VALID_20BN, classes)
+
+  #generate_stationary_videos_from_dir('/common/temp/toEren/4PdF_ArmarSampleImages/input/', '/common/temp/toEren/4PdF_ArmarSampleImages/stationary_image_videos_cropped')
 
 if __name__ == '__main__':
  main()

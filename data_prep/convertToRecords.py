@@ -22,17 +22,17 @@ NUM_FRAMES_PER_VIDEO = 15
 NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
-ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn']
+ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/PDFData/rothfuss/data/youtube8m/video_slices01/'
-DESTINATION = '/PDFData/rothfuss/data/youtube8m/tf_records/slices01'
+SOURCE = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/videos_valid'
+DESTINATION = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/tf_records_valid'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
 METADATA_y8m_031 = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 METADATA_DICT = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
-CSV_20BN_TRAIN = '/PDFData/rothfuss/data/20bn-something/something-something-v1-train_test.csv'
-CSV_20BN_VALID = '/PDFData/rothfuss/data/20bn-something/something-something-v1-validation.csv'
+CSV_20BN_TRAIN = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-train.csv'
+CSV_20BN_VALID = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
 METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.json'
 
 
@@ -42,7 +42,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', None, 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -220,7 +220,9 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
     meta_dict = create_activity_net_metadata_dicts(FLAGS.source, METADATA_SUBCLIPS_DICT, METADATA_TAXONOMY_DICT, FILE_FILTER)
   elif type == 'youtube8m':
     meta_dict = create_youtube8m_metadata_dicts(FLAGS.source, METADATA_DICT, FILE_FILTER)
-  elif type == '20bn':
+  elif type == '20bn_train':
+    meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_TRAIN, FILE_FILTER)
+  elif type == '20bn_valid':
     meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_VALID, FILE_FILTER)
   elif type == 'UCF101':
     meta_dict = create_ucf101_metadata_dicts(FLAGS.source, METADATA_DICT_UCF101, FILE_FILTER)

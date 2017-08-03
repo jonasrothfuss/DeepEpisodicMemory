@@ -4,8 +4,7 @@ from datetime import datetime
 from pprint import pprint
 from tensorflow.python.platform import flags
 import matplotlib as mpl
-
-#mpl.use('Agg')
+mpl.use('Agg')
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 # import matplotlib as mpl;  from matplotlib import pyplot as plt #mpl.use('Agg'); #use Agg (non-interactive) mode when using ssh
@@ -32,12 +31,12 @@ NUM_CORES = multiprocessing.cpu_count()
 PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
-PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_with_class_0_and_class_1_valid.pickle'
-FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/full_classifier_analysis_0.7_class_column_category_2017-07-27_19-33-19.json'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/metadata_and_hidden_rep_df_08-03-17_01-05-45_train.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/metadata_and_hidden_rep_df_08-03-17_00-34-25_valid.pickle'
+FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned/valid_run/full_classifier_analysis_0.8_class_column_category_2017-08-01_22-38-56_train.json'
 
 
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters/valid_run/'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -603,7 +602,7 @@ def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type="", f
       item.set_rotation(90)
   heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main),
                                    file_name + df_label_col + '_' + similarity_type + '_' + vector_type + '.png')
-  plt.savefig(heatmap_file_name, dpi=100)
+  plt.savefig(heatmap_file_name, dpi=100, bbox_inches='tight')
   print('Dumped Heatmap to:', heatmap_file_name)
   plt.show()
   return sim_matrix
@@ -734,13 +733,14 @@ def classifier_analysis_train_test(train_df_path, test_df_path=None, class_colum
   dump_file_name = os.path.join(os.path.dirname(train_df_path), 'full_classifier_analysis_' + str(
     datetime.now().strftime("%Y-%m-%d_%H-%M-%S")) + '.txt')
 
-  valid_procedure_spec = {'SVM_Linear': [-1, 200, 500],
-                          # 'SVM_RBF': [-1, 200, 500],
-                          'Logistic_Regression': ([-1, 200, 500]),
-                          'KNN': tuple(itertools.product([5, 10, 20, 50], [3, 5, 10, 20, 50]))}
+  valid_procedure_spec = {'SVM_Linear': [-1, 100, 300],
+                           'SVM_RBF': [-1, 200, 500],
+                          'Logistic_Regression': ([-1, 100, 300]),
+                          'KNN': tuple(itertools.product([20, 50], [5, 15]))
+                        }
 
   classifier_dict = {'SVM_Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=True, max_iter=2000), n_jobs=-1),
-                     # 'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
+                     'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
                      'Logistic_Regression': sklearn.linear_model.LogisticRegression(n_jobs=-1),
                      'KNN': sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
                      }
@@ -811,6 +811,7 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
   full_data = train_df
 
   accuracies_dict = {'SVM Linear': {},
+                     #'SVM RBF': {},
                      'Logistic Regression': {},
                      'KNN': {}
                      }
@@ -818,12 +819,14 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
   number_of_samples_per_class_list = [1, 3, 5, 10, 15, 30, 50, 200]
 
   valid_procedure_spec = {'SVM Linear': [-1, 100, 300],
+                          #'SVM RBF': [-1, 100, 300],
                           'Logistic Regression': ([-1, 100, 300]),
                           # index 0: number of pca components, index 1: number of knn neighbors
-                          'KNN': tuple(itertools.product([20, 50], [15, 50]))}
+                          'KNN': tuple(itertools.product([20, 50], [15, 50]))
+                         }
 
   classifier_dict = {'SVM Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=False, max_iter=2000), n_jobs=-1),
-                     # 'SVM_RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
+                     #'SVM RBF': OneVsRestClassifier(SVC(kernel='rbf', verbose=True), n_jobs=-1),
                      'Logistic Regression': sklearn.linear_model.LogisticRegression(n_jobs=-1),
                      'KNN': sklearn.neighbors.KNeighborsClassifier(n_jobs=-1)
                      }
@@ -873,7 +876,14 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
       estimator.fit(X_train, y_train)
       acc = estimator.score(X_test, y_test)
 
-      accuracies_dict[classifier_name][str(param)][str((n_samples_per_class, len(train_df_subset.index)))] = acc
+      top_n_acc = 0.0
+      if classifier_name is 'Logistic Regression':
+        top_n_acc = top_n_accuracy(estimator, X_test, y_test)
+        accuracies_dict[classifier_name][str(param)][str((n_samples_per_class, len(train_df_subset.index)))] = acc
+        accuracies_dict[classifier_name][str(param)][str((n_samples_per_class, len(train_df_subset.index), "top_5_acc"))] = top_n_acc
+      else:
+        accuracies_dict[classifier_name][str(param)][str((n_samples_per_class, len(train_df_subset.index)))] = acc
+
 
       with open(dump_file_name, 'w') as f:
         json.dump(accuracies_dict, f)
@@ -1036,12 +1046,12 @@ def dnq_metric(sim_matr):
 
 
 def general_result_analysis(df, class_column="category", n_pca_components=200):
-  #similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_font_large_",
-  #                  plot_options=((100, 100), 5, 10))
+  similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_font_large_",
+                    plot_options=((100, 100), 5, 30))
 
   transformed_df = transform_vectors_with_inter_class_pca(df, class_column=class_column, n_components=n_pca_components)
   similarity_matrix(transformed_df, class_column, vector_type='pca_' + str(n_pca_components), file_name="sim_matrix_font_large_",
-                    plot_options=((100, 100), 5, 10))
+                    plot_options=((100, 100), 5, 30))
 
   # classifier_analysis(df, class_column)
 
@@ -1082,8 +1092,12 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
 
 def dataframe_processing(df):
   assert df is not None
-  dataframe_cleaned = io_handler.replace_char_from_dataframe(df, "category", "”", "")
-  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "test")
+  #dataframe_cleaned = io_handler.replace_char_from_dataframe(df, "category", "Putting something that cannot actually stand upright upright on the table", "Putting something that cannot actually stand upright on the table")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(df, "Putting something")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "Lifting up one end of something")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "Lifting something up completely")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "Putting something that cannot actually stand upright upright on the table")
+  dataframe_cleaned = io_handler.remove_rows_from_dataframe(dataframe_cleaned, "Putting something that cannot actually stand upright on the table")
   #dataframe_grouped = io_handler.insert_general_classes_to_20bn_dataframe(dataframe_cleaned, FLAGS.mapping_csv)
 
   return dataframe_cleaned
@@ -1168,7 +1182,7 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
       if value_annotations_on:
         p = 0
         for i, j in zip(x, y):
-          if p % 3 == 0:
+          if p % 1 == 0:
             ax.annotate(("%.3f")%j, xy=(i, j), bbox=dict(boxstyle='square,pad=0.1', fc='white', alpha=0.3))
           p += 1
 
@@ -1186,13 +1200,13 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
 
 
 def main():
-  df = pd.read_pickle(FLAGS.pickle_file_test)
+  #df = pd.read_pickle(FLAGS.pickle_file_test)
   #dataframe_processed = dataframe_processing(df)
 
-  #filename = 'metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
+  #filename = 'metadata_and_hidden_rep_df_08-01-17_1     5-14-48_valid_cleaned.pickle'
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
-  #general_result_analysis(df, class_column="category", n_pca_components=50)
+  #general_result_analysis(df, class_column="category", n_pca_components=200)
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
   #classifier_analysis(transformed_df, "category")
@@ -1207,22 +1221,22 @@ def main():
 
   # lr_analysis_train_test_separate(train_df, test_df, class_column="category")
 
-  # classifier_analysis_train_test(FLAGS.pickle_file_test, class_column="category")
+  #classifier_analysis_train_test(FLAGS.pickle_file_train, FLAGS.pickle_file_test, class_column="category")
 
   #plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
   classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
 
 
 
-  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/valid_run/metadata_and_hidden_rep_df_07-27-17_23-51-23.pickle')
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned_gdl_matching/valid_run/metadata_and_hidden_rep_df_08-01-17_16-54-59.pickle')
 
 
-  #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=10)
-  df_1 = transform_vectors_with_inter_class_pca(df, class_column="class_0", n_components=20)
-  visualize_hidden_representations_tsne(df_1)
+  #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
+  #df_1 = transform_vectors_with_inter_class_pca(df, class_column="class_0", n_components=20)
+  #visualize_hidden_representations_tsne(df_1)
 
   #base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_matching/matching_cropped_10'
+  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned_gdl_matching/matching_cropped_500'
   #input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
   #closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
 

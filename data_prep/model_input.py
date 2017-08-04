@@ -68,7 +68,7 @@ def read_and_decode(filename_queue):
     return image_seq, video_id, features
 
 
-def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
+def create_batch(directory, mode, batch_size, num_epochs, overall_images_count, standardize=True):
 
     """ If mode equals 'train": Reads input data num_epochs times and creates batch
         If mode equals 'valid': Creates one large batch with all validation tensors.
@@ -89,7 +89,7 @@ def create_batch(directory, mode, batch_size, num_epochs, standardize=True):
         w: width of image
         c: depth of image
     """
-
+    assert overall_images_count == NUM_IMAGES, "image count set in train model does not match image count in model input"
     path = os.path.abspath(directory)
     if mode == 'train':
       data_filter = FLAGS.train_files

@@ -199,10 +199,10 @@ class Initializer:
 
     # restore dumped model if provided
     if FLAGS.pretrained_model:
-      print('Restore model from: ' + str(FLAGS.pretrained_model))
+      print('Restoring model from: ' + str(FLAGS.pretrained_model))
       latest_checkpoint = tf.train.latest_checkpoint(FLAGS.pretrained_model)
       self.itr_start = get_iter_from_pretrained_model(latest_checkpoint) + 1
-      print('Start with iteration: ' + str(self.itr_start))
+      print('Starting with iteration: ' + str(self.itr_start))
       self.saver.restore(self.sess, latest_checkpoint)
 
     return self.saver

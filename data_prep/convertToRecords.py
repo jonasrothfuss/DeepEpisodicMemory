@@ -104,24 +104,36 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
       writer.write(example.SerializeToString())
   writer.close()
 
-def convert_avi_to_numpy(filenames, type=None, meta_dict = None):
+def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_flow=False):
   """Generates an ndarray from multiple avi files given by filenames.
   Implementation chooses frame step size automatically for a equal separation distribution of the avi images.
 
   :param filenames
   :param type: processing type for video data
   :param meta_dict: dictionary with meta-information about the video files - keys of the dict must be the video_ids
-  :return ndarray(uint32) of shape (v,i,h,w,c) with v=number of videos, i=number of images, c=number of image"""
+  :return if no optical flow is used: ndarray(uint32) of shape (v,i,h,w,c) with v=number of videos, i=number of images,
+  (h,w)=height and width of image, c=channel, if optical flow is used: ndarray(uint32) of (v,i,h,w,
+  c+1)"""
   assert type in ALLOWED_TYPES
 
   if not filenames:
     raise RuntimeError('No data files found.')
 
   number_of_videos = len(filenames)
-  data = np.zeros((number_of_videos, NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype = np.uint32)
+
+  data = np.zeros((number_of_videos, NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO),
+                    dtype=np.uint32)
+
   image = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint8)
   video = np.zeros((NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint32)
   meta_info = list()
+  imagePrev = None
+
+
+  if dense_optical_flow:
+    np.expand_dims(data, axis=4)
+    np.expand_dims(image, axis=2)
+    np.expand_dims(video, axis=3)
 
 
   for i in range(number_of_videos):
@@ -178,6 +190,17 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None):
                 resizedImage = cv2.resize(frame[:, :, k], (HEIGHT_VIDEO, WIDTH_VIDEO))
                 image[:, :, k] = resizedImage
 
+              if dense_optical_flow:
+                if imagePrev is not None:
+                  frameFlow = compute_dense_optical_flow(imagePrev, image)
+                else:
+                  # optical flow requires at least two images
+                  frameFlow = np.zeros(HEIGHT_VIDEO, WIDTH_VIDEO)
+
+                imagePrev = image.copy()
+                cv2.imshow('flow', imagePrev)
+                cv2.imshow('flow', frameFlow)
+                #np.append(image, frameFlow)
             video[j, :, :, :] = image
             j += 1
             #print('total frames: ' + str(j) + " frame in video: " + str(f))
@@ -284,6 +307,21 @@ def getNextFrame(cap):
   return np.asarray(frame)
 
 
+def compute_dense_optical_flow(prev_image, current_image):
+  prev_image_gray = cv2.cvtColor(prev_image, cv2.COLOR_BGR2GRAY)
+  current_image_gray = cv2.cvtColor(current_image, cv2.COLOR_BGR2GRAY)
+  hsv = np.zeros_like(prev_image_gray)
+  hsv[..., 1] = 255
+
+  flow = cv2.calcOpticalFlowFarneback(prev_image_gray, current_image_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+
+  mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+  hsv[..., 0] = ang * 180 / np.pi / 2
+  hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+  return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+
+  return
 
 def main(argv):
   #_, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])

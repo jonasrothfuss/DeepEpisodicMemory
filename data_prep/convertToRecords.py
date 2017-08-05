@@ -9,6 +9,8 @@ from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 import cv2 as cv2
 import numpy as np
+import matplotlib as mpl
+#mpl.use('Agg')
 import pandas as pd
 import tensorflow as tf
 import json
@@ -18,14 +20,14 @@ from pprint import pprint
 
 FLAGS = None
 FILE_FILTER = '*.avi'
-NUM_FRAMES_PER_VIDEO = 15
+NUM_FRAMES_PER_VIDEO = 19
 NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
 SOURCE = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/videos_valid'
-DESTINATION = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/tf_records_valid'
+DESTINATION = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/tf_records_valid_optical_flow'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
@@ -115,25 +117,28 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
   (h,w)=height and width of image, c=channel, if optical flow is used: ndarray(uint32) of (v,i,h,w,
   c+1)"""
   assert type in ALLOWED_TYPES
-
+  global NUM_CHANNELS_VIDEO
   if not filenames:
     raise RuntimeError('No data files found.')
 
   number_of_videos = len(filenames)
 
+  if dense_optical_flow:
+    # need an additional channel for the optical flow with one exception:
+    global NUM_CHANNELS_VIDEO
+    NUM_CHANNELS_VIDEO = 4
+    num_real_image_channel = 3
+    frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
+  else:
+    # if no optical flow, make everything normal:
+    num_real_image_channel = NUM_CHANNELS_VIDEO
+
   data = np.zeros((number_of_videos, NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO),
                     dtype=np.uint32)
-
-  image = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint8)
+  image = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO, num_real_image_channel), dtype=np.uint8)
   video = np.zeros((NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint32)
   meta_info = list()
   imagePrev = None
-
-
-  if dense_optical_flow:
-    np.expand_dims(data, axis=4)
-    np.expand_dims(image, axis=2)
-    np.expand_dims(video, axis=3)
 
 
   for i in range(number_of_videos):
@@ -180,34 +185,38 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
             if j >= NUM_FRAMES_PER_VIDEO:
               restart = False
               break
-
             # iterate over channels
             if frame.ndim == 2:
               # cv returns 2 dim array if gray
               resizedImage = cv2.resize(frame[:, :], (HEIGHT_VIDEO, WIDTH_VIDEO))
             else:
-              for k in range(NUM_CHANNELS_VIDEO):
+              for k in range(num_real_image_channel):
                 resizedImage = cv2.resize(frame[:, :, k], (HEIGHT_VIDEO, WIDTH_VIDEO))
                 image[:, :, k] = resizedImage
 
               if dense_optical_flow:
+                # optical flow requires at least two images
                 if imagePrev is not None:
+                  frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
                   frameFlow = compute_dense_optical_flow(imagePrev, image)
+                  frameFlow = cv2.cvtColor(frameFlow, cv2.COLOR_BGR2GRAY)
                 else:
-                  # optical flow requires at least two images
-                  frameFlow = np.zeros(HEIGHT_VIDEO, WIDTH_VIDEO)
+                  frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
 
                 imagePrev = image.copy()
-                cv2.imshow('flow', imagePrev)
-                cv2.imshow('flow', frameFlow)
-                #np.append(image, frameFlow)
-            video[j, :, :, :] = image
+
+            if dense_optical_flow:
+              image_with_flow = image.copy()
+              image_with_flow = np.concatenate((image_with_flow, np.expand_dims(frameFlow, axis=2)), axis=2)
+              video[j, :, :, :] = image_with_flow
+            else:
+              video[j, :, :, :] = image
             j += 1
             #print('total frames: ' + str(j) + " frame in video: " + str(f))
         else:
           getNextFrame(cap)
 
-    #print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
+    print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
 
     data[i, :, :, :, :] = video
     cap.release()
@@ -219,7 +228,7 @@ def chunks(l, n):
   for i in range(0, len(l), n):
     yield l[i:i + n]
 
-def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, video_filenames=None):
+def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, video_filenames=None, dense_optical_flow=False):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
   :param source_path: directory where avi videos are stored
   :param destination_path: directory where tfrecords should be stored
@@ -253,7 +262,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
     meta_dict = None
 
   for i, batch in enumerate(filenames_split):
-    data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict)
+    data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,
@@ -310,18 +319,16 @@ def getNextFrame(cap):
 def compute_dense_optical_flow(prev_image, current_image):
   prev_image_gray = cv2.cvtColor(prev_image, cv2.COLOR_BGR2GRAY)
   current_image_gray = cv2.cvtColor(current_image, cv2.COLOR_BGR2GRAY)
-  hsv = np.zeros_like(prev_image_gray)
+  hsv = np.zeros_like(prev_image)
   hsv[..., 1] = 255
 
-  flow = cv2.calcOpticalFlowFarneback(prev_image_gray, current_image_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+  flow = cv2.calcOpticalFlowFarneback(prev_image_gray, current_image_gray, 0.8, 15, 5, 10, 5, 1.5, 0)
 
   mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-  hsv[..., 0] = ang * 180 / np.pi / 2
+  hsv[..., 0] = ang*180/np.pi/2
   hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
   return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-
-  return
 
 def main(argv):
   #_, all_files_shuffled = io_handler.shuffle_files_in_list([FLAGS.source])
@@ -335,7 +342,7 @@ def main(argv):
   #print('Collected %i Video Files'%len(all_files_shuffled))
   #all_files_shuffled = all_files_shuffled[0:140000]
 
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type)
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=True)
 
 if __name__ == '__main__':
   app.run()

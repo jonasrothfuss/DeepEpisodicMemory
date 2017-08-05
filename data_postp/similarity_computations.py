@@ -4,7 +4,7 @@ from datetime import datetime
 from pprint import pprint
 from tensorflow.python.platform import flags
 import matplotlib as mpl
-mpl.use('Agg')
+#mpl.use('Agg')
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 # import matplotlib as mpl;  from matplotlib import pyplot as plt #mpl.use('Agg'); #use Agg (non-interactive) mode when using ssh
@@ -31,12 +31,12 @@ NUM_CORES = multiprocessing.cpu_count()
 PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
-PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/metadata_and_hidden_rep_df_08-03-17_01-05-45_train.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/metadata_and_hidden_rep_df_08-03-17_00-34-25_valid.pickle'
-FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned/valid_run/full_classifier_analysis_0.8_class_column_category_2017-08-01_22-38-56_train.json'
+PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/actNet_20bn_mse_finetuned_mse/valid_run/metadata_and_hidden_rep_df_08-05-17_02-26-10_valid.pickle'
+FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/20bn_mse_finetuned_gdl/valid_run/classifier_analysis/full_classifier_analysis_0.8_class_column_category_2017-08-04_03-08-52_valid.json'
 
 
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/actNet_20bn_mse_finetuned_mse/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -822,7 +822,7 @@ def classifier_analysis_train_test_different_splits(train_df_path, class_column=
                           #'SVM RBF': [-1, 100, 300],
                           'Logistic Regression': ([-1, 100, 300]),
                           # index 0: number of pca components, index 1: number of knn neighbors
-                          'KNN': tuple(itertools.product([20, 50], [15, 50]))
+                          'KNN': tuple(itertools.product([20, 50], [15, 30]))
                          }
 
   classifier_dict = {'SVM Linear': OneVsOneClassifier(sklearn.svm.LinearSVC(verbose=False, max_iter=2000), n_jobs=-1),
@@ -948,7 +948,8 @@ def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category
     :return: dataframe with transformed vectors, if two dfs were provided, both are returned with pca-transformed hidden_reps
     """
   print(class_column)
-  assert 'hidden_repr' in df.columns and class_column in df.columns, print(df.columns.values)
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  print(df.columns.values)
   df = df.copy()
   pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
   transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df['hidden_repr']))
@@ -1024,7 +1025,7 @@ def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, targ
       pprint(closest_vectors)
       label_dir = os.path.join(target_dir, label)
       os.mkdir(label_dir)
-      shutil.copy(os.path.join(input_image_dir, label + '.bmp'), label_dir)
+      #shutil.copy(os.path.join(input_image_dir, label + '.bmp'), label_dir)
       for i, (cos_dist, v_label, v_id) in enumerate(closest_vectors):
         try:
           shutil.copytree(os.path.join(base_dir_20bn, str(v_id)), os.path.join(label_dir, str(v_id)))
@@ -1047,11 +1048,11 @@ def dnq_metric(sim_matr):
 
 def general_result_analysis(df, class_column="category", n_pca_components=200):
   similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_font_large_",
-                    plot_options=((100, 100), 5, 30))
+                    plot_options=((100, 100), 3, 3))
 
   transformed_df = transform_vectors_with_inter_class_pca(df, class_column=class_column, n_components=n_pca_components)
   similarity_matrix(transformed_df, class_column, vector_type='pca_' + str(n_pca_components), file_name="sim_matrix_font_large_",
-                    plot_options=((100, 100), 5, 30))
+                    plot_options=((100, 100), 3, 3))
 
   # classifier_analysis(df, class_column)
 
@@ -1196,17 +1197,21 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
   plt.show()
 
 
-
-
-
 def main():
-  #df = pd.read_pickle(FLAGS.pickle_file_test)
+  #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
+
+  df = pd.read_pickle(FLAGS.pickle_file_test)
+
+  #similarity_matrix(df, 'label')
+
+
+
   #dataframe_processed = dataframe_processing(df)
 
   #filename = 'metadata_and_hidden_rep_df_08-01-17_1     5-14-48_valid_cleaned.pickle'
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
-  #general_result_analysis(df, class_column="category", n_pca_components=200)
+  general_result_analysis(df, class_column="category", n_pca_components=200)
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
   #classifier_analysis(transformed_df, "category")
@@ -1224,11 +1229,8 @@ def main():
   #classifier_analysis_train_test(FLAGS.pickle_file_train, FLAGS.pickle_file_test, class_column="category")
 
   #plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
-  classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test, class_column="category")
-
-
-
-  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned_gdl_matching/valid_run/metadata_and_hidden_rep_df_08-01-17_16-54-59.pickle')
+  #classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test)
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/half_actions/valid_run/metadata_and_hidden_rep_df_08-04-17_00-48-55.pickle')
 
 
   #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
@@ -1236,8 +1238,8 @@ def main():
   #visualize_hidden_representations_tsne(df_1)
 
   #base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_finetuned_gdl_matching/matching_cropped_500'
-  #input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/input'
+  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/half_actions/matching_cropped_500'
+  #input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
   #closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
 
 

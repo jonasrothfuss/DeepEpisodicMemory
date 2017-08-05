@@ -26,15 +26,15 @@ WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/videos_valid'
-DESTINATION = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/tf_records_valid_optical_flow'
+SOURCE = '/PDFData/rothfuss/data/20bn-something/videos/train'
+DESTINATION = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
 METADATA_y8m_031 = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
 METADATA_DICT = '/PDFData/rothfuss/data/youtube8m/videos/pc031/metadata.json'
-CSV_20BN_TRAIN = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-train.csv'
-CSV_20BN_VALID = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes/something-something-v1-validation.csv'
+CSV_20BN_TRAIN = '/PDFData/rothfuss/data/20bn-something/new_label_files/something-something-v1-train_test.csv'
+CSV_20BN_VALID = '/PDFData/rothfuss/data/20bn-something/something-something-v1-validation.csv'
 METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.json'
 
 
@@ -44,7 +44,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', '20bn_train', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -143,26 +143,27 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
 
   for i in range(number_of_videos):
     cap = getVideoCapture(filenames[i])
-
     if cap is None:
       print("Couldn't load video capture:" + filenames[i] + ". Moving to next video.")
       break
 
-    #get meta informatino and append to meta_info list
+    #get meta info and append to meta_info list
     meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict))
 
     # compute meta data of video
     frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
-
+    
     # returns nan, if fps needed a measurement must be implemented
     # frameRate = cap.get(cv2.cv.CV_CAP_PROP_FPS)
-    steps = frameCount / NUM_FRAMES_PER_VIDEO
+    steps = math.floor(frameCount / NUM_FRAMES_PER_VIDEO)
     j = 0
+    prev_frame_none = False
 
     restart = True
-    if frameCount < 1:
-      restart = False
-
+    if frameCount < 1 or steps < 1:
+      print(filenames[i] + " does not have enough frames. Moving to next video.")
+      break
+   
     while restart:
       for f in range(int(frameCount)):
         # get next frame after 'steps' iterations:
@@ -172,15 +173,26 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
           frame = getNextFrame(cap)
           # special case handling: opencv's frame count != real frame count, reiterate over same video
           if frame is None and j < NUM_FRAMES_PER_VIDEO:
+            if frame and prev_frame_none: break
+            prev_frame_none = True
+            print("steps: ")
+            print(steps)
+            print("f:")
+            print(f)
+            print("math.floor(f mod steps)")
+            print(str(int(math.floor(f%steps))))
             print(filenames[i])
-            warnings.warn("reducing step size due to error")
             # repeat with smaller step size
             steps -= 1
+            if steps == 0: break
+            print("reducing step size due to error")
             j = 0
             cap.release()
             cap = getVideoCapture(filenames[i])
+            # wait for image retrieval to be ready
+            cv2.waitKey(3000)
             video.fill(0)
-            break
+            continue
           else:
             if j >= NUM_FRAMES_PER_VIDEO:
               restart = False
@@ -203,6 +215,10 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
                 else:
                   frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
 
+                #cv2.imshow("Orig", image)
+                #cv2.waitKey(0)
+                #cv2.imshow("Flow", frameFlow)
+                #cv2.waitKey(0)
                 imagePrev = image.copy()
 
             if dense_optical_flow:

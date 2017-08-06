@@ -321,8 +321,10 @@ def getNextFrame(cap):
 
 
 def compute_dense_optical_flow(prev_image, current_image):
+  old_shape = current_image.shape
   prev_image_gray = cv2.cvtColor(prev_image, cv2.COLOR_BGR2GRAY)
   current_image_gray = cv2.cvtColor(current_image, cv2.COLOR_BGR2GRAY)
+  assert current_image.shape == old_shape
   hsv = np.zeros_like(prev_image)
   hsv[..., 1] = 255
 

@@ -71,7 +71,6 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
   height = data.shape[2]
   width = data.shape[3]
 
-  assert num_videos == len(meta_info)
   assert all(['id' in entry for entry in meta_info])
 
   writer = None
@@ -147,9 +146,6 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
       print("Couldn't load video capture:" + filenames[i] + ". Moving to next video.")
       break
 
-    #get meta info and append to meta_info list
-    meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict))
-
     # compute meta data of video
     frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
     
@@ -175,13 +171,6 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
           if frame is None and j < NUM_FRAMES_PER_VIDEO:
             if frame and prev_frame_none: break
             prev_frame_none = True
-            print("steps: ")
-            print(steps)
-            print("f:")
-            print(f)
-            print("math.floor(f mod steps)")
-            print(str(int(math.floor(f%steps))))
-            print(filenames[i])
             # repeat with smaller step size
             steps -= 1
             if steps == 0: break
@@ -215,10 +204,6 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
                 else:
                   frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
 
-                #cv2.imshow("Orig", image)
-                #cv2.waitKey(0)
-                #cv2.imshow("Flow", frameFlow)
-                #cv2.waitKey(0)
                 imagePrev = image.copy()
 
             if dense_optical_flow:
@@ -236,6 +221,10 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
 
     data[i, :, :, :, :] = video
     cap.release()
+
+    #get meta info and append to meta_info list
+    meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict))
+
   return data, meta_info
 
 def chunks(l, n):
@@ -320,9 +309,8 @@ def getVideoCapture(path):
     cap = None
     if path:
       cap = cv2.VideoCapture(path)
-      # set capture settings here:
-      # cap.set(0, 0)  # (0,x) POS_MSEC, (1,x)
     return cap
+
 
 def getNextFrame(cap):
   ret, frame = cap.read()

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import numpy as np
 import pandas as pd
-import seaborn as sn
+import seaborn as sn; sn.set()
 import scipy
 import json
 from ast import literal_eval as make_tuple
@@ -32,11 +32,11 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/actNet_20bn_mse_finetuned_mse/valid_run/metadata_and_hidden_rep_df_08-05-17_02-26-10_valid.pickle'
-FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/20bn_mse_finetuned_gdl/valid_run/classifier_analysis/full_classifier_analysis_0.8_class_column_category_2017-08-04_03-08-52_valid.json'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/6_actNet_20bn_mse/valid_run/metadata_and_hidden_rep_df_08-04-17_19-28-16_valid.pickle'
+FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 
 
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/9_finetuned_trainings/actNet_20bn_mse_finetuned_mse/valid_run/'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/6_actNet_20bn_mse/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -558,7 +558,7 @@ def avg_distance(df, similarity_type='cos'):
 
 
 def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type="", file_name="sim_matrix_font_large_",
-                      plot_options=((64, 64), 15, 15)):
+                      plot_options=((64, 64), 15, 15), show_values=True, show_legend=True, show_xy_labels=True):
   """
   Computes a matrix the mean pairwise cosine similarities of the hidden vectors belongining to different classes
 
@@ -595,16 +595,27 @@ def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type="", f
                                'sim_matrix_' + similarity_type + '_' + vector_type + '.pickle'))
   plt.figure(figsize=plot_options[0])
   sn.set(font_scale=plot_options[1])
-  ax = sn.heatmap(df_cm, annot=True, annot_kws={"size": plot_options[2]})
-  if n > 5:
-    # rotate x-axis labels
-    for item in ax.get_xticklabels():
-      item.set_rotation(90)
-  heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main),
+
+  # good cmaps: cmap='inferno', cmap='RdBu'
+  ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap='inferno', cbar_kws={'label': 'cos similarity'})
+
+  # turn off xy labels
+  if show_xy_labels is False: ax.set(xticklabels=[], yticklabels=[])
+  if show_legend is False: ax.legend_.remove()
+
+  if show_values:
+    heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main),
                                    file_name + df_label_col + '_' + similarity_type + '_' + vector_type + '.png')
+  else:
+    heatmap_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main),
+                                   file_name + df_label_col + '_' + similarity_type + '_' + vector_type + 'annotations_off' + '.png')
+
+
+  plt.xticks(rotation=90)
+  plt.yticks(rotation=0)
   plt.savefig(heatmap_file_name, dpi=100, bbox_inches='tight')
   print('Dumped Heatmap to:', heatmap_file_name)
-  plt.show()
+  #plt.show()
   return sim_matrix
 
 
@@ -1046,15 +1057,22 @@ def dnq_metric(sim_matr):
   return (1 - diag_mean / non_diag_mean)
 
 
-def general_result_analysis(df, class_column="category", n_pca_components=200):
+def plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[], show_values=False, show_legend=True, show_xy_labels=False):
   similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_font_large_",
-                    plot_options=((100, 100), 3, 3))
+                    plot_options=((100, 100), 12, 20), show_values=show_values, show_legend=show_legend, show_xy_labels=show_xy_labels)
 
-  transformed_df = transform_vectors_with_inter_class_pca(df, class_column=class_column, n_components=n_pca_components)
-  similarity_matrix(transformed_df, class_column, vector_type='pca_' + str(n_pca_components), file_name="sim_matrix_font_large_",
-                    plot_options=((100, 100), 3, 3))
+  if n_pca_components is not False:
+    for n in n_pca_components:
+      transformed_df = transform_vectors_with_inter_class_pca(df, class_column=class_column,
+                                                              n_components=n)
+      similarity_matrix(transformed_df, class_column, vector_type='pca_' + str(n),
+                        file_name="sim_matrix_font_large_",
+                        plot_options=((100, 100), 12, 20), show_values=show_values, show_legend=show_legend,
+                        show_xy_labels=show_xy_labels)
 
-  # classifier_analysis(df, class_column)
+      #plot_options 100, 100, 12, 30 for 20bn
+      #plot options 100, 100, 12, 20 for activity net
+
 
 
 def lr_analysis_train_test_separate(train_df, test_df, class_column="category", PCA=False, n_pca_components=500):
@@ -1083,7 +1101,7 @@ def top_n_accuracy(trained_classifier, X_test, y_test, n=5):
   classes_dict = dict([(label, i) for i, label in enumerate(trained_classifier.classes_)])
   in_top_n_array = []
   for i in range(log_prob_matrix.shape[0]):
-    label_index = classes_dict[y_test[i]]
+    label_index = classes_dict[y_test[i]] #index of true class
     top_n_label_indices = np.argsort(log_prob_matrix[i, :])[-n:]
     in_top_n_array.append(label_index in top_n_label_indices)
 
@@ -1192,7 +1210,7 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
 
     set_plot_stuff(ax, "n training samples", "Score", classifier_label, legend)
 
-  plt.suptitle('Classification Accuracies on Generated Latent Video Representations')
+    plt.suptitle('Classification Accuracies on Generated Latent Video Representations')
   plt.legend(loc="higher left")
   plt.show()
 
@@ -1204,14 +1222,12 @@ def main():
 
   #similarity_matrix(df, 'label')
 
-
-
   #dataframe_processed = dataframe_processing(df)
 
   #filename = 'metadata_and_hidden_rep_df_08-01-17_1     5-14-48_valid_cleaned.pickle'
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
-  general_result_analysis(df, class_column="category", n_pca_components=200)
+  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], show_values=False, show_legend=True, show_xy_labels=False)
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
   #classifier_analysis(transformed_df, "category")

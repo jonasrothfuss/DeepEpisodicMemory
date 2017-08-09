@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sn
 from moviepy.editor import VideoFileClip
-
+import types
 
 def files_from_directory(dir_str, file_type):
   file_paths = gfile.Glob(os.path.join(dir_str, file_type))
@@ -165,9 +165,6 @@ def store_dataframe(dataframe, output_dir, file_name):
   full_path = os.path.join(output_dir, file_name)
   dataframe.to_pickle(full_path)
   print("Dumped df pickle to ", full_path)
-
-
-
 
 
 def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, filename = None):
@@ -366,3 +363,13 @@ def replace_char_from_dataframe(df, category, old_character, new_character):
   df[category] = df[category].str.replace(old_character, new_character)
   return df
 
+def select_subset_of_df_with_list(df, own_list, column="category"):
+  if isinstance(own_list, list):
+    selector = own_list
+  elif os.path.exists(own_list):
+    with open(own_list, 'r') as f:
+      selector = json.load(f)
+  else:
+    return False
+
+  return df[df[column].isin(selector)]

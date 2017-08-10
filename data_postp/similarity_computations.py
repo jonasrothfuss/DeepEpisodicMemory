@@ -282,7 +282,7 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, tr
   return plt
 
 
-def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", CV=False, plot=False):
+def svm_fit_and_score(hidden_representations_pickle, class_column="category", type="linear", CV=True, plot=False):
   """
   The function:
       1. splits the data from the pickle file into 80% train data and 20% test data
@@ -324,6 +324,8 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
   estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True),
                                  n_jobs=-1)  # if type is 'rbf' else LinearSVC(verbose=True)
 
+  C=0
+  gamma=0
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
     C_values = [0.1, 1, 10, 100, 1000]
@@ -333,10 +335,13 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
       classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
       classifier.fit(X_train, y_train)
       estimator = estimator.set_params(C=classifier.best_estimator_.C)
+      C = classifier.best_estimator_.C
     else:  # rbf
       classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
       classifier.fit(X_train, y_train)
       estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
+      C = classifier.best_estimator_.C
+      gamma = classifier.best_estimator_.gamma
 
     title = 'Learning Curves (SVM (kernel=%s), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (type,
                                                                                                                classifier.best_estimator_.gamma,
@@ -382,7 +387,7 @@ def svm_train_test_separate(train_df, test_df, class_column="shape", type="linea
   classifier = estimator.fit(X_train, y_train)
 
   test_accuracy = classifier.score(X_test, y_test)
-  return test_accuracy
+  return test_accuracy, C, gamma
 
 
 def logistic_regression_fit_and_score(df, class_column="shape"):
@@ -733,14 +738,14 @@ def compute_small_confusion_matrix(df, shape1, shape2):
 
 
 def classifier_analysis(df, class_column='shape'):
-  svm_linear_accuracy = svm_fit_and_score(df, class_column=class_column, type='linear')
-  svm_rbf_accuracy = svm_fit_and_score(df, class_column=class_column, type='rbf')
+  svm_linear_accuracy, C, _ = svm_fit_and_score(df, class_column=class_column, type='linear', CV=True)
+  svm_rbf_accuracy, C, gamma = svm_fit_and_score(df, class_column=class_column, type='rbf', CV=True)
   lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
   string_to_dump = str(datetime.now()) + '\n' \
-                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' \
-                   + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
+                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + ' C: ' + str(C) + '\n' \
+                   + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + ' C: ' + str(C) + ' gamma: '+ str(gamma) + '\n' \
                    + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis' + '.txt')
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file_test), 'classifier_analysis' + '.txt')
   print(string_to_dump)
   with open(dump_file_name, 'w') as file:
     file.write(string_to_dump)
@@ -1248,27 +1253,31 @@ def main():
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
 
-  plot_options = ((50, 50), 25, 20, 50) #20bn
-  plot_options_annot = ((100, 100), 7, 10, 100) #20bn
+  #plot_options = ((50, 50), 25, 20, 50) #20bn
+  #plot_options_annot = ((100, 100), 7, 10, 100) #20bn
 
 
   #plot_options = ((50, 50), 25, 20, 50) #activity_net
   #plot_options_annot = ((100, 100), 12, 15, 100)  # activity_net
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-                                   show_legend=True, show_xy_labels=False, cmap='inferno')
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-                                   show_legend=True, show_xy_labels=True, cmap='inferno')
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options, show_values=False,
+  #                                 show_legend=True, show_xy_labels=False, cmap='inferno')
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options_annot, show_values=True,
+  #                                 show_legend=True, show_xy_labels=True, cmap='inferno')
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-                                   show_legend=True, show_xy_labels=False, cmap=None)
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options, show_values=False,
+  #                                 show_legend=True, show_xy_labels=False, cmap=None)
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-                                   show_legend=True, show_xy_labels=True, cmap=None)
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options_annot, show_values=True,
+  #                                 show_legend=True, show_xy_labels=True, cmap=None)
 
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
-  #classifier_analysis(transformed_df, "category")
+  classifier_analysis(df, "category")
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
   # closest_vector_analysis(transformed_df, class_column="category")

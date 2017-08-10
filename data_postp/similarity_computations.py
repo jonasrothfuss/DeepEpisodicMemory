@@ -33,11 +33,11 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl/valid_run/metadata_and_hidden_rep_df_08-07-17_00-21-11_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 
 
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/valid_run/'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -324,24 +324,24 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="category", ty
   estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True),
                                  n_jobs=-1)  # if type is 'rbf' else LinearSVC(verbose=True)
 
-  C=0
-  gamma=0
+  selected_c=0
+  selected_gamma=0
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
     C_values = [0.1, 1, 10, 100, 1000]
     gammas = np.logspace(-6, -1, 10)
 
     if type is "linear":
-      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
+      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(estimator__C=C_values))
       classifier.fit(X_train, y_train)
-      estimator = estimator.set_params(C=classifier.best_estimator_.C)
-      C = classifier.best_estimator_.C
+      estimator = estimator.set_params(C=classifier.best_estimator_.estimator__C)
+      selected_c = classifier.best_estimator_.estimator__C
     else:  # rbf
-      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
+      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, estimator__C=C_values))
       classifier.fit(X_train, y_train)
-      estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
-      C = classifier.best_estimator_.C
-      gamma = classifier.best_estimator_.gamma
+      estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, estimator__C=classifier.best_estimator_.estimator__C)
+      selected_c = classifier.best_estimator_.estimator__C
+      selected_gamma = classifier.best_estimator_.gamma
 
     title = 'Learning Curves (SVM (kernel=%s), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (type,
                                                                                                                classifier.best_estimator_.gamma,
@@ -387,7 +387,7 @@ def svm_train_test_separate(train_df, test_df, class_column="shape", type="linea
   classifier = estimator.fit(X_train, y_train)
 
   test_accuracy = classifier.score(X_test, y_test)
-  return test_accuracy, C, gamma
+  return test_accuracy, selected_c, selected_gamma
 
 
 def logistic_regression_fit_and_score(df, class_column="shape"):
@@ -1308,5 +1308,6 @@ def main():
 
 if __name__ == "__main__":
   main()
+
 
 

@@ -128,7 +128,7 @@ def create_subfolder(dir, name): #TODO move to utils
     return os.path.join(dir, name)
 
 
-def store_output_frames_as_gif(output_frames, labels, output_dir):
+def store_output_frames_as_frames(output_frames, labels, output_dir):
   """ Stores frame sequence produced by model as gif
     Args:
       output_frames:  list with Tensors of shape [batch_size, frame_height, frame_width, num_channels],
@@ -140,8 +140,26 @@ def store_output_frames_as_gif(output_frames, labels, output_dir):
   batch_size = output_frames[0].shape[0]
   for i in range(batch_size): #iterate over validation instances
     clip_array = [bgr_to_rgb(frame[i,:,:,:]) for frame in output_frames]
+    subdir = create_subfolder(output_dir, str(labels[i].decode('utf-8')))
     clip = mpy.ImageSequenceClip(clip_array, fps=10).to_RGB()
-    clip.write_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'), program='ffmpeg')
+    clip.write_images_sequence(os.path.join(subdir, 'generated_clip_frame%03d.png'))
+
+
+def store_output_frames_as_gif(output_frames, labels, output_dir):
+  """ Stores frame sequence produced by model as gif
+    Args:
+      output_frames:  list with Tensors of shape [batch_size, frame_height, frame_width, num_channels],
+                      each element corresponds to one frame in the produced gifs
+      labels:         list with video_id's of shape [batch_size, label]
+      output_dir:     path to output directory
+  """
+  assert os.path.isdir(output_dir)
+  batch_size = output_frames[0].shape[0]
+  for i in range(batch_size):  # iterate over validation instances
+    clip_array = [bgr_to_rgb(frame[i, :, :, :]) for frame in output_frames]
+    clip = mpy.ImageSequenceClip(clip_array, fps=10).to_RGB()
+    clip.write_gif(os.path.join(output_dir, 'generated_clip_' + str(labels[i].decode('utf-8')) + '.gif'),
+                   program='ffmpeg')
 
 
 def bgr_to_rgb(frame):

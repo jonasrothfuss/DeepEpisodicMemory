@@ -367,7 +367,7 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="category", ty
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
     io_handler.store_plot(FLAGS.pickle_dir_main, file_name)
-  return test_accuracy
+  return test_accuracy, selected_c, selected_gamma
 
 
 def svm_train_test_separate(train_df, test_df, class_column="shape", type="linear"):

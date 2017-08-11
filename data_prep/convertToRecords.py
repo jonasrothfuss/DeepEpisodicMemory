@@ -16,8 +16,11 @@ import tensorflow as tf
 import json
 from data_prep.video_preparation import create_activity_net_metadata_dicts, create_youtube8m_metadata_dicts, create_20bn_metadata_dicts, create_ucf101_metadata_dicts
 import utils.io_handler as io_handler
+from joblib import Parallel, delayed
+import multiprocessing
 from pprint import pprint
 
+NUM_CORES = multiprocessing.cpu_count()
 FLAGS = None
 FILE_FILTER = '*.avi'
 NUM_FRAMES_PER_VIDEO = 15
@@ -129,29 +132,24 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
     global NUM_CHANNELS_VIDEO
     NUM_CHANNELS_VIDEO = 4
     num_real_image_channel = 3
-    frameFlow = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO))
   else:
     # if no optical flow, make everything normal:
     num_real_image_channel = NUM_CHANNELS_VIDEO
 
-  #data = np.zeros((number_of_videos, NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO),
-  #                  dtype=np.uint32)
   data = []
-  image = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO, num_real_image_channel), dtype=np.uint8)
-  video = np.zeros((NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint32)
   meta_info = list()
-  imagePrev = None
 
-
-  for i in range(number_of_videos):
-    cap = getVideoCapture(filenames[i])
-    if cap is None:
-      print("Couldn't load video capture:" + filenames[i] + ". Moving to next video.")
-      break
+  def avi_file_to_ndarray(i, filename):
+    image = np.zeros((HEIGHT_VIDEO, WIDTH_VIDEO, num_real_image_channel), dtype=np.uint8)
+    video = np.zeros((NUM_FRAMES_PER_VIDEO, HEIGHT_VIDEO, WIDTH_VIDEO, NUM_CHANNELS_VIDEO), dtype=np.uint32)
+    imagePrev = None
+    assert os.path.isfile(filename), "Couldn't find video file"
+    cap = getVideoCapture(filename)
+    assert cap is not None, "Couldn't load video capture:" + filename + ". Moving to next video."
 
     # compute meta data of video
     frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
-    
+
     # returns nan, if fps needed a measurement must be implemented
     # frameRate = cap.get(cv2.cv.CV_CAP_PROP_FPS)
     steps = math.floor(frameCount / NUM_FRAMES_PER_VIDEO)
@@ -159,11 +157,8 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
     prev_frame_none = False
 
     restart = True
-    if frameCount < 1 or steps < 1:
-      print(filenames[i] + " does not have enough frames. Moving to next video.")
-      restart = False
-      continue
-   
+    assert not (frameCount < 1 or steps < 1), str(filename) + " does not have enough frames. Moving to next video."
+
     while restart:
       for f in range(int(frameCount)):
         # get next frame after 'steps' iterations:
@@ -217,17 +212,25 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
             else:
               video[j, :, :, :] = image
             j += 1
-            #print('total frames: ' + str(j) + " frame in video: " + str(f))
+            # print('total frames: ' + str(j) + " frame in video: " + str(f))
         else:
           getNextFrame(cap)
 
     print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
 
-    data.append(video.copy())
+    v = video.copy()
     cap.release()
+    return v
+
+  for i, file in enumerate(filenames):
+    try:
+      v = avi_file_to_ndarray(i, file)
+      data.append(v)
+    except Exception as e:
+      print(e)
 
     #get meta info and append to meta_info list
-    meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict).copy())
+    meta_info.append(get_meta_info(file, type, meta_dict=meta_dict).copy())
 
   return np.array(data), meta_info
 

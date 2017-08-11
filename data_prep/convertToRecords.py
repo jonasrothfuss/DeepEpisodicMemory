@@ -20,14 +20,14 @@ from pprint import pprint
 
 FLAGS = None
 FILE_FILTER = '*.avi'
-NUM_FRAMES_PER_VIDEO = 30
+NUM_FRAMES_PER_VIDEO = 20
 NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/selected_new_episodes'
-DESTINATION = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/tf_records_selected_new_episodes'
+SOURCE = '/common/homes/students/rothfuss/Documents/120videos_20bn'
+DESTINATION = '/common/homes/students/rothfuss/Documents/120videos_20bn/tf_records'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
@@ -39,12 +39,12 @@ METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.j
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('num_videos', 12, 'Number of videos stored in one single tfrecords file')
+flags.DEFINE_integer('num_videos', 120, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
-flags.DEFINE_boolean('use_meta', False, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', None, 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
+flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -214,7 +214,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
               video[j, :, :, :] = image_with_flow
             else:
               video[j, :, :, :] = image
-            j += 1
+              j += 1
             #print('total frames: ' + str(j) + " frame in video: " + str(f))
         else:
           getNextFrame(cap)
@@ -270,6 +270,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   for i, batch in enumerate(filenames_split):
     data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
+    #print(data[:,5,100,100,0])
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,

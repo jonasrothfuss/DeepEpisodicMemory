@@ -20,8 +20,8 @@ from pprint import pprint
 
 FLAGS = None
 FILE_FILTER = '*.avi'
-NUM_FRAMES_PER_VIDEO = 20
-NUM_CHANNELS_VIDEO = 3
+NUM_FRAMES_PER_VIDEO = 15
+NUM_CHANNELS_VIDEO = 4
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
@@ -44,6 +44,7 @@ flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
+flags.DEFINE_boolean('optical_flow', True, 'Indictes whether optical flow shall be computed and added as fourth channel')
 flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
@@ -226,7 +227,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
     cap.release()
 
     #get meta info and append to meta_info list
-    meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict))
+    meta_info.append(get_meta_info(filenames[i], type, meta_dict=meta_dict).copy())
 
   return np.array(data), meta_info
 
@@ -273,7 +274,6 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   for i, batch in enumerate(filenames_split):
     data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
-    print(data[:,5,100,100,0])
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,
@@ -354,7 +354,7 @@ def main(argv):
   #print('Collected %i Video Files'%len(all_files_shuffled))
   #all_files_shuffled = all_files_shuffled[0:140000]
 
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=True)
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=FLAGS.optical_flow)
 
 if __name__ == '__main__':
   app.run()

@@ -20,14 +20,14 @@ from pprint import pprint
 
 FLAGS = None
 FILE_FILTER = '*.avi'
-NUM_FRAMES_PER_VIDEO = 30
-NUM_CHANNELS_VIDEO = 3
+NUM_FRAMES_PER_VIDEO = 20
+NUM_CHANNELS_VIDEO = 4
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/selected_new_episodes'
-DESTINATION = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/tf_records_selected_new_episodes'
+SOURCE = '/data/rothfuss/data/20bn-something/augmentation_test/augmented'
+DESTINATION = '/data/rothfuss/data/20bn-something/augmentation_test/tf_records'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
@@ -39,12 +39,12 @@ METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.j
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('num_videos', 12, 'Number of videos stored in one single tfrecords file')
+flags.DEFINE_integer('num_videos', 1000, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
-flags.DEFINE_boolean('use_meta', False, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_string('type', None, 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
+flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -221,7 +221,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
 
     print(str(i + 1) + " of " + str(number_of_videos) + " videos processed", filenames[i])
 
-    data.append(video)
+    data.append(video.copy())
     cap.release()
 
     #get meta info and append to meta_info list
@@ -242,6 +242,8 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   :param videos_per_file: specifies the number of videos within one tfrecords file
   :param use_meta: boolean that indicates whether to use meta information
   """
+  global NUM_CHANNELS_VIDEO
+  assert (NUM_CHANNELS_VIDEO == 3 and (not dense_optical_flow)) or (NUM_CHANNELS_VIDEO == 4 and dense_optical_flow)
   assert type in ALLOWED_TYPES, str(type) + " is not an allowed type"
 
   if video_filenames is not None:
@@ -296,7 +298,7 @@ def get_meta_info(filename, type=None, meta_dict = None):
                   'eucl_distance': m.group(7)}
     else: #look up video id in meta_dict
       assert isinstance(meta_dict, dict), 'meta_dict must be a dict'
-      video_id = io_handler.get_video_id_from_path(base, type)
+      video_id = io_handler.get_video_id_from_path(base, type=type)
       assert video_id in meta_dict, 'could not find meta information for video ' + video_id + ' in the meta_dict'
       meta_info = meta_dict[video_id]
       meta_info['id'] = base.replace('.avi', '').replace('.mp4', '')
@@ -350,7 +352,7 @@ def main(argv):
   #print('Collected %i Video Files'%len(all_files_shuffled))
   #all_files_shuffled = all_files_shuffled[0:140000]
 
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=False)
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=True)
 
 if __name__ == '__main__':
   app.run()

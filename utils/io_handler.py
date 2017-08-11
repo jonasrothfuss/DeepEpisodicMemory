@@ -45,6 +45,8 @@ def get_video_id_from_path(path_str, type=None):
   elif type == 'flyingshapes':
     video_id = video_name.split('_')[0]
     return video_id
+  elif type == '20bn_valid' or type == '20bn_train':
+    return video_name.replace('.avi', '').replace('.mp4', '').split('_')[0]
   else: #just return filename without extension
     return video_name.replace('.avi', '').replace('.mp4', '')
   video_id = p.match(video_name).group(1)
@@ -362,6 +364,7 @@ def replace_char_from_dataframe(df, category, old_character, new_character):
   assert category and old_character is not None
   df[category] = df[category].str.replace(old_character, new_character)
   return df
+
 
 def select_subset_of_df_with_list(df, own_list, column="category"):
   if isinstance(own_list, list):

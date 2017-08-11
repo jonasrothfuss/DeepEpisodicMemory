@@ -13,10 +13,8 @@ import importlib
 import numpy as np
 import pandas as pd
 import seaborn as sn
-import scipy
-import json
+import scipy, pickle, json
 from ast import literal_eval as make_tuple
-
 
 import sklearn, sklearn.ensemble
 from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV, learning_curve
@@ -33,11 +31,11 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/valid_run/metadata_and_hidden_rep_df_07-26-17_16-52-09_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_selected_10_classes_eren_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 
 
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/valid_run/'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/'
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -323,7 +321,7 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
 
   estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True),
                                  n_jobs=-1)  # if type is 'rbf' else LinearSVC(verbose=True)
-
+  C=0
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
     C_values = [0.1, 1, 10, 100, 1000]
@@ -338,6 +336,7 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
       classifier.fit(X_train, y_train)
       estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
 
+    C = classifier.best_estimator_.C
     title = 'Learning Curves (SVM (kernel=%s), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (type,
                                                                                                                classifier.best_estimator_.gamma,
                                                                                                                classifier.best_estimator_.C,
@@ -362,7 +361,7 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
     io_handler.store_plot(FLAGS.pickle_dir_main, file_name)
-  return test_accuracy
+  return test_accuracy, C
 
 
 def svm_train_test_separate(train_df, test_df, class_column="shape", type="linear"):
@@ -733,14 +732,14 @@ def compute_small_confusion_matrix(df, shape1, shape2):
 
 
 def classifier_analysis(df, class_column='shape'):
-  svm_linear_accuracy = svm_fit_and_score(df, class_column=class_column, type='linear')
-  svm_rbf_accuracy = svm_fit_and_score(df, class_column=class_column, type='rbf')
-  lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
+  svm_linear_accuracy, C = svm_fit_and_score(df, class_column=class_column, type='linear')
+  #svm_rbf_accuracy = svm_fit_and_score(df, class_column=class_column, type='rbf')
+  #lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
   string_to_dump = str(datetime.now()) + '\n' \
-                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + '\n' \
-                   + '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
-                   + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file), 'classifier_analysis' + '.txt')
+                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + ' with C=' + str(C) + ' as best parameter (grid search)' + '\n' #\
+                   #+ '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
+                   #+ '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main), 'classifier_analysis' + '.txt')
   print(string_to_dump)
   with open(dump_file_name, 'w') as file:
     file.write(string_to_dump)
@@ -969,7 +968,7 @@ def inter_class_pca(df, class_column='category', n_components=50):
   return pca
 
 
-def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category', n_components=50):
+def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category', n_components=50, return_pca_object=False):
   """
     Performs PCA on mean vactors of classes and applies transformation to all hidden_reps in df
     :param df: dataframe containing hidden vectors + metadata
@@ -982,6 +981,7 @@ def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category
   assert 'hidden_repr' in df.columns and class_column in df.columns
   print(df.columns.values)
   df = df.copy()
+  print(n_components)
   pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
   transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df['hidden_repr']))
   df['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
@@ -989,9 +989,15 @@ def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category
     df_2 = df_2.copy()
     transformed_vectors_as_matrix = pca.transform(df_col_to_matrix(df_2['hidden_repr']))
     df_2['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
-    return df, df_2
+    if  return_pca_object:
+      return df, df_2, pca
+    else:
+      return df, df_2
   else:
-    return df
+    if return_pca_object:
+      return df, pca
+    else:
+      return df
 
 
 def find_closest_vectors(df, query_idx=None, hidden_repr=None, class_column='shape', n_closest_matches=5):
@@ -1026,7 +1032,6 @@ def find_closest_vectors(df, query_idx=None, hidden_repr=None, class_column='sha
     sorted_distances = [tup for tup in sorted_distances if tup[2] != query_v_id]
     print([l for _, l, _ in sorted_distances[:n_closest_matches]].count(query_class), query_v_id)
   return sorted_distances[:n_closest_matches]
-
 
 def closest_vector_analysis(df, df_query=None, class_column='shape', n_closest_matches=5):
   # construct pairwise similarity matrix
@@ -1066,6 +1071,55 @@ def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, targ
                   os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
     except Exception as e:
       print(e)
+
+
+def closest_vector_analysis_composite(df, df_query, base_dir_20bn, target_dir, n_pca_matching=20, n_pca_classifier=50,
+                                                 class_column='category', n_closest_matches=5):
+
+  classifier, pca_classifier, _, _ = train_and_dump_classifier(df, class_column=class_column, n_components=n_pca_classifier)
+
+  # generate pca transformed query df for classifiaction pca
+  df_query_classification = df_query.copy()
+  transformed_vectors_as_matrix = pca_classifier.transform(df_col_to_matrix(df_query['hidden_repr']))
+  df_query_classification['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
+
+  df_pca_matching, df_query_matching, pca_matching = transform_vectors_with_inter_class_pca(df, df_2=df_query, n_components=n_pca_matching, return_pca_object=True)
+
+  for hidden_repr_matching, hidden_repr_classification, label, category in zip(df_query_matching['hidden_repr'], df_query_classification['hidden_repr'],
+                                                                               df_query_matching['label'], df_query_matching[class_column]):
+    try:
+      class_prob_dict = dict(zip(classifier.classes_, classifier.predict_proba(hidden_repr_classification).flatten().tolist()))
+      pprint(sorted(class_prob_dict.items(), key=lambda tup: tup[1], reverse=True)[:5])
+      composite_scores= []
+      for v, l, v_id in zip(df_pca_matching['hidden_repr'], df_pca_matching[class_column], df['video_id']):
+        class_prob = class_prob_dict[l]
+        cos_sim = compute_cosine_similarity(v, hidden_repr_matching)
+        composite_score = class_prob+cos_sim
+
+        composite_scores.append((composite_score, l, int(v_id)))
+
+
+      sorted_scores = sorted(composite_scores, key=lambda tup: tup[0], reverse=True)
+      closest_vectors = sorted_scores[:n_closest_matches]
+
+      print(label, category)
+      #pprint(closest_vectors)
+      label_dir = os.path.join(target_dir, label)
+      os.mkdir(label_dir)
+      try:
+        shutil.copytree(os.path.join(base_dir_20bn, str(label)), os.path.join(label_dir, 'query_' + str(label) + ': ' + category))
+      except:
+        pass
+      for i, (cos_dist, v_label, v_id) in enumerate(closest_vectors):
+        try:
+          shutil.copytree(os.path.join(base_dir_20bn, str(v_id)), os.path.join(label_dir, str(v_id)))
+        except Exception as e:
+         pass
+        os.rename(os.path.join(label_dir, str(v_id)),
+                  os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
+    except Exception as e:
+      print(e)
+
 
 
 def dnq_metric(sim_matr):
@@ -1235,10 +1289,83 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
   plt.show()
 
 
+def train_and_dump_classifier(df, dump_path=None, class_column="category", classifier=sklearn.linear_model.LogisticRegression(n_jobs=-1),
+                              n_components=500, train_split_ratio=0.8):
+
+  # separate dataframe into test and train split
+  msk = np.random.rand(len(df)) < train_split_ratio
+  test_df = df[~msk]
+  train_df = df[msk]
+
+  if n_components > 0:
+    pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
+    X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
+    X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
+
+  else:
+    X_train = df_col_to_matrix(train_df['hidden_repr'])
+    X_test = df_col_to_matrix(test_df['hidden_repr'])
+
+  y_train = np.asarray(list(train_df[class_column]))
+  y_test = np.asarray(list(test_df[class_column]))
+
+
+  #fit model and calculate accuracy:
+  print("Training classifier")
+  classifier.fit(X_train, y_train)
+  acc = classifier.score(X_test, y_test)
+  print("Accuracy:", acc)
+  top5_acc = top_n_accuracy(classifier, X_test, y_test, n=3)
+  print("Top5 Accuracy:", top5_acc)
+
+  #dump classifier
+  if dump_path:
+    classifier_dump_path = os.path.join(os.path.dirname(dump_path), 'classifier.pickle')
+    with open(classifier_dump_path, 'wb') as f:
+      pickle.dump(classifier, f)
+    print("Dumped classifier to:", classifier_dump_path)
+
+  return classifier, pca, acc, top5_acc
+
+
+
+
 def main():
   #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
 
   df = pd.read_pickle(FLAGS.pickle_file_test)
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
+  #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
+
+  df_val = pd.read_pickle(
+    '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
+    'metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
+
+  base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
+  #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
+  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/65_trials_matching'
+  input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
+
+
+  #df['label'] = df['label_x']
+  #msk = np.random.rand(len(df)) < 0.7
+  #test_df = df[~msk]
+  #train_df = df[msk]
+  df_val['category'] = ['armar_setting' for _ in range(len(df_val))]
+  closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=20, n_pca_classifier=100)
+
+'''
+  df = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
+  acc_array = []
+  top5_acc_array = []
+  for i in range(5):
+    _, _, acc, top5_acc = train_and_dump_classifier(df, n_components=300)
+    acc_array.append(acc)
+    top5_acc_array.append(top5_acc)
+  print('MEAN ACCURACY: ', np.mean(acc_array))
+  print('MEAN TOP-5-ACCURACY: ', np.mean(top5_acc_array))
+'''
+  #train_and_dump_classifier(FLAGS.pickle_file_test, n_components=100)
 
   #similarity_matrix(df, 'label')
 
@@ -1248,27 +1375,27 @@ def main():
   #io_handler.store_dataframe(dataframe_processed, FLAGS.pickle_dir_main, filename)
 
 
-  plot_options = ((50, 50), 25, 20, 50) #20bn
-  plot_options_annot = ((100, 100), 7, 10, 100) #20bn
+  #plot_options = ((50, 50), 25, 20, 50) #20bn
+  #plot_options_annot = ((100, 100), 7, 10, 100) #20bn
 
 
   #plot_options = ((50, 50), 25, 20, 50) #activity_net
   #plot_options_annot = ((100, 100), 12, 15, 100)  # activity_net
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-                                   show_legend=True, show_xy_labels=False, cmap='inferno')
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-                                   show_legend=True, show_xy_labels=True, cmap='inferno')
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
+   #                                show_legend=True, show_xy_labels=False, cmap='inferno')
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
+   #                                show_legend=True, show_xy_labels=True, cmap='inferno')
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-                                   show_legend=True, show_xy_labels=False, cmap=None)
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
+   #                                show_legend=True, show_xy_labels=False, cmap=None)
 
-  plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-                                   show_legend=True, show_xy_labels=True, cmap=None)
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
+  #                                 show_legend=True, show_xy_labels=True, cmap=None)
 
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
-  #classifier_analysis(transformed_df, "category")
+  #classifier_analysis(df, "category")
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
   # closest_vector_analysis(transformed_df, class_column="category")
@@ -1284,17 +1411,18 @@ def main():
 
   #plot_classifier_analysis_n_samples(FLAGS.full_classifier_json)
   #classifier_analysis_train_test_different_splits(FLAGS.pickle_file_test)
-  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/half_actions/valid_run/metadata_and_hidden_rep_df_08-04-17_00-48-55.pickle')
 
+  #path='/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/classes.json'
+  #print(io_handler.select_subset_of_df_with_list(df, path))
+
+
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes.pickle')
 
   #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
   #df_1 = transform_vectors_with_inter_class_pca(df, class_column="class_0", n_components=20)
   #visualize_hidden_representations_tsne(df_1)
 
-  #base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  #target_dir = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/half_actions/matching_cropped_500'
-  #input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
-  #closest_vector_analysis_with_file_transfer(df, df_val, base_dir_20bn, target_dir, input_image_dir, class_column='category', n_closest_matches=5)
+
 
 
 if __name__ == "__main__":

@@ -221,7 +221,7 @@ def create_20bn_metadata_dicts(video_dir, csv_file, file_type="*.avi"):
 
   meta_dict = {}
   for i, video_path in enumerate(filenames):
-    video_id = io_handler.get_video_id_from_path(video_path)
+    video_id = io_handler.get_video_id_from_path(video_path, type='20bn_valid')
     try:
       label = label_id_df.loc[int(video_id)]['label']
       subclip_dict_entry = {'label': label, 'filetype': 'avi', 'video_id': video_id, 'category': label}
@@ -593,7 +593,11 @@ def main():
 
 
 
-  select_subset_from_20bn(source_dir, goal_dir, CSV_VALID_20BN, classes)
+  with open('/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/classes.json', 'w') as f:
+    json.dump(classes, f)
+
+
+  #select_subset_from_20bn(source_dir, goal_dir, CSV_VALID_20BN, classes)
 
   #generate_stationary_videos_from_dir('/common/temp/toEren/4PdF_ArmarSampleImages/input/', '/common/temp/toEren/4PdF_ArmarSampleImages/stationary_image_videos_cropped')
 

@@ -15,7 +15,7 @@ avi_files = io.file_paths_from_directory(AVI_SOURCE_DIR, '*.avi')
 def augment_video(video_path, target_dir, gamma, brightness, saturation, i):
   video_id = os.path.basename(video_path).split('.')[0]
   new_video_path = os.path.join(target_dir, video_id + '_%i.avi'%i)
-  ffmpeg_str = "ffmpeg -i %s -vf eq=gamma=%.1f:brightness=%.1f:saturation=%.1f -c:a copy %s"%(video_path, gamma, brightness, saturation, new_video_path)
+  ffmpeg_str = "/common/homes/students/rothfuss/Documents/ffmpeg/bin/ffmpeg -i %s -vf eq=gamma=%.1f:brightness=%.1f:saturation=%.1f -c:a copy %s"%(video_path, gamma, brightness, saturation, new_video_path)
   #print(ffmpeg_str)
   cp_str = "cp %s %s" % (video_path, new_video_path)
   print(cp_str)

@@ -14,8 +14,8 @@ from tensorflow.python.platform import flags
 FLAGS = flags.FLAGS
 
 #statics for data
-NUM_IMAGES = 15
-NUM_DEPTH = 3
+NUM_IMAGES = 10
+NUM_DEPTH = 4
 WIDTH = 128
 HEIGHT = 128
 # specifies the number of pre-processing threads
@@ -89,7 +89,6 @@ def create_batch(directory, mode, batch_size, num_epochs, overall_images_count, 
         w: width of image
         c: depth of image
     """
-    assert overall_images_count == NUM_IMAGES, "image count set in train model does not match image count in model input"
     path = os.path.abspath(directory)
     if mode == 'train':
       data_filter = FLAGS.train_files
@@ -110,10 +109,6 @@ def create_batch(directory, mode, batch_size, num_epochs, overall_images_count, 
         # sharing the same file even when multiple reader threads used
         image_seq_tensor, video_id, features = read_and_decode(filename_queue)
 
-        # TODO: observe influence on performance when standardizing online instead of offline (store standardized to tf)
-        # scale image to have zero mean and unit norm
-        if standardize:
-          image_seq_tensor = tf.image.per_image_standardization(image_seq_tensor)
 
         if mode == 'valid' or mode == 'test':
           if not batch_size:

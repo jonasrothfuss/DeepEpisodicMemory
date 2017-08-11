@@ -21,13 +21,13 @@ from pprint import pprint
 FLAGS = None
 FILE_FILTER = '*.avi'
 NUM_FRAMES_PER_VIDEO = 20
-NUM_CHANNELS_VIDEO = 4
+NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/data/rothfuss/data/20bn-something/augmentation_test/augmented'
-DESTINATION = '/data/rothfuss/data/20bn-something/augmentation_test/tf_records'
+SOURCE = '/common/temp/toEren/4PdF_ArmarSampleImages/65_trials'
+DESTINATION = '/common/temp/toEren/4PdF_ArmarSampleImages/65_trials_tf_records/tf_records'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
@@ -160,6 +160,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
     restart = True
     if frameCount < 1 or steps < 1:
       print(filenames[i] + " does not have enough frames. Moving to next video.")
+      restart = False
       continue
    
     while restart:
@@ -243,7 +244,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   :param use_meta: boolean that indicates whether to use meta information
   """
   global NUM_CHANNELS_VIDEO
-  assert (NUM_CHANNELS_VIDEO == 3 and (not dense_optical_flow)) or (NUM_CHANNELS_VIDEO == 4 and dense_optical_flow)
+  assert (NUM_CHANNELS_VIDEO == 3 and (not dense_optical_flow)) or (NUM_CHANNELS_VIDEO == 4 and dense_optical_flow), "correct NUM_CHANNELS_VIDEO"
   assert type in ALLOWED_TYPES, str(type) + " is not an allowed type"
 
   if video_filenames is not None:
@@ -272,6 +273,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   for i, batch in enumerate(filenames_split):
     data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
+    print(data[:,5,100,100,0])
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,

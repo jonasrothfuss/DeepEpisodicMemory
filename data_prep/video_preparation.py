@@ -469,19 +469,30 @@ def split_ucf_in_train_valid(source_dir, train_list, test_list):
     os.rename(os.path.join(source_dir, v), os.path.join(os.path.join(source_dir, train_val_dict[v_id]), v))
     print(i, '- moved ', v_id)
 
-def select_subset_from_20bn(source_dir, goal_dir, csv_file, classes):
+def select_subset_from_20bn(source_dir, goal_dir, csv_file, classes, by_id=False):
+  """
+  Select a subset from the 20bn dataset. Either select by class (which this function defaults to or set by_id=False) or by video id)
+  :param source_dir: path to the source directory
+  :param goal_dir: path to the destination directory
+  :param csv_file: the csf file containing the video id's and labels
+  :param classes: a list of labels (subset of labels from csv file)
+  :param by_id: set to true if this function should select by video id, set to false if it should select by label
+  :return: None
+  """
   df = pd.read_csv(csv_file, sep=',', names=['video_id', 'label'])
   print(df)
   video_count = 0
   for id, label in zip(df['video_id'], df['label']):
-    if label in classes:
+    # if by_id=True, make sure label is not the selector but the id is
+    if (label in classes and not by_id) or (id in classes and by_id):
       video_count += 1
       try:
         shutil.copy2(os.path.join(source_dir, str(id) + '.avi'), os.path.join(goal_dir, str(id) + '.avi'))
         print('Successfully copied ', str(id) + '.avi')
       except:
         print('Failed to copy ', str(id) + '.avi')
-  print(video_count) 
+  print(video_count)
+
 
 def image_to_stationary_avi(image_file, output_dir, n_frames=20):
   image_files = [image_file for _ in range(n_frames)]
@@ -519,7 +530,7 @@ def main():
   #prepare_and_store_all_videos(output_dir,input_dir=input_dir, subclip_json_file_location=json_file_location, type='folders')
 
   source_dir= '/PDFData/rothfuss/data/20bn-something/videos/valid'
-  goal_dir = '/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/videos_valid'
+  goal_dir = '/common/homes/students/rothfuss/Documents/120videos'
   # classes = [
   #   'Moving something up', #replaced Folding something
   #   'Throwing something', #replaced Covering something
@@ -533,71 +544,133 @@ def main():
   #   'Moving something up' #replaced Tipping something over
   # ]
   classes = [
-    'Lifting a surface with something on it but not enough for it to slide down',
-    'Lifting a surface with something on it until it starts sliding down',
-    'Lifting something up completely',
-    'Lifting something up completely without letting it drop down',
-    'Lifting something with something on it',
-    'Lifting up one end of something',
-    'Lifting up one end of something without letting it drop down'
-    'Moving part of something'
-    'Moving something across a surface until it falls down',
-    'Moving something across a surface without it falling down',
-    'Moving something and something away from each other',
-    'Moving something and something closer to each other',
-    'Moving something and something so they collide with each other',
-    'Moving something and something so they pass each other',
-    'Moving something away from something',
-    'Moving something closer to something',
-    'Moving something down',
-    'Moving something up'
-    'Poking a stack of something so the stack collapses',
-    'Poking something so it slightly moves',
-    'Poking something so that it falls over',
-    'Poking something so that it spins around'
-    'Pouring something into something',
-    'Pouring something into something until it overflows',
-    'Pouring something out of something'
-    'Pulling something from left to right',
-    'Pulling something from right to left'
-    'Pulling something onto something',
-    'Pushing something from left to right',
-    'Pushing something from right to left',
-    'Pushing something off of something',
-    'Pushing something onto something',
-    'Pushing something so it spins',
-    'Pushing something so that it falls off the table',
-    'Pushing something so that it slightly moves',
-    'Pushing something with something'
-    'Putting number of something onto something',
-    'Putting something',
-    'Putting something into something',
-    'Putting something next to something',
-    'Putting something on a flat surface without letting it roll',
-    'Putting something on a surface',
-    'Putting something on the edge of something so it is not supported and falls down',
-    'Putting something onto something'
-    'Putting something onto something else that cannot support it so it falls down',
-    'Putting something similar to other things that are already on the table',
-    'Putting something that cannot actually stand upright upright on the table',
-    'Putting something upright on the table'
-    'Throwing something',
-    'Throwing something in the air and catching it',
-    'Throwing something in the air and letting it fall',
-    'Throwing something onto a surface'
-    'Squeezing something'
-    'Taking one of many similar things on the table',
-    'Taking something from somewhere',
-    'Taking something out of something'
+    36548,
+    3704,
+    4445,
+    4232,
+    65602,
+    20096,
+    33704,
+    2450,
+    76509,
+    5184,
+    108261,
+    954,
+    1390,
+    2957,
+    1635,
+    472,
+    108209,
+    1113,
+    5892,
+    3565,
+    1413,
+    2922,
+    79306,
+    24620,
+    22499,
+    63041,
+    235,
+    3044,
+    20173,
+    5769,
+    28858,
+    4463,
+    4158,
+    62040,
+    2701,
+    5296,
+    98830,
+    21837,
+    25614,
+    24401,
+    101998,
+    25771,
+    108482,
+    2331,
+    26967,
+    4344,
+    72637,
+    72475,
+    20181,
+    32380,
+    2270,
+    4468,
+    3283,
+    680,
+    21885,
+    66589,
+    2964,
+    84801,
+    3317,
+    101517,
+    23784,
+    1471,
+    3701,
+    818,
+    4649,
+    94663,
+    5952,
+    63773,
+    28067,
+    84836,
+    68961,
+    33460,
+    60221,
+    2204,
+    5929,
+    73694,
+    42820,
+    2976,
+    1132,
+    73969,
+    400,
+    3934,
+    70675,
+    4118,
+    66481,
+    3891,
+    82722,
+    4229,
+    1566,
+    108416,
+    29677,
+    4737,
+    3211,
+    98823,
+    1800,
+    36717,
+    574,
+    3742,
+    2372,
+    2430,
+    72881,
+    105,
+    74154,
+    4127,
+    27122,
+    81,
+    40728,
+    91696,
+    1154,
+    126,
+    75279,
+    3223,
+    85561,
+    108210,
+    1514,
+    1326,
+    85492,
+    5275,
+    66755,
+    2968
   ]
 
 
 
-  with open('/PDFData/rothfuss/data/20bn-something/selected_subset_10classes_eren/classes.json', 'w') as f:
-    json.dump(classes, f)
-
-
   #select_subset_from_20bn(source_dir, goal_dir, CSV_VALID_20BN, classes)
+
+  select_subset_from_20bn(source_dir, goal_dir, CSV_VALID_20BN, classes, by_id=True)
 
   #generate_stationary_videos_from_dir('/common/temp/toEren/4PdF_ArmarSampleImages/input/', '/common/temp/toEren/4PdF_ArmarSampleImages/stationary_image_videos_cropped')
 

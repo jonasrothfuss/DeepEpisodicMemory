@@ -33,9 +33,8 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
 PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_selected_10_classes_eren_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
-
-
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/'
+
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
 FLAGS = flags.FLAGS
@@ -280,7 +279,7 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1, tr
   return plt
 
 
-def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type="linear", CV=False, plot=False):
+def svm_fit_and_score(hidden_representations_pickle, class_column="category", type="linear", CV=True, plot=False):
   """
   The function:
       1. splits the data from the pickle file into 80% train data and 20% test data
@@ -321,32 +320,34 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
 
   estimator = OneVsOneClassifier(SVC(kernel=type, verbose=True),
                                  n_jobs=-1)  # if type is 'rbf' else LinearSVC(verbose=True)
-  C=0
+  best_params_dict = None
   if CV:
     cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
-    C_values = [0.1, 1, 10, 100, 1000]
-    gammas = np.logspace(-6, -1, 10)
+
+    if type == 'linear':
+      parameters = {
+        "estimator__C": [0.1, 1, 10, 100, 1000],
+      }
+    else:
+      parameters = {
+        "estimator__C": [0.1, 1, 10, 100, 1000],
+        "estimator__gamma": np.logspace(-6, -1, 10)
+      }
 
     if type is "linear":
-      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(C=C_values))
+      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=parameters)
       classifier.fit(X_train, y_train)
-      estimator = estimator.set_params(C=classifier.best_estimator_.C)
+      estimator = estimator.set_params(**classifier.best_params_)
+      best_params_dict = classifier.best_params_
     else:  # rbf
-      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=dict(gamma=gammas, C=C_values))
+      classifier = GridSearchCV(estimator=estimator, cv=cv, param_grid=parameters)
       classifier.fit(X_train, y_train)
-      estimator = estimator.set_params(gamma=classifier.best_estimator_.gamma, C=classifier.best_estimator_.C)
+      estimator = estimator.set_params(**classifier.best_params_)
+      best_params_dict = classifier.best_params_
 
-    C = classifier.best_estimator_.C
-    title = 'Learning Curves (SVM (kernel=%s), $\gamma=%.6f$, C=%.1f, %i shuffle splits, %i train samples)' % (type,
-                                                                                                               classifier.best_estimator_.gamma,
-                                                                                                               classifier.best_estimator_.C,
-                                                                                                               cv.get_n_splits(),
-                                                                                                               X_train.shape[
-                                                                                                                 0] * (
-                                                                                                               1 - cv.test_size))
+    title = 'Learning Curves (SVM (kernel=%s), (params=%s)' % (type, best_params_dict)
     print(title)
     file_name = 'svm_linear_%ishuffle_splits_%.2ftest_size' % (cv.n_splits, cv.test_size)
-
 
   else:
     classifier = estimator.fit(X_train, y_train)
@@ -361,7 +362,8 @@ def svm_fit_and_score(hidden_representations_pickle, class_column="shape", type=
                         xycoords='axes fraction', fontsize=12, horizontalalignment='left', verticalalignment='bottom')
 
     io_handler.store_plot(FLAGS.pickle_dir_main, file_name)
-  return test_accuracy, C
+  return test_accuracy, best_params_dict
+
 
 
 def svm_train_test_separate(train_df, test_df, class_column="shape", type="linear"):
@@ -381,7 +383,7 @@ def svm_train_test_separate(train_df, test_df, class_column="shape", type="linea
   classifier = estimator.fit(X_train, y_train)
 
   test_accuracy = classifier.score(X_test, y_test)
-  return test_accuracy
+  return test_accuracy, selected_c, selected_gamma
 
 
 def logistic_regression_fit_and_score(df, class_column="shape"):
@@ -601,18 +603,18 @@ def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type="", f
   # cmap provided
   if cmap is not None:
     #cbar_kws={'label': 'cos similarity'}
-    ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=cmap)
+    ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]}, cmap=cmap)
   # standard cmap
   else:
     print(vector_type)
     if vector_type == "no_pca":
       #vmin=0.0, vmax=0.4, robust=True
       #ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
-      ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]})
+      ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
       cmap = 'standard'
     else:
       #ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
-      ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]})
+      ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
       cmap = 'standard'
 
 
@@ -732,14 +734,14 @@ def compute_small_confusion_matrix(df, shape1, shape2):
 
 
 def classifier_analysis(df, class_column='shape'):
-  svm_linear_accuracy, C = svm_fit_and_score(df, class_column=class_column, type='linear')
-  #svm_rbf_accuracy = svm_fit_and_score(df, class_column=class_column, type='rbf')
-  #lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
-  string_to_dump = str(datetime.now()) + '\n' \
-                   + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) + ' with C=' + str(C) + ' as best parameter (grid search)' + '\n' #\
-                   #+ '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + '\n' \
-                   #+ '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
-  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_dir_main), 'classifier_analysis' + '.txt')
+  svm_linear_accuracy, best_params_dict = svm_fit_and_score(df, class_column=class_column, type='linear', CV=True)
+  #svm_rbf_accuracy, best_params_dict = svm_fit_and_score(df, class_column=class_column, type='rbf', CV=True)
+  lr_accuracy = logistic_regression_fit_and_score(df, class_column=class_column)
+  string_to_dump = str(datetime.now()) + '\n' + '---- SVM Linear ----\n Accuracy: ' + str(svm_linear_accuracy) \
+                    + ' best params: ' + str(best_params_dict) + '\n' \
+                    + '---- LogisticRegression ----' + '\n' + 'Accuracy: ' + str(lr_accuracy) + '\n'
+                    #+ '---- SVM RBF ----\n Accuracy: ' + str(svm_rbf_accuracy) + ' C: ' + str(C) + ' gamma: '+ str(gamma) + '\n'
+  dump_file_name = os.path.join(os.path.dirname(FLAGS.pickle_file_test), 'classifier_analysis' + '.txt')
   print(string_to_dump)
   with open(dump_file_name, 'w') as file:
     file.write(string_to_dump)
@@ -1381,20 +1383,26 @@ def main():
 
   #plot_options = ((50, 50), 25, 20, 50) #activity_net
   #plot_options_annot = ((100, 100), 12, 15, 100)  # activity_net
+  #plot_options_annot = ((50, 50), 23, 15, 100)  # activity_net
 
-  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-   #                                show_legend=True, show_xy_labels=False, cmap='inferno')
-  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-   #                                show_legend=True, show_xy_labels=True, cmap='inferno')
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options, show_values=False, show_legend=True, show_xy_labels=False, cmap='inferno')
 
-  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options, show_values=False,
-   #                                show_legend=True, show_xy_labels=False, cmap=None)
 
-  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200], plot_options=plot_options_annot, show_values=True,
-  #                                 show_legend=True, show_xy_labels=True, cmap=None)
+
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options_annot, show_values=True, show_legend=True, show_xy_labels=True, cmap='inferno')
+
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options, show_values=False,
+  #                                 show_legend=True, show_xy_labels=False, cmap=None)
+
+  #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],
+  # plot_options=plot_options_annot, show_values=True, show_legend=True, show_xy_labels=True, cmap=None)
 
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=600)
+
   #classifier_analysis(df, "category")
 
   # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
@@ -1427,5 +1435,6 @@ def main():
 
 if __name__ == "__main__":
   main()
+
 
 

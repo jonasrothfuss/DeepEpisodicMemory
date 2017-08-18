@@ -31,7 +31,8 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_selected_10_classes_eren_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/'
 
@@ -603,18 +604,18 @@ def similarity_matrix(df, df_label_col, similarity_type='cos', vector_type="", f
   # cmap provided
   if cmap is not None:
     #cbar_kws={'label': 'cos similarity'}
-    ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]}, cmap=cmap)
+    ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=cmap)
   # standard cmap
   else:
     print(vector_type)
     if vector_type == "no_pca":
       #vmin=0.0, vmax=0.4, robust=True
-      #ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
-      ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
+      ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
+      #ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
       cmap = 'standard'
     else:
-      #ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
-      ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
+      ax = sn.heatmap(df_cm, annot=show_values, annot_kws={"size": plot_options[2]}, cmap=sn.cubehelix_palette(as_cmap=True, reverse=False, start=0.3, rot=-0.5), cbar_kws={'label': 'cos similarity'})
+      #ax = sn.heatmap(df_cm.iloc[:5, :5], annot=show_values, annot_kws={"size": plot_options[2]})
       cmap = 'standard'
 
 
@@ -1078,6 +1079,8 @@ def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, targ
 def closest_vector_analysis_composite(df, df_query, base_dir_20bn, target_dir, n_pca_matching=20, n_pca_classifier=50,
                                                  class_column='category', n_closest_matches=5):
 
+  #Preparation Part 1: prepare classifier and classifier_pca
+  #train logistic regression on pca components of hidden_reps in df --> returns classifier and pca object
   classifier, pca_classifier, _, _ = train_and_dump_classifier(df, class_column=class_column, n_components=n_pca_classifier)
 
   # generate pca transformed query df for classifiaction pca
@@ -1085,27 +1088,34 @@ def closest_vector_analysis_composite(df, df_query, base_dir_20bn, target_dir, n
   transformed_vectors_as_matrix = pca_classifier.transform(df_col_to_matrix(df_query['hidden_repr']))
   df_query_classification['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
 
+  #Preparation Part 2: prepare pca transform for matching
   df_pca_matching, df_query_matching, pca_matching = transform_vectors_with_inter_class_pca(df, df_2=df_query, n_components=n_pca_matching, return_pca_object=True)
 
+  # removing augmented samples from df_pca_matching (videos with suffix _9 are originals)
+  df_pca_matching = df_pca_matching[df_pca_matching["id"].str.contains("_9")]
+
+  # Production: Iterate over queries in df_query
   for hidden_repr_matching, hidden_repr_classification, label, category in zip(df_query_matching['hidden_repr'], df_query_classification['hidden_repr'],
                                                                                df_query_matching['label'], df_query_matching[class_column]):
     try:
       class_prob_dict = dict(zip(classifier.classes_, classifier.predict_proba(hidden_repr_classification).flatten().tolist()))
       pprint(sorted(class_prob_dict.items(), key=lambda tup: tup[1], reverse=True)[:5])
       composite_scores= []
-      for v, l, v_id in zip(df_pca_matching['hidden_repr'], df_pca_matching[class_column], df['video_id']):
+      for v, l, v_id in zip(df_pca_matching['hidden_repr'], df_pca_matching[class_column], df_pca_matching['video_id']):
         class_prob = class_prob_dict[l]
         cos_sim = compute_cosine_similarity(v, hidden_repr_matching)
-        composite_score = class_prob+cos_sim
-
+        composite_score = class_prob + cos_sim
+        #composite_score = cos_sim
         composite_scores.append((composite_score, l, int(v_id)))
 
-
       sorted_scores = sorted(composite_scores, key=lambda tup: tup[0], reverse=True)
+
       closest_vectors = sorted_scores[:n_closest_matches]
 
       print(label, category)
       #pprint(closest_vectors)
+
+      # File transfer - make directiry label_dir and copy the matched videos into the directory
       label_dir = os.path.join(target_dir, label)
       os.mkdir(label_dir)
       try:
@@ -1339,13 +1349,11 @@ def main():
   #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
   #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
 
-  df_val = pd.read_pickle(
-    '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
-    'metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes_optical_flow_valid.pickle')
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
   #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
-  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/65_trials_matching'
+  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_selected_10_classes_eren_augmented_valid/half_actions_new_episodes/5_5_5_starting_from_5/composite/matching_pca_50_classifier_100'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 
 
@@ -1354,9 +1362,9 @@ def main():
   #test_df = df[~msk]
   #train_df = df[msk]
   df_val['category'] = ['armar_setting' for _ in range(len(df_val))]
-  closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=20, n_pca_classifier=100)
+  closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=50, n_pca_classifier=100)
 
-'''
+  '''
   df = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
   acc_array = []
   top5_acc_array = []
@@ -1366,8 +1374,9 @@ def main():
     top5_acc_array.append(top5_acc)
   print('MEAN ACCURACY: ', np.mean(acc_array))
   print('MEAN TOP-5-ACCURACY: ', np.mean(top5_acc_array))
-'''
-  #train_and_dump_classifier(FLAGS.pickle_file_test, n_components=100)
+  '''
+
+  #train_and_dump_classifier(df, FLAGS.pickle_file_test, n_components=0)
 
   #similarity_matrix(df, 'label')
 
@@ -1378,11 +1387,11 @@ def main():
 
 
   #plot_options = ((50, 50), 25, 20, 50) #20bn
-  #plot_options_annot = ((100, 100), 7, 10, 100) #20bn
+  #plot_options_annot = ((100, 100), 5, 10, 100) #20bn
 
 
   #plot_options = ((50, 50), 25, 20, 50) #activity_net
-  #plot_options_annot = ((100, 100), 12, 15, 100)  # activity_net
+  #plot_options_annot = ((100, 100), 7, 15, 100)  # activity_net
   #plot_options_annot = ((50, 50), 23, 15, 100)  # activity_net
 
   #plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[50, 100, 200],

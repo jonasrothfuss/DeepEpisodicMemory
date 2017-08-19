@@ -56,7 +56,7 @@ FINE_TUNING_WEIGHTS_LIST = None
 flags.DEFINE_integer('num_iterations', 2000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 100, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 150, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
@@ -412,10 +412,12 @@ def valid_run(output_dir):
 
       for i in range(video_count):
         orig_rec_video_frames = np.asarray(orig_frames)[i, :FLAGS.encoder_length, :, :, :3]
-        orig_fut_video_frames = np.asarray(orig_frames)[i, -FLAGS.decoder_future_length:, :, :, :3]
+        # last n items but reversed order
+        orig_fut_video_frames = np.asarray(orig_frames)[i, -FLAGS.decoder_future_length::-1, :, :, :3]
         #TODO check order of decoder images
-        recon_video_frames = np.asarray(output_frames)[:FLAGS.decoder_reconst_length, i, :, :, :3]
-        future_video_frames = np.asarray(output_frames)[-FLAGS.decoder_future_length:, i, :, :, :3]
+
+        recon_video_frames = np.asarray(output_frames)[:FLAGS.decoder_reconst_length:-1, i, :, :, :3]
+        future_video_frames = np.asarray(output_frames)[-FLAGS.decoder_future_length::-1, i, :, :, :3]
 
         psnr_reconstructions = [metrics.peak_signal_to_noise_ratio(orig_frame, recon_frame, color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]
         psnr_future = [metrics.peak_signal_to_noise_ratio(orig_frame, fut_frame, color_depth=255) for orig_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]

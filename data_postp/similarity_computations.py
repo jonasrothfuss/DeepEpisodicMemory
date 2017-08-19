@@ -31,7 +31,7 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/'
@@ -1133,16 +1133,6 @@ def closest_vector_analysis_composite(df, df_query, base_dir_20bn, target_dir, n
       print(e)
 
 
-
-def dnq_metric(sim_matr):
-  sim_matr_rad = np.arccos(sim_matr.as_matrix())
-  diagonal = np.diagonal(sim_matr_rad)
-  diag_mean = np.mean(diagonal)
-  np.fill_diagonal(sim_matr_rad, np.zeros(sim_matr_rad.shape[0]))
-  non_diag_mean = np.sum(sim_matr_rad) / float(sim_matr_rad.shape[0] * (sim_matr_rad.shape[0] - 1))
-  return (1 - diag_mean / non_diag_mean)
-
-
 def plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[], plot_options=((100, 100), 15, 30, 100), show_values=False, show_legend=True, show_xy_labels=False, cmap=None):
   similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_",
                     plot_options=plot_options, show_values=show_values, show_legend=show_legend, show_xy_labels=show_xy_labels, cmap=cmap)
@@ -1349,11 +1339,11 @@ def main():
   #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
   #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
 
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes_optical_flow_valid.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-16-17_02-46-59_simple_manipulations_fabio_manually2_5_5_5_with_optical_flow_middle.pickle')
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
   #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
-  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_selected_10_classes_eren_augmented_valid/half_actions_new_episodes/5_5_5_starting_from_5/composite/matching_pca_50_classifier_100'
+  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_all_augmented_valid/simple_manipulatons_fabio_manually_2/composite/5_5_5_starting_from_5/matching_pca_50_classifier_100'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 
 

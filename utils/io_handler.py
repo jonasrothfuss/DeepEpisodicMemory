@@ -172,6 +172,23 @@ def bgr_to_rgb(frame):
   return frame
 
 
+def write_file_with_append(path, text_to_append):
+  '''this function checks if a file (given by path) is available. If not, it creates the file and appends the text
+  (given by text_to_append) and if it does exist it appends the text and the end of the file'''
+
+  if os.path.exists(path):
+    append_write = 'a'  # append if already exists
+  else:
+    append_write = 'w'  # make a new file if not
+
+  with open(path, append_write) as f:
+    if append_write is 'w':
+      f.write(str(text_to_append))
+    else:
+      f.write('\n' + str(text_to_append))
+
+
+
 def write_metainfo(output_dir, model, flags):
   with open(os.path.join(output_dir, 'metainfo.txt'), 'a') as f:
     f.write('\n' + '---- Training: ' + str(dt.datetime.now()) + ' ----' + '\n')
@@ -394,3 +411,12 @@ def select_subset_of_df_with_list(df, own_list, column="category"):
     return False
 
   return df[df[column].isin(selector)]
+
+
+def df_col_to_matrix(panda_col):
+  """Converts a pandas dataframe column wherin each element in an ndarray into a 2D Matrix
+  :return ndarray (2D)
+  :param panda_col - panda Series wherin each element in an ndarray
+  """
+  panda_col = panda_col.map(lambda x: x.flatten())
+  return np.vstack(panda_col)

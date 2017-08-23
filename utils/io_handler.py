@@ -234,6 +234,9 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   #merge dataframes to one
   df = pd.merge(hidden_rep_df, metadata_df, left_on='label', right_on='id')
 
+  if 'label_x' in df.columns:
+    df = df.drop_duplicates('label_x')
+
   if not filename:
     filename = os.path.join(output_dir, 'metadata_and_hidden_rep_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
   df.to_pickle(filename)

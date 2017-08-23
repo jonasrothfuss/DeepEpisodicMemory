@@ -6,7 +6,8 @@ from pprint import pprint
 from data_prep.TFRW2Images import createGif
 
 from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
-from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, store_encoder_latent_vector, file_paths_from_directory, write_file_with_append
+from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, \
+  store_encoder_latent_vector, file_paths_from_directory, write_file_with_append, bgr_to_rgb
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
@@ -28,7 +29,7 @@ OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/'
 #DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_valid'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_test'
 #DATA_PATH = '/localhome/rothfuss/data/20bn-something/tf_records_train'
-DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
+DATA_PATH = '/data/rothfuss/data/ArmarExperiences/videos/tf_records/tf_records_memory'
 #DATA_PATH = '/data/rothfuss/data/20bn-something/tf_records_test_optical_flow'
 #DATA_PATH = '/common/temp/toEren/4PdF_ArmarSampleImages/tf_records_cropped'
 
@@ -42,7 +43,7 @@ PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/selected_trainings
 #PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching'
 # use pre-trained model and run validation only
 VALID_ONLY = True
-VALID_MODE = 'psnr' # 'vector', 'gif', 'similarity', 'data_frame', 'psnr'
+VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame', 'psnr'
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 #FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -56,12 +57,12 @@ FINE_TUNING_WEIGHTS_LIST = None
 flags.DEFINE_integer('num_iterations', 2000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 150, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 100, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_integer('image_range_start', 5, 'parameter that controls the index of the starting image for the train/valid batch')
-flags.DEFINE_integer('overall_images_count', 19, 'specifies the number of images that are available to create the train/valid batches')
+flags.DEFINE_integer('overall_images_count', 15, 'specifies the number of images that are available to create the train/valid batches')
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5, 'specifies how many images the reconstruction decoder receives, defaults to 5')
@@ -393,7 +394,8 @@ def valid_run(output_dir):
 
     if 'data_frame' in FLAGS.valid_mode:
       #evaluate multiple batches to cover all available validation samples
-      for i in range((num_valid_samples//(FLAGS.valid_batch_size * FLAGS.num_gpus))-1):
+      num_val_batches_required = (num_valid_samples//(FLAGS.valid_batch_size * FLAGS.num_gpus)) + int((num_valid_samples%(FLAGS.valid_batch_size * FLAGS.num_gpus))!=0)
+      for i in range(num_val_batches_required):
         hidden_representations_new, labels_new, metadata_new = initializer.sess.run([val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
         hidden_representations = np.concatenate((hidden_representations, hidden_representations_new))
         labels = np.concatenate((labels, labels_new))
@@ -413,14 +415,13 @@ def valid_run(output_dir):
       for i in range(video_count):
         orig_rec_video_frames = np.asarray(orig_frames)[i, :FLAGS.encoder_length, :, :, :3]
         # last n items but reversed order
-        orig_fut_video_frames = np.asarray(orig_frames)[i, -FLAGS.decoder_future_length::-1, :, :, :3]
+        orig_fut_video_frames = np.asarray(orig_frames)[i, -FLAGS.decoder_future_length:, :, :, :3]
         #TODO check order of decoder images
+        recon_video_frames = np.asarray(output_frames)[:FLAGS.decoder_reconst_length, i, :, :, :3]
+        future_video_frames = np.asarray(output_frames)[-FLAGS.decoder_future_length:, i, :, :, :3]
 
-        recon_video_frames = np.asarray(output_frames)[:FLAGS.decoder_reconst_length:-1, i, :, :, :3]
-        future_video_frames = np.asarray(output_frames)[-FLAGS.decoder_future_length::-1, i, :, :, :3]
-
-        psnr_reconstructions = [metrics.peak_signal_to_noise_ratio(orig_frame, recon_frame, color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]
-        psnr_future = [metrics.peak_signal_to_noise_ratio(orig_frame, fut_frame, color_depth=255) for orig_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]
+        psnr_reconstructions = [metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]
+        psnr_future = [metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]
 
         mean_psnr_reconstruction.append(np.mean(psnr_reconstructions))
         mean_psnr_future.append(np.mean(psnr_future))

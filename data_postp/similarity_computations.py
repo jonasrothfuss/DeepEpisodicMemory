@@ -1076,63 +1076,6 @@ def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, targ
       print(e)
 
 
-def closest_vector_analysis_composite(df, df_query, base_dir_20bn, target_dir, n_pca_matching=20, n_pca_classifier=50,
-                                                 class_column='category', n_closest_matches=5):
-
-  #Preparation Part 1: prepare classifier and classifier_pca
-  #train logistic regression on pca components of hidden_reps in df --> returns classifier and pca object
-  classifier, pca_classifier, _, _ = train_and_dump_classifier(df, class_column=class_column, n_components=n_pca_classifier)
-
-  # generate pca transformed query df for classifiaction pca
-  df_query_classification = df_query.copy()
-  transformed_vectors_as_matrix = pca_classifier.transform(df_col_to_matrix(df_query['hidden_repr']))
-  df_query_classification['hidden_repr'] = np.split(transformed_vectors_as_matrix, transformed_vectors_as_matrix.shape[0])
-
-  #Preparation Part 2: prepare pca transform for matching
-  df_pca_matching, df_query_matching, pca_matching = transform_vectors_with_inter_class_pca(df, df_2=df_query, n_components=n_pca_matching, return_pca_object=True)
-
-  # removing augmented samples from df_pca_matching (videos with suffix _9 are originals)
-  df_pca_matching = df_pca_matching[df_pca_matching["id"].str.contains("_9")]
-
-  # Production: Iterate over queries in df_query
-  for hidden_repr_matching, hidden_repr_classification, label, category in zip(df_query_matching['hidden_repr'], df_query_classification['hidden_repr'],
-                                                                               df_query_matching['label'], df_query_matching[class_column]):
-    try:
-      class_prob_dict = dict(zip(classifier.classes_, classifier.predict_proba(hidden_repr_classification).flatten().tolist()))
-      pprint(sorted(class_prob_dict.items(), key=lambda tup: tup[1], reverse=True)[:5])
-      composite_scores= []
-      for v, l, v_id in zip(df_pca_matching['hidden_repr'], df_pca_matching[class_column], df_pca_matching['video_id']):
-        class_prob = class_prob_dict[l]
-        cos_sim = compute_cosine_similarity(v, hidden_repr_matching)
-        composite_score = class_prob + cos_sim
-        #composite_score = cos_sim
-        composite_scores.append((composite_score, l, int(v_id)))
-
-      sorted_scores = sorted(composite_scores, key=lambda tup: tup[0], reverse=True)
-
-      closest_vectors = sorted_scores[:n_closest_matches]
-
-      print(label, category)
-      #pprint(closest_vectors)
-
-      # File transfer - make directiry label_dir and copy the matched videos into the directory
-      label_dir = os.path.join(target_dir, label)
-      os.mkdir(label_dir)
-      try:
-        shutil.copytree(os.path.join(base_dir_20bn, str(label)), os.path.join(label_dir, 'query_' + str(label) + ': ' + category))
-      except:
-        pass
-      for i, (cos_dist, v_label, v_id) in enumerate(closest_vectors):
-        try:
-          shutil.copytree(os.path.join(base_dir_20bn, str(v_id)), os.path.join(label_dir, str(v_id)))
-        except Exception as e:
-         pass
-        os.rename(os.path.join(label_dir, str(v_id)),
-                  os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
-    except Exception as e:
-      print(e)
-
-
 def plot_and_store_similarity_matrix(df, class_column="category", n_pca_components=[], plot_options=((100, 100), 15, 30, 100), show_values=False, show_legend=True, show_xy_labels=False, cmap=None):
   similarity_matrix(df, class_column, vector_type='no_pca', file_name="sim_matrix_",
                     plot_options=plot_options, show_values=show_values, show_legend=show_legend, show_xy_labels=show_xy_labels, cmap=cmap)
@@ -1291,47 +1234,6 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
   plt.show()
 
 
-def train_and_dump_classifier(df, dump_path=None, class_column="category", classifier=sklearn.linear_model.LogisticRegression(n_jobs=-1),
-                              n_components=500, train_split_ratio=0.8):
-
-  # separate dataframe into test and train split
-  msk = np.random.rand(len(df)) < train_split_ratio
-  test_df = df[~msk]
-  train_df = df[msk]
-
-  if n_components > 0:
-    pca = inter_class_pca(df, class_column=class_column, n_components=n_components)
-    X_train = pca.transform(df_col_to_matrix(train_df['hidden_repr']))
-    X_test = pca.transform(df_col_to_matrix(test_df['hidden_repr']))
-
-  else:
-    X_train = df_col_to_matrix(train_df['hidden_repr'])
-    X_test = df_col_to_matrix(test_df['hidden_repr'])
-
-  y_train = np.asarray(list(train_df[class_column]))
-  y_test = np.asarray(list(test_df[class_column]))
-
-
-  #fit model and calculate accuracy:
-  print("Training classifier")
-  classifier.fit(X_train, y_train)
-  acc = classifier.score(X_test, y_test)
-  print("Accuracy:", acc)
-  top5_acc = top_n_accuracy(classifier, X_test, y_test, n=3)
-  print("Top5 Accuracy:", top5_acc)
-
-  #dump classifier
-  if dump_path:
-    classifier_dump_path = os.path.join(os.path.dirname(dump_path), 'classifier.pickle')
-    with open(classifier_dump_path, 'wb') as f:
-      pickle.dump(classifier, f)
-    print("Dumped classifier to:", classifier_dump_path)
-
-  return classifier, pca, acc, top5_acc
-
-
-
-
 def main():
   #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
 
@@ -1339,11 +1241,11 @@ def main():
   #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
   #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
 
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-16-17_02-46-59_simple_manipulations_fabio_manually2_5_5_5_with_optical_flow_middle.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-18-17_00-25-22_half_actions_new_episodes_6_6_5_starting_from_8.pickle')
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
   #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
-  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_all_augmented_valid/simple_manipulatons_fabio_manually_2/composite/5_5_5_starting_from_5/matching_pca_50_classifier_100'
+  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_all_augmented_valid/half_actions_new_episodes/6_6_5_starting_from_8/composite/matching_pca_50_classifier_100'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 
 

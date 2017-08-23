@@ -11,7 +11,16 @@ from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sn
 from moviepy.editor import VideoFileClip
+import glob as glob
 import types
+
+
+def get_subdirectories(dir, depth=1):
+  depth_string = dir
+  for i in range(depth):
+    depth_string += '*/*'
+
+  return glob.glob(depth_string)
 
 def files_from_directory(dir_str, file_type):
   file_paths = gfile.Glob(os.path.join(dir_str, file_type))
@@ -423,3 +432,11 @@ def df_col_to_matrix(panda_col):
   """
   panda_col = panda_col.map(lambda x: x.flatten())
   return np.vstack(panda_col)
+
+
+def convert_frames_to_gif(frames_dir, gif_file_name, image_type='.png', fps=15):
+  """ converts a folder with images to a gif file"""
+  file_names = sorted((os.path.join(frames_dir, fn) for fn in os.listdir(frames_dir) if fn.endswith(image_type)))
+  filename = os.path.join(frames_dir, os.path.basename(gif_file_name))
+  clip = mpy.ImageSequenceClip(file_names, fps=fps).to_RGB()
+  clip.write_gif(filename + '.gif', program='ffmpeg')

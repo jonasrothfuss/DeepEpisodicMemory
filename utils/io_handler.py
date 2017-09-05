@@ -15,7 +15,7 @@ import glob as glob
 import types
 
 
-def get_subdirectories(dir, depth=1):
+def get_subdirectory_files(dir, depth=1):
   depth_string = dir
   for i in range(depth):
     depth_string += '*/*'
@@ -129,7 +129,7 @@ def create_session_dir(output_dir): #TODO move to utils
   return output_dir
 
 
-def create_subfolder(dir, name): #TODO move to utils
+def create_subfolder(dir, name):
   subdir = os.path.join(dir, name)
   if not os.path.isdir(subdir):
     os.mkdir(subdir)
@@ -434,9 +434,33 @@ def df_col_to_matrix(panda_col):
   return np.vstack(panda_col)
 
 
-def convert_frames_to_gif(frames_dir, gif_file_name, image_type='.png', fps=15):
+def convert_frames_to_gif(frames_dir, gif_file_name=None, image_type='.png', fps=15, gif_file_path=None):
   """ converts a folder with images to a gif file"""
+  assert gif_file_name or gif_file_path
   file_names = sorted((os.path.join(frames_dir, fn) for fn in os.listdir(frames_dir) if fn.endswith(image_type)))
-  filename = os.path.join(frames_dir, os.path.basename(gif_file_name))
+  print(file_names)
+  filename = os.path.join(frames_dir, os.path.basename(gif_file_name)) + '.gif' if not gif_file_path else gif_file_path + '.gif'
   clip = mpy.ImageSequenceClip(file_names, fps=fps).to_RGB()
-  clip.write_gif(filename + '.gif', program='ffmpeg')
+  clip.write_gif(filename, program='ffmpeg')
+
+
+def convert_gif_to_frames(gif_file_path):
+  """ takes a folder with a gif file, creates sub directory named after the gif file and stores the single frames in it"""
+  assert gif_file_path
+  dir_name = os.path.basename(gif_file_path)
+  new_dir = create_subfolder(os.path.dirname(gif_file_path), os.path.splitext(dir_name)[0])
+  clip = mpy.VideoFileClip(gif_file_path).to_RGB()
+  clip.write_images_sequence(os.path.join(new_dir, 'generated_clip_frame%03d.png'))
+
+
+def frames_to_gif_in_dir_tree(root_dir):
+  subdirs = get_subdirectory_files(root_dir, depth=2)
+  for subdir in subdirs:
+    convert_frames_to_gif(subdir, 'action', fps=20, image_type='.png')
+
+
+def gif_to_frames_in_dir_tree(root_dir):
+  subdirs = get_subdirectory_files(root_dir, depth=2)
+  for subdir in subdirs:
+    convert_gif_to_frames(subdir)
+

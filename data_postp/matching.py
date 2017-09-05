@@ -14,17 +14,20 @@ from data_postp.similarity_computations import df_col_to_matrix, transform_vecto
 
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
 PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes_optical_flow_valid.pickle'
 
 ARMAR_EXPERIENCES_BASE_DIR = '/data/rothfuss/data/ArmarExperiences/video_frames'
+BASE_DIR_20BN = '/PDFData/rothfuss/data/20bn-something-something-v1'
 PICKLE_ARMAR_EXPERIENCES_MEMORY = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_memory.pickle'
 PICKLE_ARMAR_EXPERIENCES_MEMORY_AUGMENTED = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_memory_augmented.pickle'
 PICKLE_ARMAR_EXPERIENCES_QUERY = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query.pickle'
-
+#PICKLE_ARMAR_EXPERIENCES_QUERY = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle'
+PICKLE_ARMAR_EXPERIENCES_HALF_ACTION = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query_half.pickle'
 
 def closest_vector_analysis_composite(df, df_query, base_dir, target_dir, n_pca_matching=20, n_pca_classifier=50,
-                                                 class_column='category', n_closest_matches=5, lambda_weight=0.5):
+                                                 class_column='category', n_closest_matches=5, lambda_weight=0.5, augmented=False, output_type='gif'):
 
-
+  assert output_type in ['gif', 'png'], "output type must be either gif or png"
   #Preparation Part 1: prepare classifier and classifier_pca
   #train logistic regression on pca components of hidden_reps in df --> returns classifier and pca object
   classifier, pca_classifier, _, _ = train_and_dump_classifier(df, class_column=class_column, n_components=n_pca_classifier)
@@ -38,13 +41,15 @@ def closest_vector_analysis_composite(df, df_query, base_dir, target_dir, n_pca_
   df_pca_matching, df_query_matching, pca_matching = transform_vectors_with_inter_class_pca(df, df_2=df_query, n_components=n_pca_matching, return_pca_object=True)
 
   # removing augmented samples from df_pca_matching (videos with suffix _9 are originals)
-  df_pca_matching = df_pca_matching[df_pca_matching["id"].str.contains("_9")]
+  if augmented:
+    df_pca_matching = df_pca_matching[df_pca_matching["id"].str.contains("_9")]
+    #df_query_matching = df_query_matching[df_query_matching["id"].str.contains("_9")]
 
   #make parent dir for files
   target_dir = os.path.join(target_dir, 'matching_pca_%i_classifier_%i_%.2f'%(n_pca_matching,n_pca_classifier,lambda_weight))
+  print(target_dir)
   os.mkdir(target_dir)
   print("Created directory:", target_dir)
-
   # Production: Iterate over queries in df_query
   for hidden_repr_matching, hidden_repr_classification, label, category in zip(df_query_matching['hidden_repr'], df_query_classification['hidden_repr'],
                                                                                df_query_matching['label'], df_query_matching[class_column]):
@@ -62,23 +67,33 @@ def closest_vector_analysis_composite(df, df_query, base_dir, target_dir, n_pca_
 
       closest_vectors = sorted_scores[:n_closest_matches]
 
-      print(label, category)
+      label = label.replace("_9", "")
+      print(label, category, n_closest_matches)
       #pprint(closest_vectors)
 
       # File transfer - make directiry label_dir and copy the matched videos into the directory
       label_dir = os.path.join(target_dir, label)
       os.mkdir(label_dir)
       try:
-        shutil.copytree(os.path.join(base_dir, str(label)), os.path.join(label_dir, 'query_' + str(label) + ': ' + category))
-      except:
+        if output_type is 'gif':
+          io_handler.convert_frames_to_gif(os.path.join(base_dir, str(label)), image_type='.jpg', fps=15, gif_file_path=os.path.join(label_dir, 'query_' + str(label) + ': ' + category))
+        else:
+          shutil.copytree(os.path.join(base_dir, str(label)), os.path.join(label_dir, 'query_' + str(label) + ': ' + category))
+      except Exception as e:
+        print(e)
         pass
       for i, (cos_dist, v_label, v_id) in enumerate(closest_vectors):
         try:
-          shutil.copytree(os.path.join(base_dir, str(v_id)), os.path.join(label_dir, str(v_id)))
+          if output_type is 'gif':
+            io_handler.convert_frames_to_gif(os.path.join(base_dir, str(v_id)), image_type='.jpg', fps=15,
+                                             gif_file_path=os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
+          else:
+            shutil.copytree(os.path.join(base_dir, str(v_id)), os.path.join(label_dir, str(v_id)))
         except Exception as e:
-         pass
-        os.rename(os.path.join(label_dir, str(v_id)),
-                  os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
+          pass
+        if output_type is 'png':
+          os.rename(os.path.join(label_dir, str(v_id)),
+                    os.path.join(label_dir, "match_%i:%s_%.4f_%s" % (i, str(v_id), cos_dist, v_label)))
     except Exception as e:
       print(e)
 
@@ -130,49 +145,52 @@ def train_and_dump_classifier(df, dump_path=None, class_column="category", class
   return classifier, pca, acc, top5_acc
 
 
-def episodic_memory_20bn():
+def episodic_memory_20bn(augmented=False):
   df = pd.read_pickle(PICKLE_FILE_TEST)
 
   df_val = pd.read_pickle(
-    '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
+    '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query_half.pickle')
 
-  base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
   # target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
-  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_selected_10_classes_eren_augmented_valid/half_actions_old_episodes/5_5_5_starting_from_5/composite'
+  target_dir = '/data/rothfuss/data/20bn-something/matching/not_augmented'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 
+  if not augmented:
+    df = df[df["id"].str.contains("_9")] #SET IF not augmentation wanted
 
-  # df['label'] = df['label_x']
-  # msk = np.random.rand(len(df)) < 0.7
-  # test_df = df[~msk]
-  # train_df = df[msk]
+  df['label'] = df['label_x']
+  msk = np.random.rand(len(df)) < 0.8
+  test_df = df[~msk]
+  train_df = df[msk]
+
+
+  print(len(df), len(test_df), len(train_df))
+
   df_val['category'] = ['armar_setting' for _ in range(len(df_val))]
-  for n_pca, lambd in itertools.product([20,50], [0.3, 0.5, 0.7]):
-    closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=n_pca, n_pca_classifier=200, lambda_weight=lambd)
+  closest_vector_analysis_composite(train_df, test_df, BASE_DIR_20BN, target_dir,
+                                    class_column='category',
+                                    n_pca_matching=20, n_pca_classifier=200, lambda_weight=0.5, augmented=augmented)
 
-def episodic_memory_armar():
-  memory_df = pd.read_pickle(PICKLE_ARMAR_EXPERIENCES_MEMORY_AUGMENTED)
+def episodic_memory_armar(augmented=False):
+  memory_df = pd.read_pickle(PICKLE_ARMAR_EXPERIENCES_MEMORY)
+  #query_df = pd.read_pickle(PICKLE_ARMAR_EXPERIENCES_HALF_ACTION)
   query_df = pd.read_pickle(PICKLE_ARMAR_EXPERIENCES_QUERY)
   query_df['label'] = query_df['id']
-  target_dir = '/data/rothfuss/data/ArmarExperiences/matching'
+  query_df['category'] = query_df['label']
+
+  target_dir = '/data/rothfuss/data/ArmarExperiences/matching/complete_actions/not_augmented'
 
   closest_vector_analysis_composite(memory_df, query_df, ARMAR_EXPERIENCES_BASE_DIR, target_dir, class_column='category',
-                                    n_pca_matching=20, n_pca_classifier=200, lambda_weight=1.0)
-
-
-def matching_to_gifs(matching_dir):
-  subdirs = io_handler.get_subdirectories(matching_dir, depth=2)
-  for subdir in subdirs:
-    io_handler.convert_frames_to_gif(subdir, 'action', fps=20, image_type='.png')
-
+                                    n_pca_matching=50, n_pca_classifier=200, lambda_weight=0.5, augmented=augmented)
 
 
 def main():
-  #episodic_memory_armar()
-  #episodic_memory_20bn()
+  #episodic_memory_armar(augmented=False)
+  episodic_memory_20bn(augmented=False)
 
-  matching_dir =  '/data/rothfuss/data/ArmarExperiences/matching/matching_pca_20_classifier_200_0.50_gif'
-  matching_to_gifs(matching_dir)
+  matching_dir =  '/data/rothfuss/data/ArmarExperiences/matching/new_half_actions/not_augmented/matching_pca_50_classifier_200_0.50_gif'
+  io_handler.frames_to_gif_in_dir_tree(matching_dir)
+
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import data_prep.model_input as input
 import data_postp.similarity_computations as similarity_computations
 from pprint import pprint
 from data_prep.TFRW2Images import createGif
+import matplotlib.pyplot as plt
 
 from utils.helpers import get_iter_from_pretrained_model, learning_rate_decay, remove_items_from_dict
 from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, \
@@ -24,14 +25,15 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 # I/O constants
 FLAGS = flags.FLAGS
-OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow'
 
 #DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_valid'
 #DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_test'
 #DATA_PATH = '/localhome/rothfuss/data/20bn-something/tf_records_train'
-DATA_PATH = '/data/rothfuss/data/ArmarExperiences/videos/tf_records/tf_records_memory'
+#DATA_PATH = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
+#DATA_PATH = '/PDFData/rothfuss/data/activity_net/tf_records_train'
 #DATA_PATH = '/data/rothfuss/data/20bn-something/tf_records_test_optical_flow'
-#DATA_PATH = '/common/temp/toEren/4PdF_ArmarSampleImages/tf_records_cropped'
+DATA_PATH = '/PDFData/rothfuss/data/ArmarExperiences/videos/tf_records'
 
 #DATA_PATH = '/PDFData/rothfuss/data/UCF101/tf_record'
 
@@ -39,8 +41,8 @@ DATA_PATH = '/data/rothfuss/data/ArmarExperiences/videos/tf_records/tf_records_m
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # for pretraining-mode only
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow'
-#PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2_matching'
+PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl'
+
 # use pre-trained model and run validation only
 VALID_ONLY = True
 VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame', 'psnr'
@@ -54,14 +56,14 @@ FINE_TUNING_WEIGHTS_LIST = None
 
 
 # model hyperparameters
-flags.DEFINE_integer('num_iterations', 2000000, 'specify number of training iterations, defaults to 100000')
+flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 40, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 100, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 150, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False, 'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
 
-flags.DEFINE_integer('image_range_start', 5, 'parameter that controls the index of the starting image for the train/valid batch')
+flags.DEFINE_integer('image_range_start', 0, 'parameter that controls the index of the starting image for the train/valid batch')
 flags.DEFINE_integer('overall_images_count', 15, 'specifies the number of images that are available to create the train/valid batches')
 flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_string('decoder_future_length', 5, 'specifies how many images the future prediction decoder receives, defaults to 5')
@@ -75,7 +77,7 @@ flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout durin
 
 #IO flags specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
-flags.DEFINE_integer('num_channels', 4, 'number of channels in the input frames')
+flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
@@ -364,7 +366,7 @@ def valid_run(output_dir):
   initializer.start_session()
   initializer.start_saver()
 
-  summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
+  #summary_writer = tf.summary.FileWriter(output_dir, graph=initializer.sess.graph, flush_secs=10)
 
   tf.logging.info(' --- Start validation --- ')
 
@@ -384,7 +386,7 @@ def valid_run(output_dir):
       # summary and log
       val_model.iter_num = 1
       #orig_videos = [orig_frames[i,:,:,:,:] for i in range(orig_frames.shape[0])]
-      createGif(np.asarray(orig_frames)[:,:,:,:,:3], labels, output_dir)
+      createGif(np.asarray(orig_frames)[:, FLAGS.image_range_start:FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length,:,:,:3], labels, output_dir)
       tf.logging.info('Converting validation frame sequences to gif')
       store_output_frames_as_gif(np.asarray(output_frames)[:,:,:,:,:3], labels, output_dir)
       tf.logging.info('Dumped validation gifs in: ' + str(output_dir))
@@ -406,39 +408,38 @@ def valid_run(output_dir):
     if 'psnr' in FLAGS.valid_mode:
       log_file = os.path.join(output_dir, 'psnr_log_' + str(dt.datetime.now()) + ".txt")
 
-      mean_psnr_reconstruction = []
-      mean_psnr_future = []
+      psnr_reconstruction = []
+      psnr_future = []
 
+      num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
+        (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
+      for i in range(num_val_batches_required):
+        output_frames, orig_frames = initializer.sess.run([val_model.output_frames, val_model.val_batch], feed_dict)
+        video_count = orig_frames.shape[0]
 
-      video_count = orig_frames.shape[0]
+        for i in range(video_count):
+          orig_rec_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length - FLAGS.decoder_reconst_length): (FLAGS.image_range_start +FLAGS.encoder_length), :, :, :3]
+          orig_fut_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length):(FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length), :, :, :3]
+          recon_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length - FLAGS.decoder_reconst_length):FLAGS.encoder_length, i, :, :, :3]
+          future_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length):(FLAGS.encoder_length + FLAGS.decoder_future_length), i, :, :, :3]
 
-      for i in range(video_count):
-        orig_rec_video_frames = np.asarray(orig_frames)[i, :FLAGS.encoder_length, :, :, :3]
-        # last n items but reversed order
-        orig_fut_video_frames = np.asarray(orig_frames)[i, -FLAGS.decoder_future_length:, :, :, :3]
-        #TODO check order of decoder images
-        recon_video_frames = np.asarray(output_frames)[:FLAGS.decoder_reconst_length, i, :, :, :3]
-        future_video_frames = np.asarray(output_frames)[-FLAGS.decoder_future_length:, i, :, :, :3]
+          psnr_reconstruction.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]))
+          psnr_future.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]))
 
-        psnr_reconstructions = [metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]
-        psnr_future = [metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]
+      psnr_reconstruction_means = np.mean(np.stack(psnr_reconstruction), axis=0)
+      psnr_future_means = np.mean(np.stack(psnr_future), axis=0)
 
-        mean_psnr_reconstruction.append(np.mean(psnr_reconstructions))
-        mean_psnr_future.append(np.mean(psnr_future))
-
-
-        write_file_with_append(log_file, "video id: " + str(labels[i].decode("utf-8")) + " psnr_recon: " + str(np.mean(psnr_reconstructions)) + " psnr_fut: " + str(np.mean(psnr_future)))
-
-      write_file_with_append(log_file, "mean psnr recon: " + str(np.mean(mean_psnr_reconstruction)) + "\nmean psnr future: " + str(np.mean(mean_psnr_future)))
+      write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
+      print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       tf.logging.info('Added psnr values to log file ' + str(log_file))
 
-
-
-    summary_writer.add_summary(val_summary_str, 1)
+    #summary_writer.add_summary(val_summary_str, 1)
 
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done producing validation results -- iterations limit reached')
+  except Exception as e:
+    print("Exception occured:", e)
   finally:
     # When done, ask the threads to stop.
     initializer.coord.request_stop()

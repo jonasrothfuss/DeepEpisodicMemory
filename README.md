@@ -16,10 +16,13 @@ If interested in running the code, it is recommended to start with _train_model.
  
   directory that contains our composite model in different configurations (mostly affecting depth and filter sizes)
 + **data_prep**
+  
   collection of code for preprocessing data, e.g. converting video files to numpy or generating tf records from raw .avi
 + **data_postp**
+  
   all the code that we used to compute similarity, classification accuracy and also for executing the retrieving and matching mechanism
 + **utils**
+  
   mostly i/o scripts for reoccuring tasks (e.g. frames to gif)
 
 

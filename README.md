@@ -4,7 +4,7 @@ We present a novel deep neural network architecture for representing robot exper
 
 ## Brief code introduction
 If interested in running the code, it is recommended to start with _train_model.py_ since this is our entry point/main file for training and validation. Minimum requirement is tensorflow 1.0.12. The following listing should give you an overview about the files/directories that likely require a closer look for your intention:
-+ train_model.py
++ train_model.py 
  main file. Use it to run training and validation cycles. Set hyperparameters and constants at the top of the file first.
 + convertToRecords.py
  file used for generating .tfrecords from raw video files (.avi mostly). Also includes code for selecting frames equally distributed over the entire playtime. Hyperparameters at the top allow adjustments.

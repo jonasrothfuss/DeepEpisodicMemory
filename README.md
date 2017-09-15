@@ -1,8 +1,6 @@
-# Deep Episodic Memory
-Learning new skills from sensorimotor experi- ences in varying contexts and transferring knowledge to new domains is still a challenge in robotics. We analyze recent contributions in robotics towards modelling action sequences and learning from demonstrations. Discussing limitations, we argue that symbolic representations limit existing approaches in their modelling power and restrict the capabilities for gen- eralization and knowledge transfer. Encouraged by the recent advances in deep learning, we analyse the suitability of deep neural networks for learning representations of sensorimotor experiences. In this regard, unsupervised learning approaches for video frame prediction show potential for generating meaningful subsymbolic representations as well as matching and reconstructing visual experiences. 
+#  Deep Episodic Memory: Encoding, Recalling, and Predicting Episodic Experiences for Robot Action Execution
+## Abstract
+We present a novel deep neural network architecture for representing robot experiences in an episodic-like memory which facilitates encoding, recalling, and predicting action experiences. Our proposed unsupervised deep episodic memory model 1) encodes observed actions in a latent vector space and, based on this latent encoding, 2) infers action categories, 3) reconstructs original frames, and 4) predicts future frames. We evaluate the proposed model on two different large-scale action datasets. Results show that conceptually similar actions are mapped into the same region of the latent vector space. Based on this contribution, we introduce an action matching and retrieval mechanism and evaluate its performance and generalization capability on a real humanoid robot in an action execution scenario.
 
-
-
-- Implementing an episodic memory from multimodal sensorimotor experiences enables basis for robots to learn from various forms of demonstration
-- Because symbolic approaches are restricted to pre-defined contexts, we generate meaningful subsymbolic representations of cognitive experiences
-- Action planning based on cognitive experiences in the past
+## Website
+http://h2t-projects.webarchiv.kit.edu/projects/episodicmemory

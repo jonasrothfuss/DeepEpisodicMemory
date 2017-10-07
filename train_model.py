@@ -31,11 +31,11 @@ DATA_PATH = '/PDFData/rothfuss/data/ArmarExperiences/videos/tf_records'
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 
 # for pretraining-mode only
-PRETRAINED_MODEL = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl'
+PRETRAINED_MODEL = ""#'/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl'
 
 # use pre-trained model and run validation only
 VALID_ONLY = True
-VALID_MODE = 'data_frame' # 'vector', 'gif', 'similarity', 'data_frame', 'psnr'
+VALID_MODE = 'count_trainable_weights' # 'vector', 'gif', 'similarity', 'data_frame', 'psnr', 'count_trainable_weights'
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 #FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -67,7 +67,7 @@ flags.DEFINE_float('keep_prob_dopout', 0.85, 'keep probability for dropout durin
 
 #IO flags specifications
 flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
-flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
+flags.DEFINE_integer('num_channels', 4, 'number of channels in the input frames')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('pretrained_model', PRETRAINED_MODEL, 'filepath of a pretrained model to initialize from.')
 flags.DEFINE_string('valid_only', VALID_ONLY, 'Set to "True" if you want to validate a pretrained model only (no training involved). Defaults to False.')
@@ -422,6 +422,21 @@ def valid_run(output_dir):
       write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       tf.logging.info('Added psnr values to log file ' + str(log_file))
+
+    if 'count_trainable_weights' in FLAGS.valid_mode:
+      total_parameters = 0
+      for variable in tf.trainable_variables():
+        # shape is an array of tf.Dimension
+        shape = variable.get_shape()
+        print(shape)
+        print(len(shape))
+        variable_parameters = 1
+        for dim in shape:
+          print(dim)
+          variable_parameters *= dim.value
+        print(variable_parameters)
+        total_parameters += variable_parameters
+      print("Total parameters are:" + total_parameters)
 
     #summary_writer.add_summary(val_summary_str, 1)
 

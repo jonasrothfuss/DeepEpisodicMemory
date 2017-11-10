@@ -22,3 +22,5 @@ If interested in running the code, it is recommended to start with _train_model.
 
 ## Website
 http://h2t-projects.webarchiv.kit.edu/projects/episodicmemory
+## Number of trained parameters
+22 666 512

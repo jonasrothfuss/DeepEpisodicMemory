@@ -8,7 +8,7 @@ from data_postp.similarity_computations import transform_vectors_with_inter_clas
 
 FLAGS = tf.python.platform.flags.FLAGS
 
-METADATA_PICKLE_FILE = '/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl/valid_run/metadata_and_hidden_rep_df_08-07-17_00-21-11_valid.pickle'
+METADATA_PICKLE_FILE = '/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl/validate/metadata_and_hidden_rep_df_08-07-17_00-21-11_valid.pickle'
 
 flags.DEFINE_float('learning_rate', 0.0001, 'learning rate')
 flags.DEFINE_integer('training_epochs', 20000, 'training_epochs')

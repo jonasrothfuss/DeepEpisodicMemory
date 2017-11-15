@@ -12,16 +12,16 @@ from data_postp.similarity_computations import df_col_to_matrix, transform_vecto
 
 
 
-#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
-#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes_optical_flow_valid.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes_optical_flow_valid.pickle'
 
 ARMAR_EXPERIENCES_BASE_DIR = '/data/rothfuss/data/ArmarExperiences/video_frames'
 BASE_DIR_20BN = '/PDFData/rothfuss/data/20bn-something-something-v1'
 PICKLE_ARMAR_EXPERIENCES_MEMORY = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_memory.pickle'
 PICKLE_ARMAR_EXPERIENCES_MEMORY_AUGMENTED = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_memory_augmented.pickle'
 PICKLE_ARMAR_EXPERIENCES_QUERY = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query.pickle'
-#PICKLE_ARMAR_EXPERIENCES_QUERY = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle'
+#PICKLE_ARMAR_EXPERIENCES_QUERY = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle'
 PICKLE_ARMAR_EXPERIENCES_HALF_ACTION = '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query_half.pickle'
 
 def closest_vector_analysis_composite(df, df_query, base_dir, target_dir, n_pca_matching=20, n_pca_classifier=50,
@@ -151,7 +151,7 @@ def episodic_memory_20bn(augmented=False):
   df_val = pd.read_pickle(
     '/data/rothfuss/data/ArmarExperiences/hidden_reps/hidden_repr_query_half.pickle')
 
-  # target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
+  # target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/composite_matching/matching_armar_old'
   target_dir = '/data/rothfuss/data/20bn-something/matching/not_augmented'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 

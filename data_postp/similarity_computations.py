@@ -29,12 +29,12 @@ import utils.io_handler as io_handler
 NUM_CORES = multiprocessing.cpu_count()
 PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
-# PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/valid_run/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
+# PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/validate/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
-#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
-FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
-PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
+#PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
+FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/validate/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
+PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/'
 
 MAPPING_DOCUMENT = '/PDFData/rothfuss/data/20bn-something/something-something-grouped-eren.csv'
 
@@ -1235,17 +1235,17 @@ def plot_classifier_analysis_n_samples(json_dump_path, plot_setting="multiple_fi
 
 
 def main():
-  #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/valid_run/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
+  #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/validate/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
 
   df = pd.read_pickle(FLAGS.pickle_file_test)
-  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/'
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/'
   #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
 
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-18-17_00-25-22_half_actions_new_episodes_6_6_5_starting_from_8.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-18-17_00-25-22_half_actions_new_episodes_6_6_5_starting_from_8.pickle')
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
-  #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/composite_matching/matching_armar_old'
-  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/classifier_trained_on_augmented_validation_only_on_original/with_all_augmented_valid/half_actions_new_episodes/6_6_5_starting_from_8/composite/matching_pca_50_classifier_100'
+  #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/composite_matching/matching_armar_old'
+  target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/classifier_trained_on_augmented_validation_only_on_original/with_all_augmented_valid/half_actions_new_episodes/6_6_5_starting_from_8/composite/matching_pca_50_classifier_100'
   input_image_dir = '/common/temp/toEren/4PdF_ArmarSampleImages/HalfActions/fromEren/Originals'
 
 
@@ -1257,7 +1257,7 @@ def main():
   closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=50, n_pca_classifier=100)
 
   '''
-  df = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
+  df = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
   acc_array = []
   top5_acc_array = []
   for i in range(5):
@@ -1325,7 +1325,7 @@ def main():
   #print(io_handler.select_subset_of_df_with_list(df, path))
 
 
-  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes.pickle')
+  #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-09-17_21-19-52_half_actions_new_episodes.pickle')
 
   #df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=500)
   #df_1 = transform_vectors_with_inter_class_pca(df, class_column="class_0", n_components=20)

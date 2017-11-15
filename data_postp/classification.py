@@ -13,8 +13,8 @@ from data_postp.matching import train_and_dump_classifier
 from data_postp.similarity_computations import df_col_to_matrix
 
 
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_16-17-12_test.pickle'
-PICKLE_FILE_VALID = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-14-17_16-17-12_test.pickle'
+PICKLE_FILE_VALID = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle'
 
 
 
@@ -67,10 +67,10 @@ def calculate_accuracy(valid_df, n_components=[200], n_folds=5,
 
 def main():
   valid_df, test_df = pd.read_pickle(PICKLE_FILE_VALID), pd.read_pickle(PICKLE_FILE_TEST)
-  dump_path = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/test_labels.csv'
+  dump_path = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/test_labels.csv'
   #generate_test_labels_csv(valid_df, test_df, dump_path, n_components=200)
 
-  classifier_analysis_dump_file = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/classifier_analysis/classifier_analysis_logistic.txt'
+  classifier_analysis_dump_file = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/classifier_analysis/classifier_analysis_logistic.txt'
   calculate_accuracy(valid_df, n_components=[100, 150, 200, 250, 300, 400], n_folds=1, dump_file_name=classifier_analysis_dump_file)
 
 

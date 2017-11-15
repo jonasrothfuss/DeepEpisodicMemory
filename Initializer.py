@@ -1,5 +1,5 @@
 import tensorflow as tf
-from Settings import FLAGS
+from settings import FLAGS
 from utils.helpers import get_iter_from_pretrained_model, remove_items_from_dict
 
 class Initializer:

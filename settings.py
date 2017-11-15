@@ -2,19 +2,21 @@ from tensorflow.python.platform import flags
 
 FLAGS = flags.FLAGS
 
-OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl'
-DATA_PATH = '/PDFData/rothfuss/data/ArmarExperiences/videos/tf_records'
+# --- SPECIFY MANDATORY VARIABLES--- #
+OUT_DIR = '/Users/fabioferreira/Downloads/20bn_mse_model_dump'
+DATA_PATH = '/Users/fabioferreira/Downloads/20bn_mse_model_dump/tfrecords'
+MODE = 'train_mode'
+VALID_MODE = 'gif'
 
-# other constants
-LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
+NUM_IMAGES = 20
+NUM_DEPTH = 4
+WIDTH = 128
+HEIGHT = 128
+# specifies the number of pre-processing threads
+NUM_THREADS_QUEUERUNNER = 32
 
-# for pretraining-mode only, e.g. ".../selected_trainings/5_actNet_20bn_gdl"
-PRETRAINED_MODEL = ""
-
-# available modes of operation
-MODES = ["train_mode", "valid_mode", "demo_mode"]
-VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr']
-
+# PRETRAINING / FINETUNING
+PRETRAINED_MODEL = "/Users/fabioferreira/Downloads/20bn_mse_model_dump"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -24,7 +26,34 @@ FINE_TUNING_WEIGHTS_LIST = None
 #                       'train_model/decoder_reconst/upconv4']
 
 
-# model hyperparameters
+
+# --- INFORMAL LOCAL VARIABLES --- #
+LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
+MODES = ["train_mode", "valid_mode", "demo_mode"]
+VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr']
+
+
+
+# --- MODEL INPUT PARAMETERS --- #
+flags.DEFINE_integer('num_images', NUM_IMAGES, 'specify the number of images in the tfrecords')
+flags.DEFINE_integer('num_depth', NUM_DEPTH, 'specifies the number of depth channels in the images')
+flags.DEFINE_integer('width', WIDTH, 'specifies the width of an image')
+flags.DEFINE_integer('height', HEIGHT, 'specifies the height of an image')
+
+
+# --- I/O SPECIFICATIONS --- #
+flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
+flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
+
+
+# --- TFRECORDS --- #
+flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
+flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering valid tfrecords files.')
+flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
+flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the number of threads for the queue runner')
+
+
+# --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
@@ -52,19 +81,20 @@ flags.DEFINE_float('noise_std', 0.1,
 flags.DEFINE_float('keep_prob_dopout', 0.85,
                    'keep probability for dropout during training, for valid automatically 1')
 
-# intervals
+
+# --- INTERVALS --- #
 flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
 
-# set mode of operation
-flags.DEFINE_string('mode', "demo_mode", 'Allowed modes: ' + str(
+
+# --- MODE OF OPERATION --- #
+flags.DEFINE_string('mode', MODE, 'Allowed modes: ' + str(
   MODES) + '. "demo_mode": model is fed from numpy data directly instead of tfrecords'
            '"valid_mode": '
            '"train_mode": ')
 
-# valid mode specifications
-flags.DEFINE_string('valid_mode', "data_frame", 'Allowed modes: ' + str(
+flags.DEFINE_string('valid_mode', VALID_MODE, 'Allowed modes: ' + str(
   VALID_MODES) + '. "vector": encoder latent vector for each validation is exported to '
                  '"gif": gifs are generated from the videos'
                  '"similarity": compute (cos) similarity matrix'
@@ -77,7 +107,3 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING,
                     'variable names to exclude from saving and restoring')
 flags.DEFINE_string('fine_tuning_weights_list', FINE_TUNING_WEIGHTS_LIST,
                     'variable names (layer scopes) that should be trained during fine-tuning')
-
-# I/O specifications
-flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
-flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')

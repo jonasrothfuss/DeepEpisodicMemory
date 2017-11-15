@@ -12,7 +12,7 @@ import data_postp.metrics as metrics
 
 # own classes
 from Initializer import Initializer
-from Settings import FLAGS
+from settings import FLAGS
 from Model import Model
 
 from utils.helpers import learning_rate_decay
@@ -20,18 +20,10 @@ from utils.io_handler import create_session_dir, create_subfolder, store_output_
   store_encoder_latent_vector, file_paths_from_directory, write_file_with_append, bgr_to_rgb
 
 
-""" Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
-""""""
-
-
-#FLAGS = Settings().FLAGS
-
 
 def main(argv):
   initializer = Initializer()
   initializer.start_session()
-  initializer.start_saver()
 
   train_model, val_model = create_model()
 
@@ -42,7 +34,7 @@ def main(argv):
     output_dir = FLAGS.pretrained_model
     tf.logging.info(' --- VALIDATION MODE ONLY --- ')
     print('Reusing provided session directory:', output_dir)
-    subdir = create_subfolder(output_dir, 'validate')
+    subdir = create_subfolder(output_dir, 'valid_run')
     print('Storing validation data in:', subdir)
     validate(subdir, initializer, val_model)
 
@@ -64,12 +56,9 @@ def main(argv):
       print('Reusing provided session directory:', output_dir)
 
     tf.logging.info(' --- TRAIN+VALID MODE --- ')
-    write_metainfo(output_dir, model, FLAGS)
+    write_metainfo(output_dir, train_model.model_name, FLAGS)
     train(output_dir, initializer, train_model, val_model)
 
-
-if __name__ == '__main__':
-  app.run()
 
 
 def create_model(mode=None):
@@ -131,7 +120,7 @@ def train(output_dir, initializer, train_model, val_model):
         #save model checkpoint
         if itr % FLAGS.save_interval == 1:
           save_path = saver.save(initializer.sess, os.path.join(output_dir, 'model'), global_step=itr) #TODO also implement save operation in Initializer class
-          tf.logging.info(' Saved Model to: ' + str(save_path))
+          tf.logging.info('Saved Model to: ' + str(save_path))
 
         #Print iteration and loss
         tf.logging.info(' ' + str(itr) + ':    ' + str(train_loss) + ' | %.2f sec'%(elapsed_time))
@@ -264,3 +253,7 @@ def validate(output_dir, initializer, val_model):
 
 def validate_demo(output_dir, initializer, val_model):
   return
+
+
+if __name__ == '__main__':
+  app.run()

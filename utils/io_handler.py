@@ -198,10 +198,10 @@ def write_file_with_append(path, text_to_append):
 
 
 
-def write_metainfo(output_dir, model, flags):
+def write_metainfo(output_dir, model_name, flags):
   with open(os.path.join(output_dir, 'metainfo.txt'), 'a') as f:
     f.write('\n' + '---- Training: ' + str(dt.datetime.now()) + ' ----' + '\n')
-    f.write('model' + ':  ' + str(os.path.basename(model.__file__)) + '\n') #print model name
+    f.write('model' + ':  ' + str(os.path.basename(model_name)) + '\n') #print model name
     for key, value in flags.__flags.items():
       f.write(str(key) + ':  ' + str(value) + '\n')
 

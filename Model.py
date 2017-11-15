@@ -1,10 +1,17 @@
 import tensorflow as tf
 import math
 from pprint import pprint
-from Settings import FLAGS
+from settings import FLAGS
 
 from models import loss_functions
 import data_prep.model_input as input
+
+
+""" Set Model From Model Zoo"""
+from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
+""""""
+
+
 
 
 class Model:
@@ -15,7 +22,7 @@ class Model:
     self.summaries = []
     self.noise_std = tf.placeholder_with_default(FLAGS.noise_std, ())
     self.opt = tf.train.AdamOptimizer(self.learning_rate)
-    self.query_video = None
+    self.model_name = model.__file__
 
     assert FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length <= FLAGS.overall_images_count and FLAGS.image_range_start >= 0, \
             "settings for encoder/decoder lengths along with starting range exceed number of available images"
@@ -31,7 +38,7 @@ class Model:
                                                  FLAGS.num_iterations / (FLAGS.batch_size * 20))),
                                                False)
         train_batch = tf.cast(train_batch, tf.float32)
-        with tf.device('/gpu:%d' % i):
+        with tf.device('/cpu:%d' % i): # TODO CHANGE BACK TO GPU, JUST FOR TESTING
           with tf.name_scope('%s_%d' % ('tower', i)):
             tower_loss, _, _, _ = tower_operations(train_batch[:,FLAGS.image_range_start:,:,:,:], train=True)
             tower_losses.append(tower_loss)
@@ -81,7 +88,7 @@ class Model:
           val_batch = tf.cast(val_batch, tf.float32)
           self.val_batch = val_batch
 
-          with tf.device('/gpu:%d' % i):
+          with tf.device('/cpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
               tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch[:,FLAGS.image_range_start:,:,:,:], train=False)
               tower_losses.append(tower_loss)
@@ -129,6 +136,8 @@ class Model:
                                         self.frames_reconst[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
+
+
 
 
 
@@ -216,6 +225,7 @@ def average_gradients(tower_grads):
     grad_and_var = (grad, v)
     average_grads.append(grad_and_var)
   return average_grads
+
 
 def average_losses(tower_losses):
   """Calculate the average loss among all towers

@@ -9,22 +9,8 @@ import os
 import tensorflow as tf
 
 from tensorflow.python.platform import gfile
-from tensorflow.python.platform import flags
 
-FLAGS = flags.FLAGS
-
-#statics for data
-NUM_IMAGES = 10
-NUM_DEPTH = 4
-WIDTH = 128
-HEIGHT = 128
-# specifies the number of pre-processing threads
-NUM_THREADS = 32
-
-# Constants used for dealing with the tf records files, aligned with convertToRecords.
-flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
-flags.DEFINE_string('valid_files', 'valid*.tfrecords', 'Regex for filtering valid tfrecords files.')
-flags.DEFINE_string('test_files', 'test*.tfrecords', 'Regex for filtering test tfrecords files.')
+from settings import FLAGS
 
 
 def read_and_decode(filename_queue):
@@ -36,7 +22,7 @@ def read_and_decode(filename_queue):
     image_seq = []
     video_id = None
 
-    for imageCount in range(NUM_IMAGES):
+    for imageCount in range(FLAGS.num_images):
         path = 'blob' + '/' + str(imageCount)
 
         feature_dict = {
@@ -54,8 +40,8 @@ def read_and_decode(filename_queue):
 
         image_buffer = tf.reshape(features[path], shape=[])
         image = tf.decode_raw(image_buffer, tf.uint8)
-        image = tf.reshape(image, tf.pack([HEIGHT, WIDTH, NUM_DEPTH]))
-        image = tf.reshape(image, [1, HEIGHT, WIDTH, NUM_DEPTH])
+        image = tf.reshape(image, tf.pack([FLAGS.height, FLAGS.width, FLAGS.num_depth]))
+        image = tf.reshape(image, [1, FLAGS.height, FLAGS.width, FLAGS.num_depth])
 
 
         image_seq.append(image)
@@ -115,7 +101,8 @@ def create_batch(directory, mode, batch_size, num_epochs, overall_images_count, 
             batch_size = get_number_of_records(filenames)
           assert batch_size > 0
           image_seq_batch, video_id_batch, metadata_batch = tf.train.batch(
-              [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=NUM_THREADS, capacity=100 * batch_size)
+              [image_seq_tensor, video_id, features['metadata']], batch_size=batch_size, num_threads=FLAGS.num_threads,
+            capacity=100 * batch_size)
 
 
         # -- training -- get shuffled batches
@@ -124,7 +111,7 @@ def create_batch(directory, mode, batch_size, num_epochs, overall_images_count, 
           # (Internally uses a RandomShuffleQueue.)
           # We run this in two threads to avoid being a bottleneck.
           image_seq_batch, video_id_batch = tf.train.shuffle_batch(
-            [image_seq_tensor, video_id], batch_size=batch_size, num_threads=NUM_THREADS,
+            [image_seq_tensor, video_id], batch_size=batch_size, num_threads=FLAGS.num_threads,
             capacity=60*8* batch_size,
             # Ensures a minimum amount of shuffling of examples.
             min_after_dequeue=10*8*batch_size)

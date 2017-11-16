@@ -13,21 +13,20 @@ import data_postp.metrics as metrics
 from Initializer import Initializer
 from settings import FLAGS
 from Model import *
+import utils.helpers as helpers
 
-from utils.helpers import learning_rate_decay
 from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, \
   store_encoder_latent_vector, file_paths_from_directory, write_file_with_append, bgr_to_rgb
 
 
 
 def main(argv):
+  # currently, train model is required in every case
+  train_model = create_model(mode='train')
+  val_model = create_model(mode='valid', train_model_scope=train_model.scope)
+
   initializer = Initializer()
   initializer.start_session()
-
-  # currently, train model is required in every case
-  train_model = create_model('train')
-  val_model = create_model('valid', train_model)
-
 
   # ---- training ----- #
   if FLAGS.mode is "train_mode":
@@ -57,19 +56,15 @@ def main(argv):
       validate_by_feeding(output_dir, initializer, val_model)
 
 
-
-
-def create_model(mode=None, train_model=None):
+def create_model(mode=None, train_model_scope=None):
 
   model = None
 
   if mode is "train":
-    with tf.variable_scope('train_model', reuse=None) as training_scope:
-      model = TrainModel('train', scope=training_scope)
+    model = TrainModel('train', scope_name='train_model')
   elif mode is 'valid':
-    assert train_model is not None, "train graph is None, valid mode requires a train graph"
-    training_scope = train_model.get_scope()
-    model = ValidationModel('valid', reuse_scope=training_scope)
+    assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
+    model = ValidationModel('valid', reuse_scope=train_model_scope)
   elif mode is 'feeding':
     assert train_model is not None, "train graph is None, valid mode requires a train graph"
     training_scope = train_model.get_scope()
@@ -78,7 +73,6 @@ def create_model(mode=None, train_model=None):
   assert model is not None
 
   return model
-
 
 
 def train(output_dir, initializer, train_model, val_model):
@@ -102,7 +96,7 @@ def train(output_dir, initializer, train_model, val_model):
           break
 
         #Training Step on batch
-        learning_rate = learning_rate_decay(FLAGS.learning_rate, itr, decay_factor=FLAGS.learning_rate_decay)
+        learning_rate = helpers.learning_rate_decay(FLAGS.learning_rate, itr, decay_factor=FLAGS.learning_rate_decay)
         feed_dict = {train_model.learning_rate: learning_rate, train_model.elapsed_time: float(elapsed_time)}
 
         t = time.time()
@@ -159,7 +153,7 @@ def validate(output_dir, initializer, val_model):
 
 
   # Calculate number of validation samples
-  valid_filenames = file_paths_from_directory(FLAGS.path, 'valid*')
+  valid_filenames = file_paths_from_directory(FLAGS.tf_records_dir, 'valid*')
   num_valid_samples = input.get_number_of_records(valid_filenames)
   print('Detected %i validation samples' % num_valid_samples)
 

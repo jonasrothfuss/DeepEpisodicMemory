@@ -1332,8 +1332,6 @@ def main():
   #visualize_hidden_representations_tsne(df_1)
 
 
-
-
 if __name__ == "__main__":
   main()
 

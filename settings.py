@@ -1,10 +1,13 @@
 from tensorflow.python.platform import flags
+import os
+import utils.helpers as helpers
+import warnings
 
 FLAGS = flags.FLAGS
 
 # --- SPECIFY MANDATORY VARIABLES--- #
-OUT_DIR = '/Users/fabioferreira/Downloads/20bn_mse_model_dump'
-DATA_PATH = '/Users/fabioferreira/Downloads/20bn_mse_model_dump/tfrecords'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse'
+TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 MODE = 'valid_mode'
 VALID_MODE = 'gif'
 
@@ -12,11 +15,10 @@ NUM_IMAGES = 15
 NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
-# specifies the number of pre-processing threads
-NUM_THREADS_QUEUERUNNER = 32
+NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/Users/fabioferreira/Downloads/20bn_mse_model_dump" #/Users/fabioferreira/Downloads/20bn_mse_model_dump
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/11-16-17_17-49"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -42,9 +44,8 @@ flags.DEFINE_integer('height', HEIGHT, 'specifies the height of an image')
 
 
 # --- I/O SPECIFICATIONS --- #
-flags.DEFINE_string('path', DATA_PATH, 'specify the path to where tfrecords are stored, defaults to "../data/"')
+flags.DEFINE_string('tf_records_dir', TF_RECORDS_DIR, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
-
 
 # --- TFRECORDS --- #
 flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
@@ -56,11 +57,11 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 # --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 50, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 150, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_string('batch_size', 30, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 80, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
-flags.DEFINE_integer('num_gpus', 1, 'specifies the number of available GPUs of the machine')
+flags.DEFINE_integer('num_gpus', len(helpers.get_available_gpus()), 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_integer('image_range_start', 0,
                      'parameter that controls the index of the starting image for the train/valid batch')
@@ -107,3 +108,32 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING,
                     'variable names to exclude from saving and restoring')
 flags.DEFINE_string('fine_tuning_weights_list', FINE_TUNING_WEIGHTS_LIST,
                     'variable names (layer scopes) that should be trained during fine-tuning')
+
+
+assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a directory"
+assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
+assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model), "pretrained_model must be a directory"
+
+assert VALID_MODE in VALID_MODES, "mode must be one of " + str(VALID_MODES)
+assert MODE in MODES, "mode must be one of " + str(MODES)
+
+assert WIDTH == HEIGHT, "width must be equal to height"
+assert FLAGS.num_images > 0, 'num_images must be positive integer'
+assert FLAGS.num_depth > 0, 'num_depth must be positive integer'
+assert FLAGS.num_threads > 0, 'num_threads must be a positive integer'
+assert FLAGS.num_gpus >= 0
+
+assert FLAGS.loss_function in LOSS_FUNCTIONS, "loss functions must be one of " + str(LOSS_FUNCTIONS)
+assert FLAGS.num_depth >= FLAGS.num_channels, "provided number of depth channels in input data must be >= number of channels in model"
+
+assert FLAGS.learning_rate_decay > 0.0 and FLAGS.learning_rate_decay < 1.0, 'learning rate decay should be in [0,1]'
+assert FLAGS.learning_rate > 0.0 and FLAGS.learning_rate < 1.0, 'learning rate should be in [0,1]'
+assert FLAGS.noise_std > 0.0 and FLAGS.noise_std < 1.0, 'noise_std should be in [0,1]'
+assert FLAGS.keep_prob_dopout > 0.0 and FLAGS.keep_prob_dopout <= 1.0, 'keep_prob_dopout must be in [0,1]'
+
+
+if FLAGS.exclude_from_restoring:
+  warnings.warn("exclude_from_restoring is not empty -> layers may be omitted from restoring")
+
+if FLAGS.fine_tuning_weights_list:
+  warnings.warn("fine_tuning_weights_list is not empty -> layers may be omitted from training")

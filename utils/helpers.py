@@ -1,4 +1,5 @@
 import os, re, math
+from tensorflow.python.client import device_lib
 
 def get_iter_from_pretrained_model(checkpoint_file_name):
   ''' extracts the iterator count of a dumped checkpoint from the checkpoint file name
@@ -21,3 +22,7 @@ def remove_items_from_dict(string_dict, strings_to_remove):
     if not any([(s in v_name) for s in strings_to_remove]):
       result_dict[v_name] = v
   return result_dict
+
+def get_available_gpus():
+  local_device_protos = device_lib.list_local_devices()
+  return [x.name for x in local_device_protos if x.device_type == 'GPU']

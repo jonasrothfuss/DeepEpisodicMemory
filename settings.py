@@ -5,7 +5,7 @@ FLAGS = flags.FLAGS
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/Users/fabioferreira/Downloads/20bn_mse_model_dump'
 DATA_PATH = '/Users/fabioferreira/Downloads/20bn_mse_model_dump/tfrecords'
-MODE = 'train_mode'
+MODE = 'valid_mode'
 VALID_MODE = 'gif'
 
 NUM_IMAGES = 20
@@ -16,7 +16,7 @@ HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/Users/fabioferreira/Downloads/20bn_mse_model_dump"
+PRETRAINED_MODEL = "/Users/fabioferreira/Downloads/20bn_mse_model_dump" #/Users/fabioferreira/Downloads/20bn_mse_model_dump
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -29,7 +29,7 @@ FINE_TUNING_WEIGHTS_LIST = None
 
 # --- INFORMAL LOCAL VARIABLES --- #
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
-MODES = ["train_mode", "valid_mode", "demo_mode"]
+MODES = ["train_mode", "valid_mode", "feeding_mode"]
 VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr']
 
 
@@ -90,7 +90,7 @@ flags.DEFINE_integer('save_interval', 500, 'number of training steps between ses
 
 # --- MODE OF OPERATION --- #
 flags.DEFINE_string('mode', MODE, 'Allowed modes: ' + str(
-  MODES) + '. "demo_mode": model is fed from numpy data directly instead of tfrecords'
+  MODES) + '. "feeding_mode": model is fed from numpy data directly instead of tfrecords'
            '"valid_mode": '
            '"train_mode": ')
 

@@ -23,7 +23,10 @@ from utils.io_handler import create_session_dir, create_subfolder, store_output_
 def main(argv):
   # currently, train model is required in every case
   train_model = create_model(mode='train')
-  val_model = create_model(mode='valid', train_model_scope=train_model.scope)
+  if FLAGS.mode is "train_mode" or FLAGS.mode is "valid_mode":
+    val_model = create_model(mode='valid', train_model_scope=train_model.scope)
+  elif FLAGS.mode is "feeding_mode":
+    feeding_model = create_model(mode='feeding', train_model_scope=train_model.scope)
 
   initializer = Initializer()
   initializer.start_session()
@@ -53,7 +56,8 @@ def main(argv):
     if FLAGS.mode is "valid_mode":
       validate(subdir, initializer, val_model)
     else:
-      validate_by_feeding(output_dir, initializer, val_model)
+      #TODO: provide feed_batch
+      feed(feed_batch, initializer, feeding_model)
 
 
 def create_model(mode=None, train_model_scope=None):
@@ -66,9 +70,8 @@ def create_model(mode=None, train_model_scope=None):
     assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
     model = ValidationModel('valid', reuse_scope=train_model_scope)
   elif mode is 'feeding':
-    assert train_model is not None, "train graph is None, valid mode requires a train graph"
-    training_scope = train_model.get_scope()
-    model = FeedingValidationModel('feeding', reuse_scope=training_scope)
+    assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
+    model = FeedingValidationModel('feeding', reuse_scope=train_model_scope)
 
   assert model is not None
 
@@ -150,7 +153,6 @@ def validate(output_dir, initializer, val_model):
       output_dir: path to output directory where validation summary and gifs are stored
   """
   assert val_model is not None and initializer is not None
-
 
   # Calculate number of validation samples
   valid_filenames = file_paths_from_directory(FLAGS.tf_records_dir, 'valid*')
@@ -253,14 +255,25 @@ def validate(output_dir, initializer, val_model):
   initializer.stop_session()
 
 
-def validate_by_feeding(output_dir, initializer, val_model):
-  # TODO
-  assert val_model is not None and initializer is not None
+def feed(feed_batch, initializer, feed_model):
+  '''
+  feeds the videos inherent feed_batch trough the network provided in feed_model
+  :param feed_batch: 5D Tensor (batch_size, num_frames, width, height, num_channels)
+  :param initializer:
+  :param feed_model:
+  :return:
+  '''
+  assert feed_model is not None and initializer is not None
+  assert feed_batch.dim == 5
 
-  tf.logging.info(' --- Starting validation in feeding mode --- ')
+  tf.logging.info(' --- Starting feeding --- ')
+
+  feed_dict = {feed_model.learning_rate: 0.0, feed_model.feed_batch: feed_batch}
+
+  hidden_repr = initializer.sess.run([feed_model.hidden_repr], feed_dict)
 
 
-  return
+  return hidden_repr
 
 
 if __name__ == '__main__':

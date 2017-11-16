@@ -30,6 +30,18 @@ class Model:
             "settings for encoder/decoder lengths along with starting range exceed number of available images"
     assert FLAGS.encoder_length >= FLAGS.decoder_reconst_length, "encoder must be at least as long as reconstructer"
 
+  def add_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
+    for i in range(decoder_future_length):
+      self.summaries.append(tf.summary.image(summary_prefix + '_future_gen_' + str(i + 1),
+                                             self.frames_pred[i], max_outputs=1))
+      self.summaries.append(tf.summary.image(summary_prefix + '_future_orig_' + str(i + 1),
+                                             frames[:, encoder_length + i, :, :, :], max_outputs=1))
+    for i in range(decoder_reconst_length):
+      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_gen_' + str(i + 1),
+                                             self.frames_reconst[i], max_outputs=1))
+      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
+                                             frames[:, i, :, :, :], max_outputs=1))
+
 
 class TrainModel(Model):
   def __init__(self, summary_prefix, scope_name='train_model'):
@@ -139,54 +151,22 @@ class ValidationModel(Model):
       self.summaries.append(tf.summary.scalar(summary_prefix + '_loss', self.loss))
       self.sum_op = tf.summary.merge(self.summaries)
 
-  def add_image_summary(self, summary_prefix, frames, encoder_length, decoder_future_length, decoder_reconst_length):
-    for i in range(decoder_future_length):
-      self.summaries.append(tf.summary.image(summary_prefix + '_future_gen_' + str(i + 1),
-                                        self.frames_pred[i], max_outputs=1))
-      self.summaries.append(tf.summary.image(summary_prefix + '_future_orig_' + str(i + 1),
-                                        frames[:, encoder_length + i, :, :, :], max_outputs=1))
-    for i in range(decoder_reconst_length):
-      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_gen_' + str(i + 1),
-                                        self.frames_reconst[i], max_outputs=1))
-      self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
-                                        frames[:, i, :, :, :], max_outputs=1))
 
 
 class FeedingValidationModel(Model):
-  def __init__(self, summary_prefix, reuse_scope=None):
+  def __init__(self, reuse_scope=None):
     Model.__init__(self)
 
     assert reuse_scope is not None
 
-    self.val_batch = tf.placeholder(tf.float32, shape=(128,128,3,5))
-
-    # TODO
-    assert reuse_scope is not None
-
     with tf.variable_scope(reuse_scope, reuse=True):
-      tower_losses, frames_pred_list, frames_reconst_list, hidden_repr_list, label_batch_list, metadata_batch_list, val_batch_list = [], [], [], [], [], [], []
+      "5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)"
+      self.feed_batch = tf.placeholder(tf.float32, shape=(None, None, 128, 128, 3), name='feed_batch')
+
+      self.loss, self.frames_pred, self.frames_reconst, self.hidden_repr = tower_operations(self.val_batch, train=False)
 
 
-def valid_operations(training_scope):
-  val_set, video_id_batch, metadata_batch = input.create_batch(FLAGS.tf_records_dir, 'valid', FLAGS.valid_batch_size,
-                                                               int(math.ceil(
-                                                                 FLAGS.num_iterations / FLAGS.valid_interval) + 10),
-                                                               False)
-  val_set = tf.cast(val_set, tf.float32)
 
-  frames_pred, frames_reconst, hidden_repr = model.composite_model(val_set, FLAGS.encoder_length,
-                                                                   FLAGS.decoder_future_length,
-                                                                   FLAGS.decoder_reconst_length,
-                                                                   uniform_init=FLAGS.uniform_init,
-                                                                   num_channels=FLAGS.num_channels,
-                                                                   fc_conv_layer=FLAGS.fc_layer)
-
-  loss = loss_functions.composite_loss(val_set, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
-                                encoder_length=FLAGS.encoder_length,
-                                decoder_future_length=FLAGS.decoder_future_length,
-                                decoder_reconst_length=FLAGS.decoder_reconst_length)
-
-  return loss, frames_pred, frames_reconst, hidden_repr, val_set, metadata_batch, video_id_batch
 
 
 def tower_operations(video_batch, train=True):

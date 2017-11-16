@@ -1,7 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.platform import app
 import os, time
-import data_prep.model_input as input
 import data_postp.similarity_computations as similarity_computations
 from data_prep.TFRW2Images import createGif
 
@@ -27,23 +26,11 @@ def main(argv):
 
   # currently, train model is required in every case
   train_model = create_model('train')
+  val_model = create_model('valid', train_model)
 
-
-
-  # ---- validation ----- #
-  if FLAGS.mode is "valid_mode":
-    assert FLAGS.pretrained_model
-    output_dir = FLAGS.pretrained_model
-    tf.logging.info(' --- VALIDATION MODE ONLY --- ')
-    print('Reusing provided session directory:', output_dir)
-    subdir = create_subfolder(output_dir, 'valid_run')
-    print('Storing validation data in:', subdir)
-
-    val_model = create_model('valid', train_model)
-    validate(subdir, initializer, val_model)
 
   # ---- training ----- #
-  elif FLAGS.mode is "train_mode":
+  if FLAGS.mode is "train_mode":
     """either create new directory or reuse old one"""
     if not FLAGS.pretrained_model:
       output_dir = create_session_dir(FLAGS.output_dir)
@@ -51,22 +38,29 @@ def main(argv):
       output_dir = FLAGS.pretrained_model
       print('Reusing provided session directory:', output_dir)
 
-    tf.logging.info(' --- TRAIN+VALID MODE --- ')
+    tf.logging.info(' --- ' + FLAGS.mode.capitalize() + ' --- ')
     write_metainfo(output_dir, train_model.model_name, FLAGS)
-    val_model = create_model('valid', train_model)
     train(output_dir, initializer, train_model, val_model)
 
-  # ---- validation by feeding ----- #
-  elif FLAGS.mode is "feeding_mode":
-    # TODO
+  # ---- validation + validation by feeding ----- #
+  if FLAGS.mode is "valid_mode" or FLAGS.mode is "feeding_mode":
     assert FLAGS.pretrained_model
     output_dir = FLAGS.pretrained_model
-    tf.logging.info(' --- VALID (FEEDING) MODE --- ')
+    tf.logging.info(' --- ' + FLAGS.mode.capitalize() + ' --- ')
     print('Reusing provided session directory:', output_dir)
-    #validate_by_feeding(output_dir, initializer, val_model)
+    subdir = create_subfolder(output_dir, 'valid_run')
+    print('Storing validation data in:', subdir)
+
+    if FLAGS.mode is "valid_mode":
+      validate(subdir, initializer, val_model)
+    else:
+      validate_by_feeding(output_dir, initializer, val_model)
+
+
 
 
 def create_model(mode=None, train_model=None):
+
   model = None
 
   if mode is "train":
@@ -76,24 +70,15 @@ def create_model(mode=None, train_model=None):
     assert train_model is not None, "train graph is None, valid mode requires a train graph"
     training_scope = train_model.get_scope()
     model = ValidationModel('valid', reuse_scope=training_scope)
-  elif mode is 'feed':
-    # TODO
-    return None
+  elif mode is 'feeding':
+    assert train_model is not None, "train graph is None, valid mode requires a train graph"
+    training_scope = train_model.get_scope()
+    model = FeedingValidationModel('feeding', reuse_scope=training_scope)
+
+  assert model is not None
 
   return model
 
-
-  # print('Constructing train model and input')
-  # with tf.variable_scope('train_model', reuse=None) as training_scope:
-  #   train_model = TrainModel('train')
-  #   #train_model = Model('train', mode = mode)
-  #
-  # print('Constructing validation model and input')
-  # with tf.variable_scope('val_model', reuse=None):
-  #   val_model = ValidationModel('valid', reuse_scope=training_scope)
-  #   #val_model = Model('valid', mode = mode, reuse_scope=training_scope)
-  #
-  # return train_model, val_model
 
 
 def train(output_dir, initializer, train_model, val_model):
@@ -275,8 +260,7 @@ def validate(output_dir, initializer, val_model):
 
 
 def validate_by_feeding(output_dir, initializer, val_model):
-  """ TODO
-    """
+  # TODO
   assert val_model is not None and initializer is not None
 
   tf.logging.info(' --- Starting validation in feeding mode --- ')

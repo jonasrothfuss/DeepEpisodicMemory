@@ -8,8 +8,8 @@ DATA_PATH = '/Users/fabioferreira/Downloads/20bn_mse_model_dump/tfrecords'
 MODE = 'valid_mode'
 VALID_MODE = 'gif'
 
-NUM_IMAGES = 20
-NUM_DEPTH = 4
+NUM_IMAGES = 15
+NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 # specifies the number of pre-processing threads
@@ -71,7 +71,7 @@ flags.DEFINE_string('decoder_future_length', 5,
                     'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_string('decoder_reconst_length', 5,
                     'specifies how many images the reconstruction decoder receives, defaults to 5')
-flags.DEFINE_integer('num_channels', 4, 'number of channels in the input frames')
+flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_bool('fc_layer', True,
                   'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')

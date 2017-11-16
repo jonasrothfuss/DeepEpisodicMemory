@@ -15,7 +15,7 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 
 class Model:
-  def __init__(self, scope=None):
+  def __init__(self):
 
     self.learning_rate = tf.placeholder_with_default(FLAGS.learning_rate, ())
     self.iter_num = tf.placeholder_with_default(FLAGS.num_iterations, ())
@@ -23,7 +23,7 @@ class Model:
     self.noise_std = tf.placeholder_with_default(FLAGS.noise_std, ())
     self.opt = tf.train.AdamOptimizer(self.learning_rate)
     self.model_name = model.__file__
-    self.scope = scope
+
 
 
     assert FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length <= FLAGS.overall_images_count and FLAGS.image_range_start >= 0, \
@@ -34,11 +34,10 @@ class Model:
 
 class TrainModel(Model):
   def __init__(self, summary_prefix, scope, reuse_scope=None):
-    Model.__init__(self, scope)
+    Model.__init__(self)
     assert reuse_scope is None
 
-    #if scope is not None:
-    #  Model.set_scope(self, scope)
+    self.scope = scope
 
     tower_grads = []
     tower_losses = []
@@ -151,6 +150,23 @@ class ValidationModel(Model):
                                         self.frames_reconst[i], max_outputs=1))
       self.summaries.append(tf.summary.image(summary_prefix + '_reconst_orig_' + str(i + 1),
                                         frames[:, i, :, :, :], max_outputs=1))
+
+
+class FeedingValidationModel(Model):
+  def __init__(self, summary_prefix, reuse_scope=None):
+    Model.__init__(self)
+
+    assert reuse_scope is not None
+
+    self.val_batch = tf.placeholder(tf.float32, shape=(128,128,3,5))
+
+    # TODO
+    assert reuse_scope is not None
+
+    with tf.variable_scope(reuse_scope, reuse=True):
+      tower_losses, frames_pred_list, frames_reconst_list, hidden_repr_list, label_batch_list, metadata_batch_list, val_batch_list = [], [], [], [], [], [], []
+
+
 
 
 def valid_operations(training_scope):

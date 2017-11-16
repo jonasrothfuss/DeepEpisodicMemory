@@ -15,7 +15,7 @@ import seaborn as sn
 from moviepy.editor import VideoFileClip
 import glob as glob
 from PIL import Image
-#from settings import FLAGS
+from settings import FLAGS
 
 
 def get_subdirectory_files(dir, depth=1):

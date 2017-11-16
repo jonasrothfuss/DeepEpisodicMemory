@@ -8,11 +8,14 @@ import moviepy.editor as mpy
 import pandas as pd
 import json
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use("TkAgg")
 import numpy as np
 import seaborn as sn
 from moviepy.editor import VideoFileClip
 import glob as glob
-import types
+from PIL import Image
+#from settings import FLAGS
 
 
 def get_subdirectory_files(dir, depth=1):
@@ -464,3 +467,17 @@ def gif_to_frames_in_dir_tree(root_dir):
   for subdir in subdirs:
     convert_gif_to_frames(subdir)
 
+
+def generate_batch_from_dir(path, suffix="*.png", batch_size = 1):
+  assert os.path.isdir(path), str(path) + "doesn't seem to be a valid path"
+
+  files = file_paths_from_directory(path, suffix)
+  batch = np.zeros((1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, FLAGS.num_channels), dtype=np.uint8)
+
+  for i, filename in enumerate(files):
+    im = Image.open(filename).convert('RGB')
+    im = np.asarray(im, dtype = np.uint8)
+    assert im.shape == (FLAGS.height, FLAGS.width, FLAGS.num_channels), "at least one image in " + str(path) + " has a different shape than expected"
+    batch[0, i, :, :, :] = im
+
+  return batch

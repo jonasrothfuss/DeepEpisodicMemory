@@ -955,7 +955,7 @@ def inter_class_variance_plot(df, class_column='shape'):
 
 def inter_class_pca(df, class_column='category', n_components=50):
   """
-  Performs PCA on mean vactors of classes
+  Performs PCA on mean vectors of classes
   :param df: dataframe containing hidden vectors + metadata
   :param class_column: column_name corresponding to class labels
   :param n_components: number of principal components
@@ -973,7 +973,7 @@ def inter_class_pca(df, class_column='category', n_components=50):
 
 def transform_vectors_with_inter_class_pca(df, df_2=None, class_column='category', n_components=50, return_pca_object=False):
   """
-    Performs PCA on mean vactors of classes and applies transformation to all hidden_reps in df
+    Performs PCA on mean vectors of classes and applies transformation to all hidden_reps in df
     :param df: dataframe containing hidden vectors + metadata
     :param df_2: optional 2nd dataframe that shall be transformed with the pca computed on df
     :param class_column: column_name corresponding to class labels

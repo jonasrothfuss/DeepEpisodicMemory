@@ -1,17 +1,10 @@
 import tensorflow as tf
 import math
 from pprint import pprint
-from settings import FLAGS
+from settings import FLAGS, model
 
 from models import loss_functions
 import data_prep.model_input as input
-
-
-""" Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
-""""""
-
-
 
 
 class Model:
@@ -152,7 +145,6 @@ class ValidationModel(Model):
       self.sum_op = tf.summary.merge(self.summaries)
 
 
-
 class FeedingValidationModel(Model):
   def __init__(self, reuse_scope=None):
     Model.__init__(self)
@@ -164,8 +156,6 @@ class FeedingValidationModel(Model):
       self.feed_batch = tf.placeholder(tf.float32, shape=(None, None, 128, 128, 3), name='feed_batch')
 
       self.loss, self.frames_pred, self.frames_reconst, self.hidden_repr = tower_operations(self.val_batch, train=False)
-
-
 
 
 
@@ -252,3 +242,20 @@ def average_losses(tower_losses):
   loss = tf.concat(0, losses)
   loss = tf.reduce_mean(loss, 0)
   return loss
+
+
+def create_model(mode=None, train_model_scope=None):
+  model = None
+
+  if mode is "train":
+    model = TrainModel('train', scope_name='train_model')
+  elif mode is 'valid':
+    assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
+    model = ValidationModel('valid', reuse_scope=train_model_scope)
+  elif mode is 'feeding':
+    assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
+    model = FeedingValidationModel('feeding', reuse_scope=train_model_scope)
+
+  assert model is not None
+
+  return model

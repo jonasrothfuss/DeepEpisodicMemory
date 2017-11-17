@@ -5,10 +5,14 @@ import warnings
 
 FLAGS = flags.FLAGS
 
+""" Set Model From Model Zoo"""
+from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
+""""""
+
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
-MODE = 'valid_mode'
+MODE = 'train_mode'
 VALID_MODE = 'data_frame'
 
 NUM_IMAGES = 15
@@ -57,7 +61,7 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 # --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_string('batch_size', 30, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('batch_size', 30, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 80, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
@@ -67,16 +71,16 @@ flags.DEFINE_integer('image_range_start', 0,
                      'parameter that controls the index of the starting image for the train/valid batch')
 flags.DEFINE_integer('overall_images_count', 15,
                      'specifies the number of images that are available to create the train/valid batches')
-flags.DEFINE_string('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
-flags.DEFINE_string('decoder_future_length', 5,
+flags.DEFINE_integer('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
+flags.DEFINE_integer('decoder_future_length', 5,
                     'specifies how many images the future prediction decoder receives, defaults to 5')
-flags.DEFINE_string('decoder_reconst_length', 5,
+flags.DEFINE_integer('decoder_reconst_length', 5,
                     'specifies how many images the reconstruction decoder receives, defaults to 5')
 flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_bool('fc_layer', True,
                   'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
-flags.DEFINE_integer('learning_rate', 0.00001, 'initial learning rate for Adam optimizer')
+flags.DEFINE_float('learning_rate', 0.00001, 'initial learning rate for Adam optimizer')
 flags.DEFINE_float('noise_std', 0.1,
                    'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 flags.DEFINE_float('keep_prob_dopout', 0.85,

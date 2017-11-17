@@ -6,10 +6,10 @@ import warnings
 FLAGS = flags.FLAGS
 
 # --- SPECIFY MANDATORY VARIABLES--- #
-OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
 MODE = 'valid_mode'
-VALID_MODE = 'gif'
+VALID_MODE = 'data_frame'
 
 NUM_IMAGES = 15
 NUM_DEPTH = 3
@@ -18,7 +18,7 @@ HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/11-16-17_17-49"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/training_tests/7_20bn_mse"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',

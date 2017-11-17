@@ -12,7 +12,7 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
-MODE = 'train_mode'
+MODE = 'feeding_mode'
 VALID_MODE = 'data_frame'
 
 NUM_IMAGES = 15

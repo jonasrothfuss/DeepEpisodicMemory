@@ -10,7 +10,7 @@ def feed(feed_batch, initializer, feed_model):
   :return:
   '''
   assert feed_model is not None and initializer is not None
-  assert feed_batch.dim == 5
+  assert feed_batch.ndim == 5
 
   tf.logging.info(' --- Starting feeding --- ')
 

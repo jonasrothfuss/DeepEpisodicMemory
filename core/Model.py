@@ -146,24 +146,28 @@ class ValidationModel(Model):
 
 
 class FeedingValidationModel(Model):
-  def __init__(self, reuse_scope=None):
-    Model.__init__(self)
+  def __init__(self, scope_name='feeding_model', reuse_scope=None):
+    print("Constructing FeedingModel")
+    with tf.variable_scope(scope_name, reuse=None):
+      Model.__init__(self)
 
-    assert reuse_scope is not None
+      assert reuse_scope is not None
 
-    with tf.variable_scope(reuse_scope, reuse=True):
-      "5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)"
-      self.feed_batch = tf.placeholder(tf.float32, shape=(None, None, 128, 128, 3), name='feed_batch')
+      with tf.variable_scope(reuse_scope, reuse=True):
+        "5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)"
+        self.feed_batch = tf.placeholder(tf.float32, shape=(1, FLAGS.encoder_length, 128, 128, 3), name='feed_batch')
 
-      self.loss, self.frames_pred, self.frames_reconst, self.hidden_repr = tower_operations(self.val_batch, train=False)
+        self.frames_pred, self.frames_reconst, self.hidden_repr = \
+          tower_operations(self.feed_batch[:, FLAGS.image_range_start:, :, :, :], train=False, compute_loss=False)
 
 
 
-def tower_operations(video_batch, train=True):
+def tower_operations(video_batch, train=True, compute_loss=True):
   """
   Build the computation graph from input frame sequences till loss of batch
   :param device number for assining queue runner to CPU
   :param train: boolean that indicates whether train or validation mode
+  :param compute_loss: boolean that specifies whether loss should be computed (for feed mode / production compute_loss might be disabled)
   :return batch loss (scalar)
   """
   #only dropout in train mode
@@ -178,11 +182,14 @@ def tower_operations(video_batch, train=True):
                                                                    num_channels=FLAGS.num_channels,
                                                                    fc_conv_layer=FLAGS.fc_layer)
 
-  tower_loss = loss_functions.composite_loss(video_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
-                                encoder_length=FLAGS.encoder_length,
-                                decoder_future_length=FLAGS.decoder_future_length,
-                                decoder_reconst_length=FLAGS.decoder_reconst_length)
-  return tower_loss, frames_pred, frames_reconst, hidden_repr
+  if compute_loss:
+    tower_loss = loss_functions.composite_loss(video_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
+                                  encoder_length=FLAGS.encoder_length,
+                                  decoder_future_length=FLAGS.decoder_future_length,
+                                  decoder_reconst_length=FLAGS.decoder_reconst_length)
+    return tower_loss, frames_pred, frames_reconst, hidden_repr
+  else:
+    return frames_pred, frames_reconst, hidden_repr
 
 
 def average_gradients(tower_grads):
@@ -254,7 +261,7 @@ def create_model(mode=None, train_model_scope=None):
     model = ValidationModel('valid', reuse_scope=train_model_scope)
   elif mode is 'feeding':
     assert train_model_scope is not None, "train_model_scope is None, valid mode requires a train scope"
-    model = FeedingValidationModel('feeding', reuse_scope=train_model_scope)
+    model = FeedingValidationModel(reuse_scope=train_model_scope)
 
   assert model is not None
 

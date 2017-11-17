@@ -6,7 +6,7 @@ from core.Model import create_model
 from core.development_op import train, validate
 from core.production_op import feed
 from settings import FLAGS
-from utils.io_handler import create_session_dir, create_subfolder, write_metainfo
+from utils.io_handler import create_session_dir, create_subfolder, write_metainfo, generate_batch_from_dir
 
 
 def main(argv):
@@ -44,9 +44,13 @@ def main(argv):
 
   # ---- feeding  ----- #
   if FLAGS.mode is "feeding_mode":
-    #TODO: provide feed_batch
+    tf.logging.info(' --- ' + FLAGS.mode.capitalize() + ' --- ')
+    batch_input_dir = '/common/homes/students/rothfuss/Documents/training_tests/input_data/images/2'
+    feed_batch = generate_batch_from_dir(batch_input_dir, suffix='*.jpg')
+    print(feed_batch.shape)
     assert FLAGS.pretrained_model
-    #feed(feed_batch, initializer, feeding_model)
+    hidden_repr = feed(feed_batch, initializer, feeding_model)
+    print(hidden_repr)
 
 
 if __name__ == '__main__':

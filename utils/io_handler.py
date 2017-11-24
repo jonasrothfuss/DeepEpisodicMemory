@@ -17,6 +17,7 @@ import glob as glob
 from PIL import Image
 from settings import FLAGS
 import cv2 as cv2
+from .video import compute_dense_optical_flow_for_batch
 
 
 def get_subdirectory_files(dir, depth=1):
@@ -486,14 +487,13 @@ def generate_batch_from_dir(path, suffix="*.png"):
     if im.size != (FLAGS.height, FLAGS.width):
       im = im.resize((FLAGS.height, FLAGS.width), Image.ANTIALIAS)
       print("image " + str(filename) + " has a different shape than expected -> reshape to (%i,%i)"%(FLAGS.height, FLAGS.width))
-
-    # dense optical flow
-    if FLAGS.num_channels == 4:
-
-      image_with_flow = image.copy()
-      image_with_flow = np.concatenate((image_with_flow, np.expand_dims(frameFlow, axis=2)), axis=2)
-
     batch[0, i, :, :, :] = np.asarray(im, np.uint8)
+
+
+  # add dense optical flow channel to batch
+  if FLAGS.num_channels == 4:
+    batch = compute_dense_optical_flow_for_batch(batch)
+
   return batch
 
 
@@ -518,13 +518,13 @@ def get_meta_info(filename, type=None, meta_dict = None):
                   'eucl_distance': m.group(7)}
     else: #look up video id in meta_dict
       assert isinstance(meta_dict, dict), 'meta_dict must be a dict'
-      video_id = io_handler.get_video_id_from_path(base, type=type)
+      video_id = get_video_id_from_path(base, type=type)
       assert video_id in meta_dict, 'could not find meta information for video ' + video_id + ' in the meta_dict'
       meta_info = meta_dict[video_id]
       meta_info['id'] = base.replace('.avi', '').replace('.mp4', '')
 
   else: # type=None --> only include video id as meta information
-    meta_info = {'id': io_handler.get_video_id_from_path(base)}
+    meta_info = {'id': get_video_id_from_path(base)}
 
   assert isinstance(meta_info, dict) and len(meta_info) > 0
   return meta_info

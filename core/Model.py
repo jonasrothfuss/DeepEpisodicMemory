@@ -17,8 +17,6 @@ class Model:
     self.opt = tf.train.AdamOptimizer(self.learning_rate)
     self.model_name = model.__file__
 
-
-
     assert FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length <= FLAGS.overall_images_count and FLAGS.image_range_start >= 0, \
             "settings for encoder/decoder lengths along with starting range exceed number of available images"
     assert FLAGS.encoder_length >= FLAGS.decoder_reconst_length, "encoder must be at least as long as reconstructer"
@@ -155,7 +153,7 @@ class FeedingValidationModel(Model):
 
       with tf.variable_scope(reuse_scope, reuse=True):
         "5D array of batch with videos - shape(batch_size, num_frames, frame_width, frame_higth, num_channels)"
-        self.feed_batch = tf.placeholder(tf.float32, shape=(1, FLAGS.encoder_length, 128, 128, 3), name='feed_batch')
+        self.feed_batch = tf.placeholder(tf.float32, shape=(1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, FLAGS.num_channels), name='feed_batch')
 
         self.frames_pred, self.frames_reconst, self.hidden_repr = \
           tower_operations(self.feed_batch[:, FLAGS.image_range_start:, :, :, :], train=False, compute_loss=False)

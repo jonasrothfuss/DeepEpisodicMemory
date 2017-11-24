@@ -485,14 +485,14 @@ def generate_batch_from_dir(path, suffix="*.png"):
 
   files = file_paths_from_directory(path, suffix)
   assert files and len(files)>0, 'Could not find an image with suffix %s in %s'%(path, suffix)
-  batch = np.zeros((1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, FLAGS.num_channels), dtype=np.uint8)
+  batch = np.zeros((1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, 3), dtype=np.uint8)
 
   for i, filename in enumerate(files[:FLAGS.encoder_length]):
     im = Image.open(filename).convert('RGB')
     if im.size != (FLAGS.height, FLAGS.width):
       im = im.resize((FLAGS.height, FLAGS.width), Image.ANTIALIAS)
       print("image " + str(filename) + " has a different shape than expected -> reshape to (%i,%i)"%(FLAGS.height, FLAGS.width))
-    batch[0, i, :, :, :] = np.asarray(im, np.uint8)
+    batch[0, i, :, :, :3] = np.asarray(im, np.uint8)
 
 
   # add dense optical flow channel to batch

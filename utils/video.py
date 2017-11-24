@@ -45,28 +45,27 @@ def compute_dense_optical_flow_for_batch(batch, pyr_scale=0.8, levels=15, winsiz
   :param flags: operation flags, see above specification
   :return: the provided batch with shape (1, encoder_length, height, width, num_channels+1)
   """
-  assert batch.shape == (1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, FLAGS.num_channels)
+  assert batch.shape == (1, FLAGS.encoder_length, FLAGS.height, FLAGS.width, 3)
   num_frames = batch.shape[1]
   assert num_frames > 0
 
-  new_batch = np.expand_dims(batch, axis = 4)
-  image_prev = batch[, 0, :, :, :].copy()
-
+  flow_masks_shape = list(batch.shape)
+  flow_masks_shape[4] = 1
+  flow_masks = np.zeros(flow_masks_shape)
   for i in range(num_frames):
     # insert the first (black) flow image into new batch (image_prev == image)
     if i == 0:
-      frame_flow = np.zeros((FLAGS.height, FLAGS.width))
-      image_with_flow = np.concatenate((image_prev, np.expand_dims(frame_flow, axis=2)), axis=2)
+      flow_masks[:, i, :, :,0] = np.zeros((1, FLAGS.height, FLAGS.width))
     else:
-      image_prev = batch[, i-1, :, :, :].copy()
-      image = batch[, i, :, :, :].copy()
-      frame_flow = compute_dense_optical_flow(image_prev, image, pyr_scale=pyr_scale, levels=levels, winsize=winsize,
-                                              iterations=iterations, poly_n=poly_n, poly_sigma=poly_sigma, flags=flags)
-      image_with_flow = np.concatenate((image, np.expand_dims(frame_flow, axis=2)), axis=2)
+      image_prev = batch[0, i-1, :, :, :3].copy()
+      image = batch[0, i, :, :, :3].copy()
+      #frame_flow = compute_dense_optical_flow(image_prev, image, pyr_scale=pyr_scale, levels=levels, winsize=winsize,
+      #                                        iterations=iterations, poly_n=poly_n, poly_sigma=poly_sigma, flags=flags)
+      frame_flow = np.zeros((128, 128))
+      flow_masks[:,i,:,:,0] = np.expand_dims(frame_flow, axis=0)
 
-    new_batch[:, i, :, :, :] = image_with_flow
-
-  return new_batch
+  batch = np.concatenate((batch,flow_masks),axis=4)
+  return batch
 
 
 def getVideoCapture(path):

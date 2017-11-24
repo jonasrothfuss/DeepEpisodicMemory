@@ -11,18 +11,19 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
-TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train'
-MODE = 'feeding_mode'
-VALID_MODE = 'data_frame'
+DUMP_DIR = '/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences'
+TF_RECORDS_DIR = '/data/rothfuss/data/ArmarExperiences/tf_records/tf_records_memory'
+MODE = 'valid_mode'
+VALID_MODE = 'memory_prep' #'data_frame gif'
 
 NUM_IMAGES = 15
-NUM_DEPTH = 3
+NUM_DEPTH = 4
 WIDTH = 128
 HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/training_tests/7_20bn_mse"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -36,7 +37,7 @@ FINE_TUNING_WEIGHTS_LIST = None
 # --- INFORMAL LOCAL VARIABLES --- #
 LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
 MODES = ["train_mode", "valid_mode", "feeding_mode"]
-VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr']
+VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr', 'memory_prep']
 
 
 
@@ -50,6 +51,7 @@ flags.DEFINE_integer('height', HEIGHT, 'specifies the height of an image')
 # --- I/O SPECIFICATIONS --- #
 flags.DEFINE_string('tf_records_dir', TF_RECORDS_DIR, 'specify the path to where tfrecords are stored, defaults to "../data/"')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
+flags.DEFINE_string('dump_dir', DUMP_DIR, 'directory for validation dumps such as gif and data_frames')
 
 # --- TFRECORDS --- #
 flags.DEFINE_string('train_files', 'train*.tfrecords', 'Regex for filtering train tfrecords files.')
@@ -76,7 +78,7 @@ flags.DEFINE_integer('decoder_future_length', 5,
                     'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_integer('decoder_reconst_length', 5,
                     'specifies how many images the reconstruction decoder receives, defaults to 5')
-flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
+flags.DEFINE_integer('num_channels', 4, 'number of channels in the input frames')
 flags.DEFINE_bool('fc_layer', True,
                   'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
@@ -117,9 +119,10 @@ flags.DEFINE_string('fine_tuning_weights_list', FINE_TUNING_WEIGHTS_LIST,
 assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a directory"
 assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
 assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model), "pretrained_model must be a directory"
+assert not FLAGS.dump_dir or os.path.isdir(FLAGS.dump_dir), "dump_dir must be a directory"
 
-assert VALID_MODE in VALID_MODES, "mode must be one of " + str(VALID_MODES)
-assert MODE in MODES, "mode must be one of " + str(MODES)
+assert any([mode in FLAGS.valid_mode for mode in VALID_MODES]), "valid_mode must contain at least one of the following" + str(VALID_MODES)
+assert FLAGS.mode in MODES, "mode must be one of " + str(MODES)
 
 assert WIDTH == HEIGHT, "width must be equal to height"
 assert FLAGS.num_images > 0, 'num_images must be positive integer'

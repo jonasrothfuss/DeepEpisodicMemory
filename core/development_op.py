@@ -112,7 +112,6 @@ def validate(output_dir, initializer, val_model):
     if 'gif' in FLAGS.valid_mode:
       # summary and log
       val_model.iter_num = 1
-      #orig_videos = [orig_frames[i,:,:,:,:] for i in range(orig_frames.shape[0])]
       createGif(np.asarray(orig_frames)[:, FLAGS.image_range_start:FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length,:,:,:3], labels, output_dir)
       tf.logging.info('Converting validation frame sequences to gif')
       store_output_frames_as_gif(np.asarray(output_frames)[:,:,:,:,:3], labels, output_dir)
@@ -120,6 +119,23 @@ def validate(output_dir, initializer, val_model):
 
     if 'similarity' in FLAGS.valid_mode:
       print(str(similarity_computations.compute_hidden_representation_similarity(hidden_representations, labels, 'cos')))
+
+    if 'memory_prep' in FLAGS.valid_mode:
+      # evaluate multiple batches to cover all available validation samples
+      video_file_path = []
+      num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
+        (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
+      for i in range(num_val_batches_required):
+        hidden_representations_new, labels_new, metadata_new, orig_frames = initializer.sess.run(
+          [val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
+
+        video_file_path.append(["original_clip_%s.gif" % str(l) for l in labels])
+        hidden_representations = np.concatenate((hidden_representations, hidden_representations_new))
+        labels = np.concatenate((labels, labels_new))
+        metadata = np.concatenate((metadata, metadata_new))
+        createGif(np.asarray(orig_frames)[:,:,:, :, :3], labels, output_dir)
+
+      store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
 
     if 'data_frame' in FLAGS.valid_mode:
       #evaluate multiple batches to cover all available validation samples

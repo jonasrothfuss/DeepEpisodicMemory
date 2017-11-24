@@ -1,6 +1,7 @@
 import os, sklearn, collections
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.externals import joblib
+from utils import io_handler
 import pandas as pd
 import numpy as np
 from data_postp import similarity_computations
@@ -110,9 +111,15 @@ def fit_inter_class_pca(hidden_reps, labels, n_components=50, verbose=False, dum
   return pca
 
 if __name__ == '__main__':
-  memory_df = pd.read_pickle('/data/rothfuss/data/ArmarExperiences/hidden_reps/armar_experiences_20bn_memory.pickle')
-  m = Memory(memory_df)
-  query = m.hidden_reps[2,:]
-  print(m.matching(query))
+  memory_df = pd.read_pickle('/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences/metadata_and_hidden_rep_df_11-24-17_14-00-34.pickle')
+  #m = Memory(memory_df)
+  #query = m.hidden_reps[2,:]
+  #print(m.matching(query))
   #result = m.matching(m.hidden_reps[1,:])
-  #print(memory_df)
+
+  video_names = ["original_clip_%s.gif"%str(i) for i in memory_df['id']]
+  print(video_names)
+  files = io_handler.files_from_directory('/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences', '*.gif')
+  files = sorted(files)
+
+  print(set(video_names)-set(files))

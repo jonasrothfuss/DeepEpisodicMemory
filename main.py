@@ -36,11 +36,13 @@ def main(argv):
   # ---- validation  ----- #
   if FLAGS.mode is "valid_mode":
     assert FLAGS.pretrained_model
-    output_dir = FLAGS.pretrained_model
+    if FLAGS.dump_dir:
+      output_dir = FLAGS.dump_dir
+    else:
+      output_dir = create_subfolder(output_dir, 'valid_run')
+    print('Storing validation data in:', output_dir)
+
     tf.logging.info(' --- ' + FLAGS.mode.capitalize() + ' --- ')
-    print('Reusing provided session directory:', output_dir)
-    subdir = create_subfolder(output_dir, 'valid_run')
-    print('Storing validation data in:', subdir)
     validate(output_dir, initializer, val_model)
 
   # ---- feeding  ----- #

@@ -218,7 +218,7 @@ def store_dataframe(dataframe, output_dir, file_name):
   print("Dumped df pickle to ", full_path)
 
 
-def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, filename = None):
+def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, video_file_paths=None, filename = None):
   """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
   and the video metadata as a pandas dataframe in python3 pickle format
 
@@ -226,6 +226,7 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   :param hidden_representations: numpy array containing the activations
   :param labels: the corresponding video id's
   :param shapes: the corresponding shape of the object in the video
+  :param video_file_paths: path to videos (episodes) corresponding to memory instance
   :param filename: name of the pickle file - if not provided, a filename is created automatically
 
   Example shape of stored objects if no fc layer used
@@ -251,11 +252,15 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   if 'label_x' in df.columns:
     df = df.drop_duplicates('label_x')
 
+  if video_file_paths:
+    df['video_file_path'] = video_file_paths
+
   if not filename:
     filename = os.path.join(output_dir, 'metadata_and_hidden_rep_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
   df.to_pickle(filename)
   print("Dumped df pickle to", filename)
   return df
+
 
 
 def store_encoder_latent_vector(output_dir, hidden_representations, labels, produce_single_files=True):

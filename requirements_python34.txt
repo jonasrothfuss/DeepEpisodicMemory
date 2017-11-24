@@ -33,7 +33,6 @@ oauthlib==0.6.1
 olefile==0.44
 onboard==1.0.1
 oneconf==0.3.7.14.4.1
-opencv-python==3.2.0.6
 packaging==16.8
 pafy==0.5.3.1
 pandas==0.19.2

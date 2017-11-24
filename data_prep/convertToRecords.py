@@ -3,22 +3,24 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os, re, math, warnings
-from tensorflow.python.platform import gfile
-from tensorflow.python.platform import flags
-from tensorflow.python.platform import app
+import json
+import math
+import multiprocessing
+import os
+
 import cv2 as cv2
 import numpy as np
-import matplotlib as mpl
-#mpl.use('Agg')
-import pandas as pd
+# mpl.use('Agg')
 import tensorflow as tf
-import json
-from data_prep.video_preparation import create_activity_net_metadata_dicts, create_youtube8m_metadata_dicts, create_20bn_metadata_dicts, create_ucf101_metadata_dicts
-import utils.io_handler as io_handler
-from joblib import Parallel, delayed
-import multiprocessing
-from pprint import pprint
+from tensorflow.python.platform import app
+from tensorflow.python.platform import flags
+from tensorflow.python.platform import gfile
+
+from data_prep.video_preparation import create_activity_net_metadata_dicts, create_youtube8m_metadata_dicts, \
+  create_20bn_metadata_dicts, create_ucf101_metadata_dicts
+from utils.helpers import chunks
+from utils.io_handler import get_meta_info
+from utils.video import compute_dense_optical_flow, getVideoCapture, getNextFrame
 
 NUM_CORES = multiprocessing.cpu_count()
 FLAGS = None
@@ -234,11 +236,6 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
 
   return np.array(data), meta_info
 
-def chunks(l, n):
-  """Yield successive n-sized chunks from l.
-  Used to create n sublists from a list l"""
-  for i in range(0, len(l), n):
-    yield l[i:i + n]
 
 def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, video_filenames=None, dense_optical_flow=False):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
@@ -281,68 +278,6 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,
                             total_batch_number)
-
-def get_meta_info(filename, type=None, meta_dict = None):
-  """extracts meta information from video file names or from dictionary
-  :param filename: one absolute path to a file of type string
-  :param use_meta: boolean that indicates whether meta info shall be included
-  :returns dict with metadata information
-  """
-  base = os.path.basename(filename)
-  if type:
-
-    if type == 'flyingshapes': #parse file name to extract meta info
-      m = re.search('(\d+)_(\w+)_(\w+)_(\w+)_(\w+)_(\w+)_(\d+\.\d+)', base)
-      assert m.lastindex >= 7
-      meta_info = {'id': m.group(1),
-                  'shape': m.group(2),
-                  'color': m.group(3),
-                  'start_location': m.group(4),
-                  'end_location': m.group(5),
-                  'motion_location': m.group(6),
-                  'eucl_distance': m.group(7)}
-    else: #look up video id in meta_dict
-      assert isinstance(meta_dict, dict), 'meta_dict must be a dict'
-      video_id = io_handler.get_video_id_from_path(base, type=type)
-      assert video_id in meta_dict, 'could not find meta information for video ' + video_id + ' in the meta_dict'
-      meta_info = meta_dict[video_id]
-      meta_info['id'] = base.replace('.avi', '').replace('.mp4', '')
-
-  else: # type=None --> only include video id as meta information
-    meta_info = {'id': io_handler.get_video_id_from_path(base)}
-
-  assert isinstance(meta_info, dict) and len(meta_info) > 0
-  return meta_info
-
-def getVideoCapture(path):
-    cap = None
-    if path:
-      cap = cv2.VideoCapture(path)
-    return cap
-
-
-def getNextFrame(cap):
-  ret, frame = cap.read()
-  if ret == False:
-    return None
-
-  return np.asarray(frame)
-
-
-def compute_dense_optical_flow(prev_image, current_image):
-  old_shape = current_image.shape
-  prev_image_gray = cv2.cvtColor(prev_image, cv2.COLOR_BGR2GRAY)
-  current_image_gray = cv2.cvtColor(current_image, cv2.COLOR_BGR2GRAY)
-  assert current_image.shape == old_shape
-  hsv = np.zeros_like(prev_image)
-  hsv[..., 1] = 255
-
-  flow = cv2.calcOpticalFlowFarneback(prev_image_gray, current_image_gray, 0.8, 15, 5, 10, 5, 1.5, 0)
-
-  mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-  hsv[..., 0] = ang*180/np.pi/2
-  hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
-  return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 
 def main(argv):

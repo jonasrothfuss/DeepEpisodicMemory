@@ -26,3 +26,10 @@ def remove_items_from_dict(string_dict, strings_to_remove):
 def get_available_gpus():
   local_device_protos = device_lib.list_local_devices()
   return [x.name for x in local_device_protos if x.device_type == 'GPU']
+
+
+def chunks(l, n):
+  """Yield successive n-sized chunks from l.
+  Used to create n sublists from a list l"""
+  for i in range(0, len(l), n):
+    yield l[i:i + n]

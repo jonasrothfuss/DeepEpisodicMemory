@@ -16,6 +16,7 @@ from moviepy.editor import VideoFileClip
 import glob as glob
 from PIL import Image
 from settings import FLAGS
+import cv2 as cv2
 
 
 def get_subdirectory_files(dir, depth=1):
@@ -485,5 +486,45 @@ def generate_batch_from_dir(path, suffix="*.png"):
     if im.size != (FLAGS.height, FLAGS.width):
       im = im.resize((FLAGS.height, FLAGS.width), Image.ANTIALIAS)
       print("image " + str(filename) + " has a different shape than expected -> reshape to (%i,%i)"%(FLAGS.height, FLAGS.width))
+
+    # dense optical flow
+    if FLAGS.num_channels == 4:
+
+      image_with_flow = image.copy()
+      image_with_flow = np.concatenate((image_with_flow, np.expand_dims(frameFlow, axis=2)), axis=2)
+
     batch[0, i, :, :, :] = np.asarray(im, np.uint8)
   return batch
+
+
+def get_meta_info(filename, type=None, meta_dict = None):
+  """extracts meta information from video file names or from dictionary
+  :param filename: one absolute path to a file of type string
+  :param use_meta: boolean that indicates whether meta info shall be included
+  :returns dict with metadata information
+  """
+  base = os.path.basename(filename)
+  if type:
+
+    if type == 'flyingshapes': #parse file name to extract meta info
+      m = re.search('(\d+)_(\w+)_(\w+)_(\w+)_(\w+)_(\w+)_(\d+\.\d+)', base)
+      assert m.lastindex >= 7
+      meta_info = {'id': m.group(1),
+                  'shape': m.group(2),
+                  'color': m.group(3),
+                  'start_location': m.group(4),
+                  'end_location': m.group(5),
+                  'motion_location': m.group(6),
+                  'eucl_distance': m.group(7)}
+    else: #look up video id in meta_dict
+      assert isinstance(meta_dict, dict), 'meta_dict must be a dict'
+      video_id = io_handler.get_video_id_from_path(base, type=type)
+      assert video_id in meta_dict, 'could not find meta information for video ' + video_id + ' in the meta_dict'
+      meta_info = meta_dict[video_id]
+      meta_info['id'] = base.replace('.avi', '').replace('.mp4', '')
+
+  else: # type=None --> only include video id as meta information
+    meta_info = {'id': io_handler.get_video_id_from_path(base)}
+
+  assert isinstance(meta_info, dict) and len(meta_info) > 0
+  return meta_info

@@ -41,6 +41,7 @@ def main(argv):
     print('Reusing provided session directory:', output_dir)
     subdir = create_subfolder(output_dir, 'valid_run')
     print('Storing validation data in:', subdir)
+    validate(output_dir, initializer, val_model)
 
   # ---- feeding  ----- #
   if FLAGS.mode is "feeding_mode":

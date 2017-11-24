@@ -1,6 +1,8 @@
-import os, subprocess
-import utils.io_handler as io
 import itertools
+import os
+import subprocess
+
+import utils.io_handler as io
 
 AVI_SOURCE_DIR = '/data/rothfuss/data/ArmarExperiences/videos/memory'
 TARGET_DIR = '/data/rothfuss/data/ArmarExperiences/videos/memory_augmented'
@@ -27,3 +29,6 @@ for file in avi_files:
       print("%i: "%i +  "Sucessfully augmented " + file)
     except Exception as e:
       print("%i: "%i + "Could not augment " + file + " --- " + str(e))
+
+
+

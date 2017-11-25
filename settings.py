@@ -13,7 +13,7 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 DUMP_DIR = '/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences'
 TF_RECORDS_DIR = '/data/rothfuss/data/ArmarExperiences/tf_records/tf_records_memory'
-MODE = 'valid_mode'
+MODE = 'feeding_mode'
 VALID_MODE = 'memory_prep' #'data_frame gif'
 
 NUM_IMAGES = 15
@@ -32,6 +32,9 @@ FINE_TUNING_WEIGHTS_LIST = None
 #                       'train_model/decoder_reconst/conv4', 'train_model/decoder_reconst/convlstm5', 'train_model/decoder_reconst/upconv5',
 #                       'train_model/decoder_reconst/upconv4']
 
+# FEEDING
+INPUT_DIR = "/common/homes/students/rothfuss/Documents/example/input"
+MEMORY_PATH = "/common/homes/students/rothfuss/Documents/example/memory/metadata_and_hidden_rep_df_11-24-17_18-59-00.pickle"
 
 
 # --- INFORMAL LOCAL VARIABLES --- #
@@ -64,7 +67,7 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_integer('batch_size', 30, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 80, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 99, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', len(helpers.get_available_gpus()), 'specifies the number of available GPUs of the machine')
@@ -114,6 +117,10 @@ flags.DEFINE_string('exclude_from_restoring', EXCLUDE_FROM_RESTORING,
                     'variable names to exclude from saving and restoring')
 flags.DEFINE_string('fine_tuning_weights_list', FINE_TUNING_WEIGHTS_LIST,
                     'variable names (layer scopes) that should be trained during fine-tuning')
+
+# --- FEEDING SPECIFICATION --- #
+flags.DEFINE_string('feeding_input_dir', INPUT_DIR, 'specify the path to where the input frames are stored')
+flags.DEFINE_string('memory_path', MEMORY_PATH, 'specify the path to where the input frames are stored')
 
 
 assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a directory"

@@ -9,7 +9,7 @@ import data_postp.similarity_computations as similarity_computations
 import utils.helpers as helpers
 from core.Model import *
 from data_prep.TFRW2Images import createGif
-from utils.io_handler import create_session_dir, create_subfolder, store_output_frames_as_gif, write_metainfo, store_latent_vectors_as_df, \
+from utils.io_handler import create_subfolder, store_output_frames_as_gif, store_latent_vectors_as_df, \
   store_encoder_latent_vector, file_paths_from_directory, write_file_with_append, bgr_to_rgb
 
 
@@ -129,13 +129,13 @@ def validate(output_dir, initializer, val_model):
         hidden_representations_new, labels_new, metadata_new, orig_frames = initializer.sess.run(
           [val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
 
-        video_file_path.append(["original_clip_%s.gif" % str(l) for l in labels])
+        video_file_path.extend(["original_clip_%s.gif" % str(l.decode('utf-8')) for l in labels])
         hidden_representations = np.concatenate((hidden_representations, hidden_representations_new))
         labels = np.concatenate((labels, labels_new))
         metadata = np.concatenate((metadata, metadata_new))
         createGif(np.asarray(orig_frames)[:,:,:, :, :3], labels, output_dir)
 
-      store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
+      store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, video_file_paths=np.asarray(video_file_path))
 
     if 'data_frame' in FLAGS.valid_mode:
       #evaluate multiple batches to cover all available validation samples

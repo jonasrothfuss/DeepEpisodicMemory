@@ -9,17 +9,24 @@ from data_postp import similarity_computations
 
 class Memory:
 
-  def __init__(self, memory_df, label_col="category", inter_class_pca_path=None):
+  def __init__(self, memory_df, base_dir, label_col="category", video_path_col="video_file_path", inter_class_pca_path=None):
     ''' Initializes the Memory class
     :param memory_df: pandas dataframe that contains the hidden_reps, labels and video_paths of the episodes
-    :param label_col:
+    :param label_col: specifies the label column name within the df
+    :param video_path_col: specifies the video path column name within the df
+    :param inter_class_pca_path: specifies the path to the model object of a previously trained PCA
     '''
     assert label_col in memory_df.columns, str(label_col) + ' must be a dataframe category'
     assert isinstance(memory_df, pd.DataFrame)
 
     self.memory_df = memory_df
     self.hidden_reps = np.stack([h.flatten() for h in memory_df['hidden_repr']])
-    self.labels = memory_df[label_col]
+    self.labels = memory_df[["id", label_col]]
+    self.labels.set_index('id')
+    self.video_paths = memory_df[["id", video_path_col]]
+    self.video_paths.set_index('id')
+    self.base_dir = base_dir
+
 
     #get fitted PCA object
     if inter_class_pca_path:
@@ -30,6 +37,13 @@ class Memory:
 
     # PCA transform the hidden_reps
     self.hidden_reps_transformed = self.inter_class_pca.transform(self.hidden_reps)
+
+    self.check_memory_sanity()
+
+  def check_memory_sanity(self):
+    num_vids_found = np.sum([os.path.isfile( os.path.join(self.base_dir, v_path) ) for v_path in self.video_paths["video_file_path"].values])
+    num_episodes = self.labels.shape[0]
+    print("Memory contains %i episodes. Video file exists for %i out of %i episodes" % (num_episodes, num_vids_found, num_episodes))
 
   def store_episodes(self, ids, hidden_reps, metadata_dicts, video_file_paths):
     '''
@@ -60,9 +74,13 @@ class Memory:
     '''
     finds the closest vector matches (cos_similarity) for a given query vector
     :param query_hidden_repr: the query vector
-    :param n_clostest_matches: (optional) the number of closest matches returned
+    :param n_clostest_matches: (optional) the number of closest matches returned, defaults to 5
     :param use_transform: boolean that denotes whether the matching shall performed on transformed hidden vectors
-    :return: two arrays, the first containing the n_clostest_matches and the second containing the hidden_reps
+    :return: four arrays, containing:
+          1. the n_clostest_matches by id
+          2. the n_closest_matches by computed pairwise cos distance
+          3. the n_closest_matches hidden representations
+          4. the n_closest_matches absolute paths to the memory episodes in the base directory of the memory
     '''
 
     query_hidden_repr = np.expand_dims(query_hidden_repr, axis=0)
@@ -76,10 +94,14 @@ class Memory:
     assert memory_hidden_reps.shape[1] == query_hidden_repr.shape[1]
 
     cos_distances = pairwise_distances(memory_hidden_reps, query_hidden_repr, metric='cosine')[:,0] #shape(n_episodes, 1)
-    # get indices of n maximum values in ndarray
-    indices_closest = cos_distances.argsort()
+    # get indices of n maximum values in ndarray, reverse the list (highest is leftmost)
+    indices_closest = cos_distances.argsort()[:-n_closest_matches:-1]
 
-    return indices_closest, cos_distances[indices_closest], memory_hidden_reps[indices_closest]
+    relative_paths = self.video_paths.iloc[indices_closest]["video_file_path"].values
+    absolute_paths = [os.path.join(self.base_dir, path) for i, path in enumerate(relative_paths)]
+
+    return indices_closest, cos_distances[indices_closest], memory_hidden_reps[indices_closest], absolute_paths
+
 
 def mean_vectors_of_classes(hidden_reps, labels):
   """
@@ -109,17 +131,3 @@ def fit_inter_class_pca(hidden_reps, labels, n_components=50, verbose=False, dum
   if dump_path:
     joblib.dump(pca, dump_path)
   return pca
-
-if __name__ == '__main__':
-  memory_df = pd.read_pickle('/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences/metadata_and_hidden_rep_df_11-24-17_14-00-34.pickle')
-  #m = Memory(memory_df)
-  #query = m.hidden_reps[2,:]
-  #print(m.matching(query))
-  #result = m.matching(m.hidden_reps[1,:])
-
-  video_names = ["original_clip_%s.gif"%str(i) for i in memory_df['id']]
-  print(video_names)
-  files = io_handler.files_from_directory('/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences', '*.gif')
-  files = sorted(files)
-
-  print(set(video_names)-set(files))

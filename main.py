@@ -1,11 +1,14 @@
 import tensorflow as tf
+import pandas as pd
+import numpy as np
 from tensorflow.python.platform import app
 
 from core.Initializer import Initializer
 from core.Model import create_model
 from core.development_op import train, validate
-from core.production_op import feed
+from core.production_op import feed, create_batch_and_feed
 from settings import FLAGS
+from core.Memory import Memory
 from utils.io_handler import create_session_dir, create_subfolder, write_metainfo, generate_batch_from_dir
 
 
@@ -48,12 +51,22 @@ def main(argv):
   # ---- feeding  ----- #
   if FLAGS.mode is "feeding_mode":
     tf.logging.info(' --- ' + FLAGS.mode.capitalize() + ' --- ')
-    batch_input_dir = '/common/homes/students/rothfuss/Documents/training_tests/input_data/images/2'
-    feed_batch = generate_batch_from_dir(batch_input_dir, suffix='*.jpg')
-    print(feed_batch.shape)
-    assert FLAGS.pretrained_model
-    hidden_repr = feed(feed_batch, initializer, feeding_model)
-    print(hidden_repr)
+
+    """ scenario 1: feed input from a directory to create hidden representations of query  """
+    hidden_repr = create_batch_and_feed(initializer, feeding_model)
+    print("output of model has shape: " + str(np.shape(hidden_repr)))
+
+    """ scenario 2: load the memory and query it with the hidden reps to get nearest neighbours  """
+    # alternatively, run a validation with the 'memory_prep' VALID MODE (settings) and set memory path in settings
+    assert FLAGS.memory_path
+    memory_df = pd.read_pickle(FLAGS.memory_path)
+    memory = Memory(memory_df, '/common/homes/students/rothfuss/Documents/example/base_dir')
+
+    # choose e.g. first hidden representation
+    query = hidden_repr[0]
+    _, cos_distances, _, paths = memory.matching(query)
+    print(cos_distances, paths)
+
 
 
 if __name__ == '__main__':

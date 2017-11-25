@@ -218,7 +218,7 @@ def store_dataframe(dataframe, output_dir, file_name):
   print("Dumped df pickle to ", full_path)
 
 
-def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, video_file_paths=None, filename = None):
+def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, video_file_paths=None, filename=None):
   """" exports the latent representation of the last encoder layer (possibly activations of fc layer if fc-flag activated)
   and the video metadata as a pandas dataframe in python3 pickle format
 
@@ -239,7 +239,10 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   hidden_representations = [hidden_representations[i] for i in
                             range(hidden_representations.shape[0])]  # converts 2d ndarray to list of 1d ndarrays
 
-  hidden_rep_df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations})
+  if video_file_paths is not None:
+    hidden_rep_df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations, 'video_file_path': video_file_paths})
+  else:
+    hidden_rep_df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations})
   hidden_rep_df['label'] = hidden_rep_df['label'].map(lambda x: x.decode('utf-8'))
 
   # create dataframe from metadata
@@ -251,9 +254,6 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
 
   if 'label_x' in df.columns:
     df = df.drop_duplicates('label_x')
-
-  if video_file_paths:
-    df['video_file_path'] = video_file_paths
 
   if not filename:
     filename = os.path.join(output_dir, 'metadata_and_hidden_rep_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')

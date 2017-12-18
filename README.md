@@ -9,7 +9,7 @@ Use it to run training, validation and feeding cycles. Set hyperparameters and c
 + **core/development_op.py**
 Train and validation code to train and test the memory
 + **core/production_op.py**
-Feeding code, used for querying the memory, e.g. for demonstrations, allows changes for running an ICE service
+Feeding code, used for querying the memory (meant for e.g. demonstrations), allows adapatations for accessing the memory over a network (e.g. with an ICE service)
 + **models**
   directory containing files for loss functions (mse, gradient difference loss, decoder/encoder loss, PSNR) and basic lstm cell
 + **models/model_zoo**

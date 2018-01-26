@@ -1067,28 +1067,32 @@ def get_query_matching_table(df, df_query, class_column='shape', n_closest_match
   assert 'hidden_repr' in df.columns and class_column in df.columns
   assert 'hidden_repr' in df_query.columns and df_query_label in df_query.columns and df_query_id in df_query.columns
 
-  columns = ["id", "true_class"]
-  columns += [("match {}".format(i) + " pred_class") for i in range(1, n_closest_matches + 1)]
+  columns = [["id{}".format(i), "pred_class{}".format(i)] for i in range(1, n_closest_matches + 1)]
+  columns = [e for entry in columns for e in entry] # flatten list in list
+  columns[:0] = ["id", "true_class"]
 
   query_matching_df = pd.DataFrame(columns=columns)
-  query_matching_df.set_index('id')
-
+  query_matching_df.set_index('id', 'true_class')
 
   for hidden_repr, label, id in zip(df_query['hidden_repr'], df_query[df_query_label], df_query[df_query_id]):
     closest_vectors = find_closest_vectors(df, hidden_repr=hidden_repr, class_column=class_column,
                                            n_closest_matches=n_closest_matches)
 
-    matching_labels = [tpl[1] for tpl in closest_vectors]
-    matching_labels[:0] = [id, label]
 
-    row_data = dict(zip(columns, matching_labels))
+    matching_results = [[tpl[2], tpl[1]] for tpl in closest_vectors]
+    matching_results = sum(matching_results, [])  #flatten
+    matching_results[:0] = [id, label]
+
+    row_data = dict(zip(columns, matching_results))
     query_matching_df = query_matching_df.append(row_data, ignore_index=True)
 
   return query_matching_df
 
 
-
-
+def compute_average_precision_score(df, true_class_column="true_class", pred_class_column="pred_class1"):
+  y_true = (df[pred_class_column] == df[true_class_column])
+  y_score = sklearn.metrics.precision_score(df[true_class_column], df[pred_class_column], average="micro")
+  return sklearn.metrics.average_precision_score(y_true, y_score)
 
 
 def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, target_dir, input_image_dir,
@@ -1275,11 +1279,12 @@ def main():
   #FLAGS.pickle_file_test = '/common/homes/students/rothfuss/Documents/selected_trainings/actNet_20bn_gdl/validate/matching_half_actions/metadata_and_hidden_rep_df_08-04-17_14-10-39.pickle'
 
   df = pd.read_pickle(FLAGS.pickle_file_test)
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_16-17-12_test.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle')
 
 
   df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=50)
-  df = get_query_matching_table(df, df_val, class_column="category")
+  df = get_query_matching_table(df[:100], df_val[:100], class_column="category")
+  score = compute_average_precision_score(df)
   print(df)
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'

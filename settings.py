@@ -14,7 +14,7 @@ OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run'
 TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
 MODE = 'valid_mode'
-VALID_MODE = 'vector' #'data_frame gif'
+VALID_MODE = 'data_frame' #'data_frame gif'
 
 NUM_IMAGES = 15
 NUM_DEPTH = 4

@@ -11,10 +11,10 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
-DUMP_DIR = '/common/homes/students/rothfuss/Documents/Episodic_Memory/Armar_Experiences'
-TF_RECORDS_DIR = '/data/rothfuss/data/ArmarExperiences/tf_records/tf_records_memory'
-MODE = 'feeding_mode'
-VALID_MODE = 'memory_prep' #'data_frame gif'
+DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run'
+TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
+MODE = 'valid_mode'
+VALID_MODE = 'vector' #'data_frame gif'
 
 NUM_IMAGES = 15
 NUM_DEPTH = 4
@@ -34,7 +34,7 @@ FINE_TUNING_WEIGHTS_LIST = None
 
 # FEEDING
 INPUT_DIR = "/common/homes/students/rothfuss/Documents/example/input"
-MEMORY_PATH = "/common/homes/students/rothfuss/Documents/example/memory/metadata_and_hidden_rep_df_11-24-17_18-59-00.pickle"
+MEMORY_PATH = "/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
 
 
 # --- INFORMAL LOCAL VARIABLES --- #
@@ -151,3 +151,4 @@ if FLAGS.exclude_from_restoring:
 
 if FLAGS.fine_tuning_weights_list:
   warnings.warn("fine_tuning_weights_list is not empty -> layers may be omitted from training")
+

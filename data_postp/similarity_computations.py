@@ -31,7 +31,7 @@ PLOT_SETTING = ["one_fig", "one_fig_subplots", "multiple_fig"]
 
 # PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/06-09-17_16-10_1000fc_noise_20bn_v2/validate/metadata_and_hidden_rep_from_train_clean_grouped.pickle'
 PICKLE_FILE_TRAIN = '/common/homes/students/rothfuss/Documents/training/07-21-17_15-07_330k_iters_mse_matching/valid_run_orig/metadata_and_hidden_rep_df_07-27-17_15-51-00_train_cleaned.pickle'
-PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-14-17_17-38-26_all_augmented_valid.pickle'
+PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle'
 #PICKLE_FILE_TEST = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle'
 FULL_CLASSIFIER_ANALYSIS_JSON = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/validate/results_with_finetuning_data/full_classifier_analysis_0.8_class_column_category_2017-08-06_20-56-52.json'
 PICKLE_DIR_MAIN = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/'
@@ -1054,6 +1054,43 @@ def closest_vector_analysis(df, df_query=None, class_column='shape', n_closest_m
       pprint(closest_vectors)
 
 
+def get_query_matching_table(df, df_query, class_column='shape', n_closest_matches=5, df_query_label="category", df_query_id="id"):
+  """
+  Yields a pandas dataframe in which each row contains the n_closest_matches as a result from querying the df for every single
+  hidden representation in the df dataframe. In addition, every row contains the true label and the query id.
+  :param df: the df to be queried
+  :param df_query: the df from which to query
+  :return: pandas dataframe with columns ("id", "true_label", "match i pred_class" for i=1,...,n_closest_matches) and
+  number of rows equal to df_query rows
+  """
+  assert df is not None and df_query is not None
+  assert 'hidden_repr' in df.columns and class_column in df.columns
+  assert 'hidden_repr' in df_query.columns and df_query_label in df_query.columns and df_query_id in df_query.columns
+
+  columns = ["id", "true_class"]
+  columns += [("match {}".format(i) + " pred_class") for i in range(1, n_closest_matches + 1)]
+
+  query_matching_df = pd.DataFrame(columns=columns)
+  query_matching_df.set_index('id')
+
+
+  for hidden_repr, label, id in zip(df_query['hidden_repr'], df_query[df_query_label], df_query[df_query_id]):
+    closest_vectors = find_closest_vectors(df, hidden_repr=hidden_repr, class_column=class_column,
+                                           n_closest_matches=n_closest_matches)
+
+    matching_labels = [tpl[1] for tpl in closest_vectors]
+    matching_labels[:0] = [id, label]
+
+    row_data = dict(zip(columns, matching_labels))
+    query_matching_df = query_matching_df.append(row_data, ignore_index=True)
+
+  return query_matching_df
+
+
+
+
+
+
 def closest_vector_analysis_with_file_transfer(df, df_query, base_dir_20bn, target_dir, input_image_dir,
                                                class_column='shape', n_closest_matches=5):
   for hidden_repr, label in zip(df_query['hidden_repr'], df_query['label']):
@@ -1241,7 +1278,7 @@ def main():
   #df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/'
   #                        'metadata_and_hidden_rep_df_08-10-17_12-17-36_half_actions_old_episodes_optical_flow_valid.pickle')
 
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-18-17_00-25-22_half_actions_new_episodes_6_6_5_starting_from_8.pickle')
+  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-14-17_16-17-12_test.pickle')
 
   base_dir_20bn = '/PDFData/rothfuss/data/20bn-something-something-v1'
   #target_dir = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/composite_matching/matching_armar_old'
@@ -1253,8 +1290,8 @@ def main():
   #msk = np.random.rand(len(df)) < 0.7
   #test_df = df[~msk]
   #train_df = df[msk]
-  df_val['category'] = ['armar_setting' for _ in range(len(df_val))]
-  closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=50, n_pca_classifier=100)
+  #df_val['category'] = ['armar_setting' for _ in range(len(df_val))]
+  #closest_vector_analysis_composite(df, df_val, base_dir_20bn, target_dir, class_column='category', n_pca_matching=50, n_pca_classifier=100)
 
   '''
   df = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/validate/matching/metadata_and_hidden_rep_df_08-11-17_10-16-00_65_trials_with_optical_flow_valid.pickle')
@@ -1306,8 +1343,11 @@ def main():
 
   #classifier_analysis(df, "category")
 
-  # transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
-  # closest_vector_analysis(transformed_df, class_column="category")
+  #transformed_df = transform_vectors_with_inter_class_pca(df, class_column="category", n_components=20)
+
+  df, df_val = transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=50)
+  df = get_query_matching_table(df, df_val, class_column="category")
+  print(df)
 
   # test_df = pd.read_pickle(FLAGS.pickle_file_test)
   # train_df = pd.read_pickle(FLAGS.pickle_file_train)

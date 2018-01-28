@@ -30,3 +30,5 @@ def dnq_metric(sim_matr):
   np.fill_diagonal(sim_matr_rad, np.zeros(sim_matr_rad.shape[0]))
   non_diag_mean = np.sum(sim_matr_rad) / float(sim_matr_rad.shape[0] * (sim_matr_rad.shape[0] - 1))
   return (1 - diag_mean / non_diag_mean)
+
+

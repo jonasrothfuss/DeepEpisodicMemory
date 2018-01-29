@@ -6,6 +6,28 @@ from tensorflow.python.platform import flags
 FLAGS = flags.FLAGS
 
 
+def compute_mean_average_precision(df, match_matrix=False, column_keyword="pred_class"):
+  assert df is not None
+  """
+  either provide a pandas dataframe with shape (n, m) with n being the number of queries, m being the number of columns
+  or provide a matrix with true/false values with the same shape as above representing the matching between true class labels
+  and predicted class labels.
+  """
+  if not match_matrix:
+    df_pred_classes = df.filter(like=column_keyword)
+    n_relevant_documents = len(df_pred_classes.columns)
+    matches = df_pred_classes.isin(df.true_class).as_matrix()
+  else:
+    n_relevant_documents = np.shape(df)[1]
+    matches = df
+
+  P = np.zeros(shape=matches.shape)
+  for k in range(n_relevant_documents):
+    P[:, k] = np.mean(matches[:, :k], axis=1)
+
+  return np.mean(np.multiply(P, matches))
+
+
 def get_y_true_y_pred(df, true_class_column="true_class", column_keyword="pred_class"):
   assert df is not None
   df_true_classes = df.filter(like=true_class_column)
@@ -13,6 +35,7 @@ def get_y_true_y_pred(df, true_class_column="true_class", column_keyword="pred_c
   all_classes = np.unique(pd.concat([df_true_classes, df_pred_classes], axis=1))
 
   matches = df_pred_classes.isin(df.true_class)
+
 
   df_y_true = pd.DataFrame(np.full((len(df.index), len(all_classes)), False), columns=all_classes)
   for i, row in matches.iterrows():
@@ -29,19 +52,6 @@ def get_y_true_y_pred(df, true_class_column="true_class", column_keyword="pred_c
 
   return df_y_true.as_matrix(), df_y_pred.as_matrix(), all_classes
 
-
-def compute_average_precision_score(y_true, y_pred, labels):
-  assert len(y_true) == len(y_pred)
-  """ the array returned contains precisions that are estimated in binary mode, meaining:
-  if the true class is also marked true somewhere among the 5 matches, precision is 1/5"""
-  y_score = [sklearn.metrics.precision_score(y_true[i], y_pred[i], labels=list(labels), average=None) for i in
-       range(len(y_true))]
-
-  """ generate random true/false matrix"""
-  a = np.random.rand(np.shape(y_true)[0], np.shape(y_true)[1]) > 0.5
-  print(sklearn.metrics.average_precision_score(a, y_pred)) # ~0.5
-
-  return sklearn.metrics.average_precision_score(y_true, y_score)
 
 
 def get_query_matching_table(df, df_query, class_column='shape', n_closest_matches=5, df_query_label="category", df_query_id="id"):
@@ -80,14 +90,20 @@ def get_query_matching_table(df, df_query, class_column='shape', n_closest_match
 
 
 def main():
-  df = pd.read_pickle(FLAGS.pickle_file_test)
-  df_val = pd.read_pickle('/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-12-17_02-50-16_selected_10_classes_eren_augmented_valid.pickle')
+  valid_file="/common/homes/students/ferreira/Documents/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
+  df = pd.read_pickle(valid_file)
 
-  df, df_val = similarity_computations.transform_vectors_with_inter_class_pca(df, df_val, class_column='category', n_components=50)
-  df = get_query_matching_table(df[:500], df_val[:500], class_column="category")
-  y_true, y_pred, labels = get_y_true_y_pred(df)
-  aps = compute_average_precision_score(y_true, y_pred, labels)
-  print("the mean average precision score is: ", aps)
+  # create own train/test split
+  msk = np.random.rand(len(df)) < 0.8
+  test_df = df[~msk]
+  print("number of test samples: ", np.shape(test_df)[0])
+  train_df = df[msk]
+  print("number of train samples: ", np.shape(train_df)[0])
+
+  df, df_val = similarity_computations.transform_vectors_with_inter_class_pca(train_df, test_df, class_column='category', n_components=50)
+  df = get_query_matching_table(df[:100], df_val[:100], class_column="category")
+  print(compute_mean_average_precision(df))
+
 
 
 if __name__ == "__main__":

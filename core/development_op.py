@@ -154,6 +154,10 @@ def validate(output_dir, initializer, val_model):
       psnr_reconstruction = []
       psnr_future = []
 
+      orig_rec_mean = []
+      orig_fut_mean = []
+
+
       num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
         (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
       for i in range(num_val_batches_required):
@@ -169,10 +173,32 @@ def validate(output_dir, initializer, val_model):
           psnr_reconstruction.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]))
           psnr_future.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]))
 
-      psnr_reconstruction_means = np.mean(np.stack(psnr_reconstruction), axis=0)
-      psnr_future_means = np.mean(np.stack(psnr_future), axis=0)
+          """ mean computations """
+          mean_frame_orig_rec = np.mean([frame for frame in orig_rec_video_frames], axis=0)
+          mean_frame_orig_fut = np.mean([frame for frame in orig_fut_video_frames], axis=0)
 
-      write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
+          # psnr for frame 1-5 to the mean of the frames
+          orig_rec_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_rec, bgr_to_rgb(recon_frame), color_depth=255) for recon_frame
+                                          in recon_video_frames]))
+
+          orig_fut_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_fut, bgr_to_rgb(fut_frame), color_depth=255) for fut_frame
+                                           in future_video_frames]))
+
+
+
+      psnr_reconstruction_means = np.mean(np.stack(psnr_reconstruction), axis=0)
+      psnr_rec_stds = np.std(np.stack(psnr_reconstruction), axis=0)
+
+      psnr_future_means = np.mean(np.stack(psnr_future), axis=0)
+      psnr_fut_stds = np.std(np.stack(psnr_future), axis=0)
+
+      orig_rec_means = np.mean(np.stack(orig_rec_mean), axis=0)
+      orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
+
+      write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means +
+                                      "\n std psnr recon: " + str(psnr_rec_stds) + "\n std psnr future: " + str(psnr_fut_stds) +
+                                      "\norig rec to mean: " + str(orig_rec_means)) + "\norig fut to mean: " + str(orig_fut_means) )
+
       print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       tf.logging.info('Added psnr values to log file ' + str(log_file))
 

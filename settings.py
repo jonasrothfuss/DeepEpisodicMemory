@@ -11,19 +11,21 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
-DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run'
-TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
+DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl'
+#TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow'
+#TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150_optical_flow"
+TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid"
 MODE = 'valid_mode'
-VALID_MODE = 'data_frame' #'data_frame gif'
+VALID_MODE = 'psnr' #'data_frame gif'
 
 NUM_IMAGES = 15
-NUM_DEPTH = 4
+NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -81,7 +83,7 @@ flags.DEFINE_integer('decoder_future_length', 5,
                     'specifies how many images the future prediction decoder receives, defaults to 5')
 flags.DEFINE_integer('decoder_reconst_length', 5,
                     'specifies how many images the reconstruction decoder receives, defaults to 5')
-flags.DEFINE_integer('num_channels', 4, 'number of channels in the input frames')
+flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames')
 flags.DEFINE_bool('fc_layer', True,
                   'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')

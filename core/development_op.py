@@ -195,9 +195,9 @@ def validate(output_dir, initializer, val_model):
       orig_rec_means = np.mean(np.stack(orig_rec_mean), axis=0)
       orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
 
-      write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means +
+      write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means) +
                                       "\n std psnr recon: " + str(psnr_rec_stds) + "\n std psnr future: " + str(psnr_fut_stds) +
-                                      "\norig rec to mean: " + str(orig_rec_means)) + "\norig fut to mean: " + str(orig_fut_means) )
+                                      "\norig rec to mean: " + str(orig_rec_means) + "\norig fut to mean: " + str(orig_fut_means))
 
       print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       tf.logging.info('Added psnr values to log file ' + str(log_file))

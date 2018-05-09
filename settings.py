@@ -11,14 +11,15 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
 
 # --- SPECIFY MANDATORY VARIABLES--- #
 OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
-DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/3_actNet_mse/valid_run'
-#TF_RECORDS_DIR = '/PDFData/rothfuss/data/20bn-something/tf_records_train_optical_flow"
+DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/valid_run'
+TF_RECORDS_DIR = '/localhome/rothfuss/data/20bn-something/tf_records_valid'
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150_optical_flow"
-TF_RECORDS_DIR = "/PDFData/rothfuss/data/activity_net/tf_records_valid_150"
-#TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150"
+#TF_RECORDS_DIR = "/PDFData/rothfuss/data/activity_net/tf_records_valid_150"
+TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150"
 MODE = 'valid_mode'
 VALID_MODE = 'psnr' #'data_frame gif'
 
+#NUM_IMAGES = 15
 NUM_IMAGES = 20
 NUM_DEPTH = 3
 WIDTH = 128
@@ -26,7 +27,7 @@ HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/3_actNet_mse"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -70,14 +71,14 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 
 # --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse_gdl', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_integer('batch_size', 1, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 150, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', len(helpers.get_available_gpus()), 'specifies the number of available GPUs of the machine')
 
-flags.DEFINE_integer('image_range_start', 5,
+flags.DEFINE_integer('image_range_start', 0,
                      'parameter that controls the index of the starting image for the train/valid batch')
 flags.DEFINE_integer('overall_images_count', 20,
                      'specifies the number of images that are available to create the train/valid batches')

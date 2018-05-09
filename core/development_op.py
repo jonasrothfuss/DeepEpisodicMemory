@@ -161,6 +161,7 @@ def validate(output_dir, initializer, val_model):
       num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
         (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
       for i in range(num_val_batches_required):
+        print("processing batch " + str(i) + " of " + str(num_val_batches_required) + " total batches.")
         output_frames, orig_frames = initializer.sess.run([val_model.output_frames, val_model.val_batch], feed_dict)
         video_count = orig_frames.shape[0]
 
@@ -174,10 +175,11 @@ def validate(output_dir, initializer, val_model):
           psnr_future.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]))
 
           """ mean computations """
+          # we compute the mean of a video sequence over its 5 rgb-frames (5,128,128,3), yielding a mean frame of shape (128,128,3)
           mean_frame_orig_rec = np.mean([frame for frame in orig_rec_video_frames], axis=0)
           mean_frame_orig_fut = np.mean([frame for frame in orig_fut_video_frames], axis=0)
 
-          # psnr for frame 1-5 to the mean of the frames
+          # we compute the psnr between the mean frame and each of the 5 rgb-frames
           orig_rec_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_rec, bgr_to_rgb(recon_frame), color_depth=255) for recon_frame
                                           in recon_video_frames]))
 
@@ -193,11 +195,16 @@ def validate(output_dir, initializer, val_model):
       psnr_fut_stds = np.std(np.stack(psnr_future), axis=0)
 
       orig_rec_means = np.mean(np.stack(orig_rec_mean), axis=0)
+      orig_rec_std = np.std(np.stack(orig_rec_mean), axis=0)
+
       orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
+      orig_fut_std = np.std(np.stack(orig_fut_mean), axis=0)
 
       write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means) +
-                                      "\n std psnr recon: " + str(psnr_rec_stds) + "\n std psnr future: " + str(psnr_fut_stds) +
-                                      "\norig rec to mean: " + str(orig_rec_means) + "\norig fut to mean: " + str(orig_fut_means))
+                                      "\nstd psnr recon: " + str(psnr_rec_stds) + "\nstd psnr future: " + str(psnr_fut_stds) +
+                                      "\nmean of psnr between orig rec mean and rec frames: " + str(orig_rec_means) + "\nmean psnr between orig fut mean and fut frames: " + str(orig_fut_means) +
+                                      "\nstd of psnr between orig rec mean and rec frames: " + str(orig_rec_std) + "\nstd of psnr between orig fut mean and fut frames: " + str(orig_fut_std)
+                             )
 
       print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))
       tf.logging.info('Added psnr values to log file ' + str(log_file))

@@ -89,6 +89,8 @@ def validate(output_dir, initializer, val_model):
   """
   assert val_model is not None and initializer is not None
 
+  initializer.start_saver()
+
   # Calculate number of validation samples
   valid_filenames = file_paths_from_directory(FLAGS.tf_records_dir, 'valid*')
   num_valid_samples = input.get_number_of_records(valid_filenames)
@@ -161,7 +163,7 @@ def validate(output_dir, initializer, val_model):
       num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
         (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
       for i in range(num_val_batches_required):
-        print("processing batch " + str(i) + " of " + str(num_val_batches_required) + " total batches.")
+        print("processing batch " + str(i+1) + " of " + str(num_val_batches_required) + " total batches.")
         output_frames, orig_frames = initializer.sess.run([val_model.output_frames, val_model.val_batch], feed_dict)
         video_count = orig_frames.shape[0]
 
@@ -169,7 +171,12 @@ def validate(output_dir, initializer, val_model):
           orig_rec_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length - FLAGS.decoder_reconst_length): (FLAGS.image_range_start +FLAGS.encoder_length), :, :, :3]
           orig_fut_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length):(FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length), :, :, :3]
           recon_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length - FLAGS.decoder_reconst_length):FLAGS.encoder_length, i, :, :, :3]
+          recon_video_frames = recon_video_frames.round().astype('uint8')
           future_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length):(FLAGS.encoder_length + FLAGS.decoder_future_length), i, :, :, :3]
+          future_video_frames = future_video_frames.round().astype('uint8')
+
+          #for j in range(recon_video_frames.shape[0]):
+          #  plt.imsave(os.path.join(output_dir, 'pic_' + str(i) + "_" + str(j)), recon_video_frames[j])
 
           psnr_reconstruction.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]))
           psnr_future.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]))

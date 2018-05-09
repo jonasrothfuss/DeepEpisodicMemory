@@ -199,7 +199,16 @@ def validate(output_dir, initializer, val_model):
 
       orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
       orig_fut_std = np.std(np.stack(orig_fut_mean), axis=0)
+      
 
+      print(psnr_reconstruction_means)
+      print(psnr_future_means)
+      print(psnr_rec_stds)
+      print(psnr_fut_stds)
+      print(orig_rec_means)
+      print(orig_fut_means)
+      print(orig_rec_std)
+      print(orig_fut_std)
       write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means) +
                                       "\nstd psnr recon: " + str(psnr_rec_stds) + "\nstd psnr future: " + str(psnr_fut_stds) +
                                       "\nmean of psnr between orig rec mean and rec frames: " + str(orig_rec_means) + "\nmean psnr between orig fut mean and fut frames: " + str(orig_fut_means) +

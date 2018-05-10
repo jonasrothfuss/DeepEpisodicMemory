@@ -89,6 +89,8 @@ def validate(output_dir, initializer, val_model):
   """
   assert val_model is not None and initializer is not None
 
+  initializer.start_saver()
+
   # Calculate number of validation samples
   valid_filenames = file_paths_from_directory(FLAGS.tf_records_dir, 'valid*')
   num_valid_samples = input.get_number_of_records(valid_filenames)
@@ -154,14 +156,19 @@ def validate(output_dir, initializer, val_model):
       psnr_reconstruction = []
       psnr_future = []
 
-      orig_rec_mean = []
-      orig_fut_mean = []
+      #orig_rec_mean = []
+      #orig_fut_mean = []
 
+      orig_rec_rand_mean = []
+      orig_fut_rand_mean = []
+
+      orig_rec_video_color_mean = []
+      orig_fut_video_color_mean = []
 
       num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
         (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
       for i in range(num_val_batches_required):
-        print("processing batch " + str(i) + " of " + str(num_val_batches_required) + " total batches.")
+        print("processing batch " + str(i+1) + " of " + str(num_val_batches_required) + " total batches.")
         output_frames, orig_frames = initializer.sess.run([val_model.output_frames, val_model.val_batch], feed_dict)
         video_count = orig_frames.shape[0]
 
@@ -169,22 +176,53 @@ def validate(output_dir, initializer, val_model):
           orig_rec_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length - FLAGS.decoder_reconst_length): (FLAGS.image_range_start +FLAGS.encoder_length), :, :, :3]
           orig_fut_video_frames = np.asarray(orig_frames)[i, (FLAGS.image_range_start + FLAGS.encoder_length):(FLAGS.image_range_start + FLAGS.encoder_length + FLAGS.decoder_future_length), :, :, :3]
           recon_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length - FLAGS.decoder_reconst_length):FLAGS.encoder_length, i, :, :, :3]
+          recon_video_frames = recon_video_frames.astype('uint8')
           future_video_frames = np.asarray(output_frames)[(FLAGS.encoder_length):(FLAGS.encoder_length + FLAGS.decoder_future_length), i, :, :, :3]
+          future_video_frames = future_video_frames.astype('uint8')
+
+          #for j in range(recon_video_frames.shape[0]):
+          #  plt.imsave(os.path.join(output_dir, 'pic_' + str(i) + "_" + str(j)), recon_video_frames[j])
 
           psnr_reconstruction.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_frame, bgr_to_rgb(recon_frame), color_depth=255) for orig_frame, recon_frame in zip(orig_rec_video_frames, recon_video_frames)]))
           psnr_future.append(np.asarray([metrics.peak_signal_to_noise_ratio(orig_fut_frame, bgr_to_rgb(fut_frame), color_depth=255) for orig_fut_frame, fut_frame in zip(orig_fut_video_frames, future_video_frames)]))
 
           """ mean computations """
           # we compute the mean of a video sequence over its 5 rgb-frames (5,128,128,3), yielding a mean frame of shape (128,128,3)
-          mean_frame_orig_rec = np.mean([frame for frame in orig_rec_video_frames], axis=0)
-          mean_frame_orig_fut = np.mean([frame for frame in orig_fut_video_frames], axis=0)
+          #mean_frame_orig_rec = np.mean([frame for frame in orig_rec_video_frames], axis=0)
+          #mean_frame_orig_fut = np.mean([frame for frame in orig_fut_video_frames], axis=0)
+
 
           # we compute the psnr between the mean frame and each of the 5 rgb-frames
-          orig_rec_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_rec, bgr_to_rgb(recon_frame), color_depth=255) for recon_frame
-                                          in recon_video_frames]))
+          #orig_rec_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_rec, bgr_to_rgb(recon_frame), color_depth=255) for recon_frame
+          #                                in recon_video_frames]))
 
-          orig_fut_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_fut, bgr_to_rgb(fut_frame), color_depth=255) for fut_frame
-                                           in future_video_frames]))
+          #orig_fut_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame_orig_fut, bgr_to_rgb(fut_frame), color_depth=255) for fut_frame
+          #                                 in future_video_frames]))
+
+
+          video_meaned_rec = orig_rec_video_frames.mean(axis=(0, 1, 2), keepdims=True)
+          mean_video_rec = np.tile(video_meaned_rec, (orig_rec_video_frames.shape[0], FLAGS.width, FLAGS.height, 1))
+
+          video_meaned_fut = orig_fut_video_frames.mean(axis=(0, 1, 2), keepdims=True)
+          mean_video_fut = np.tile(video_meaned_fut, (orig_fut_video_frames.shape[0], FLAGS.width, FLAGS.height, 1))
+
+          orig_rec_video_color_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame, bgr_to_rgb(recon_frame), color_depth=255)
+                                                 for mean_frame, recon_frame in zip(mean_video_rec, recon_video_frames)]))
+
+          orig_fut_video_color_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(mean_frame, bgr_to_rgb(fut_frame), color_depth=255)
+                        for mean_frame, fut_frame in zip(mean_video_fut, future_video_frames)]))
+
+
+
+          rand_frames1 = np.random.randint(0, 255, (recon_video_frames.shape[0], FLAGS.width, FLAGS.height, FLAGS.num_depth))
+          rand_frames2 = np.random.randint(0, 255, (future_video_frames.shape[0], FLAGS.width, FLAGS.height, FLAGS.num_depth))
+
+          orig_rec_rand_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(rand_frame, bgr_to_rgb(recon_frame), color_depth=255) for rand_frame, recon_frame
+                                          in zip(rand_frames1, recon_video_frames)]))
+
+          orig_fut_rand_mean.append(np.asarray([metrics.peak_signal_to_noise_ratio(rand_frame, bgr_to_rgb(fut_frame), color_depth=255) for rand_frame, fut_frame
+                                           in zip(rand_frames2, future_video_frames)]))
+
 
 
 
@@ -194,16 +232,36 @@ def validate(output_dir, initializer, val_model):
       psnr_future_means = np.mean(np.stack(psnr_future), axis=0)
       psnr_fut_stds = np.std(np.stack(psnr_future), axis=0)
 
-      orig_rec_means = np.mean(np.stack(orig_rec_mean), axis=0)
-      orig_rec_std = np.std(np.stack(orig_rec_mean), axis=0)
+      #orig_rec_means = np.mean(np.stack(orig_rec_mean), axis=0)
+      #orig_rec_std = np.std(np.stack(orig_rec_mean), axis=0)
 
-      orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
-      orig_fut_std = np.std(np.stack(orig_fut_mean), axis=0)
+      #orig_fut_means = np.mean(np.stack(orig_fut_mean), axis=0)
+      #orig_fut_std = np.std(np.stack(orig_fut_mean), axis=0)
+
+      orig_rec_color_means = np.mean(np.stack(orig_rec_video_color_mean), axis=0)
+      orig_rec_color_std = np.std(np.stack(orig_rec_video_color_mean), axis=0)
+
+      orig_fut_color_means = np.mean(np.stack(orig_fut_video_color_mean), axis=0)
+      orig_fut_color_std = np.std(np.stack(orig_fut_video_color_mean), axis=0)
+
+
+      orig_rec_rand_means = np.mean(np.stack(orig_rec_rand_mean), axis=0)
+      orig_rec_rand_std = np.std(np.stack(orig_rec_rand_mean), axis=0)
+
+      orig_fut_rand_means = np.mean(np.stack(orig_fut_rand_mean), axis=0)
+      orig_fut_rand_std = np.std(np.stack(orig_fut_rand_mean), axis=0)
+
+
 
       write_file_with_append(log_file, "mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means) +
                                       "\nstd psnr recon: " + str(psnr_rec_stds) + "\nstd psnr future: " + str(psnr_fut_stds) +
-                                      "\nmean of psnr between orig rec mean and rec frames: " + str(orig_rec_means) + "\nmean psnr between orig fut mean and fut frames: " + str(orig_fut_means) +
-                                      "\nstd of psnr between orig rec mean and rec frames: " + str(orig_rec_std) + "\nstd of psnr between orig fut mean and fut frames: " + str(orig_fut_std)
+                                      #"\nmean of psnr between orig rec mean and rec frames: " + str(orig_rec_means) + "\nmean psnr between orig fut mean and fut frames: " + str(orig_fut_means) +
+                                      #"\nstd of psnr between orig rec mean and rec frames: " + str(orig_rec_std) + "\nstd of psnr between orig fut mean and fut frames: " + str(orig_fut_std) +
+                                      "\nmean of psnr between color mean of original rec frames and recon frames: " + str(orig_rec_color_means) + "\nmean of psnr between color mean of original fut frames and fut frames: " + str(orig_fut_color_means) +
+                                      "\nstd of psnr between color mean of original rec frames recond frames: " + str(orig_rec_color_std) + "\nstd of psnr between color mean of original fut frames and fut frames: " + str(orig_fut_color_std) +
+                                      "\nmean of psnr between random image and rec frames: " + str(orig_rec_rand_means) + "\nmean of psnr between random image and fut frames: " + str(orig_fut_rand_means) +
+                                      "\nstd of psnr between random image and rec frames: " + str(orig_rec_rand_std) + "\nstd of psnr between random image and fut frames: " + str(orig_fut_rand_std)
+
                              )
 
       print("mean psnr recon: " + str(psnr_reconstruction_means) + "\nmean psnr future: " + str(psnr_future_means))

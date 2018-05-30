@@ -1,7 +1,7 @@
 import datetime as dt
 import os
 import time
-
+import datetime
 import numpy as np
 
 import data_postp.metrics as metrics
@@ -101,12 +101,13 @@ def validate(output_dir, initializer, val_model):
 
   try:
     feed_dict = {val_model.learning_rate: 0.0}
-
-    val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata, orig_frames = initializer.sess.run(
-      [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
-
     num_val_batches_required = (num_valid_samples // (FLAGS.valid_batch_size * FLAGS.num_gpus)) + int(
-      (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
+        (num_valid_samples % (FLAGS.valid_batch_size * FLAGS.num_gpus)) != 0)
+
+    if not 'measure_test_time' in FLAGS.valid_mode:
+      val_loss, val_summary_str, output_frames, hidden_representations, labels, metadata, orig_frames = initializer.sess.run(
+        [val_model.loss, val_model.sum_op, val_model.output_frames, val_model.hidden_repr, val_model.label, val_model.metadata, val_model.val_batch], feed_dict)
+
 
     if 'vector' in FLAGS.valid_mode:
       # store encoder latent vector for analysing
@@ -314,8 +315,50 @@ def validate(output_dir, initializer, val_model):
     #summary_writer.add_summary(val_summary_str, 1)
 
     if 'measure_test_time' in FLAGS.valid_mode:
+      measure_encoder_only = True
 
-      raise NotImplementedError
+      elapsed_time = 0
+      time_array = []
+      total_frames_array = []
+      video_count = FLAGS.valid_batch_size
+      n_frames = FLAGS.encoder_length
+      now = datetime.datetime.now()
+
+      with open('time_measurements.txt', 'a') as f:
+        for i in range(num_val_batches_required):
+          if not measure_encoder_only:
+            headline_log = "------Encoder/Decoders time recordings in test mode (5 frames), date: " + now.strftime("%Y-%m-%d %H:%M") + "------"
+            t = time.time()
+            _, _ = initializer.sess.run([val_model.output_frames, val_model.val_batch], feed_dict)
+            elapsed_time = time.time() - t
+            time_array.append(elapsed_time)
+            total_frames_array.append(video_count * n_frames)
+
+          else:
+            headline_log = "------Encoder time recordings in test mode (5 frames), date: " + now.strftime("%Y-%m-%d %H:%M") + "------"
+            t = time.time()
+            _ = initializer.sess.run([val_model.hidden_repr], feed_dict)
+            elapsed_time = time.time() - t
+            time_array.append(elapsed_time)
+            total_frames_array.append(video_count * n_frames)
+
+
+        total_time = np.sum(time_array, axis=0)
+        total_frames = np.sum(total_frames_array, axis=0)
+        fps = (total_frames / total_time)
+
+
+
+        print("\n" + headline_log, file=f)
+        print("the first 10 elapsed time records per batch: \n", time_array[:10], file=f)
+        print("----", file=f)
+        print("total_time in seconds: ", total_time, file=f)
+        print("total frames: ", total_frames, file=f)
+        print("fps:", fps, file=f)
+        print("number of valid samples:", num_valid_samples, file=f)
+        print("valid batch size:", FLAGS.valid_batch_size, file=f)
+
+
 
   except tf.errors.OutOfRangeError:
     tf.logging.info('Done producing validation results -- iterations limit reached')

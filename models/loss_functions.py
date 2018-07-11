@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 def gradient_difference_loss(true, pred, alpha=2.0):
   """
@@ -50,7 +51,19 @@ def peak_signal_to_noise_ratio(true, pred):
   return 10.0 * tf.log(1.0 / mean_squared_error(true, pred)) / tf.log(10.0)
 
 
-def decoder_loss(frames_gen, frames_original, loss_fun):
+def vae_error(V):
+  def KL(a, b):
+    a = np.asarray(a, dtype=np.float)
+    b = np.asarray(b, dtype=np.float)
+
+    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
+
+  N = np.random.normal(0, 1, size=np.shape(V))
+
+  return KL(V, N)
+
+
+def decoder_loss(frames_gen, frames_original, loss_fun, V=None):
   """Sum of parwise loss between frames of frames_gen and frames_original
     Args:
     frames_gen: array of length=sequence_length of Tensors with each having the shape=(batch size, frame_height, frame_width, num_channels)
@@ -69,6 +82,10 @@ def decoder_loss(frames_gen, frames_original, loss_fun):
   elif loss_fun == 'mse_gdl':
     for i in range(len(frames_gen)):
       loss += 0.4 * gradient_difference_loss(frames_original[:, i, :, :, :], frames_gen[i]) + 0.6 * mean_squared_error(frames_original[:, i, :, :, :], frames_gen[i])
+  elif loss_fun == 'vae':
+      assert V is not None
+      for i in range(len(frames_gen)):
+        loss += mean_squared_error(frames_original[:, i, :, :, :], frames_gen[i]) + vae_error(V)
   else:
     raise Exception('Unknown loss funcion type')
   return loss
@@ -89,13 +106,13 @@ def decoder_psnr(frames_gen, frames_original, loss_fun):
   return psnr
 
 
-def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
+def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='vae',
                    encoder_length=5, decoder_future_length=5,
-                   decoder_reconst_length=5):
+                   decoder_reconst_length=5, hidden_repr=None):
 
   assert encoder_length <= decoder_reconst_length
   frames_original_future = original_frames[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
   frames_original_reconst = original_frames[:, (encoder_length - decoder_reconst_length):encoder_length, :, :, :]
-  pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun)
-  reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun)
+  pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun, V=hidden_repr)
+  reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun, V=hidden_repr)
   return pred_loss + reconst_loss

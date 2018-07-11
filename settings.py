@@ -15,11 +15,11 @@ OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
 DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/ArmarExperiences/tf_records/tf_records_query"
 #TF_RECORDS_DIR = "/localhome/rothfuss/data/activity_net/tf_records_train"
-TF_RECORDS_DIR = '/localhome/rothfuss/data/20bn-something/tf_records_valid'
+TF_RECORDS_DIR = ''#'/localhome/rothfuss/data/20bn-something/tf_records_valid'
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150_optical_flow"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/activity_net/tf_records_valid_150"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150"
-MODE = 'valid_mode'
+MODE = 'feeding_mode'
 VALID_MODE = 'psnr' #'data_frame gif'
 
 NUM_IMAGES = 15
@@ -43,11 +43,11 @@ FINE_TUNING_WEIGHTS_LIST = None
 #INPUT_DIR = "/common/homes/students/rothfuss/Documents/example/input"
 INPUT_DIR = ""
 #MEMORY_PATH = "/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
-MEMORY_PATH = ""
+MEMORY_PATH = "/Users/fabioferreira/metadata_and_hidden_rep_df_07-09-18_15-59-00_all_samples.pickle"
 
 
 # --- INFORMAL LOCAL VARIABLES --- #
-LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl']
+LOSS_FUNCTIONS = ['mse', 'gdl', 'mse_gdl', 'vae']
 MODES = ["train_mode", "valid_mode", "feeding_mode"]
 VALID_MODES = ['count_trainable_weights', 'vector', 'gif', 'similarity', 'data_frame', 'psnr', 'memory_prep', 'measure_test_time']
 
@@ -132,10 +132,13 @@ flags.DEFINE_string('feeding_input_dir', INPUT_DIR, 'specify the path to where t
 flags.DEFINE_string('memory_path', MEMORY_PATH, 'specify the path to where the input frames are stored')
 
 
-assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a directory"
-assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
-assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model), "pretrained_model must be a directory"
-assert not FLAGS.dump_dir or os.path.isdir(FLAGS.dump_dir), "dump_dir must be a directory"
+#assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a
+# directory"
+#assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
+#assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model),
+# "pretrained_model must be a directory"
+#assert not FLAGS.dump_dir or os.path.isdir(FLAGS.dump_dir), "dump_dir must
+# be a directory"
 
 assert any([mode in FLAGS.valid_mode for mode in VALID_MODES]), "valid_mode must contain at least one of the following" + str(VALID_MODES)
 assert FLAGS.mode in MODES, "mode must be one of " + str(MODES)

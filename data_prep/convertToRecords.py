@@ -50,7 +50,7 @@ flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|t
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
 flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
 flags.DEFINE_boolean('optical_flow', True, 'Indictes whether optical flow shall be computed and added as fourth channel')
-flags.DEFINE_string('type', '20bn_valid', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_string('type', 'None', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):

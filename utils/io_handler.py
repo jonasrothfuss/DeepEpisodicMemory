@@ -257,6 +257,7 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
 
   if not filename:
     filename = os.path.join(output_dir, 'metadata_and_hidden_rep_df_' + str(dt.datetime.now().strftime("%m-%d-%y_%H-%M-%S")) +'.pickle')
+  print("exported df has shape:", df.shape)
   df.to_pickle(filename)
   print("Dumped df pickle to", filename)
   return df

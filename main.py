@@ -22,6 +22,7 @@ def main(argv):
 
   initializer = Initializer()
   initializer.start_session()
+  initializer.start_saver()
 
   # ---- training ----- #
   if FLAGS.mode is "train_mode":

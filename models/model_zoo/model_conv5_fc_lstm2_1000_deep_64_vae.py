@@ -92,12 +92,13 @@ def encoder_model(frames, sequence_length, initializer, keep_prob_dropout=0.9, s
       fc_conv = tf.nn.dropout(fc_conv, keep_prob_dropout)
 
       # LAYER 11: Fully Convolutional LSTM (1x1x256 -> 1x1x128)
+      # hidden6 = hidden state, lstm_state6=[cellstate6, hidden6]
       hidden6, lstm_state6 = basic_conv_lstm_cell(fc_conv, lstm_state6, FC_LSTM_LAYER_SIZE, initializer, filter_size=1, scope='convlstm6')
       #no dropout since its the last encoder layer --> hidden repr should be steady
 
 
       sigma = slim.layers.fully_connected(inputs=hidden6, num_outputs=hidden6.get_shape().as_list()[3], activation_fn=tf.nn.softplus)
-      mu = slim.layers.fully_connected(inputs=lstm_state6, num_outputs=lstm_state6.get_shape().as_list()[3], activation_fn=tf.nn.tanh)
+      mu = slim.layers.fully_connected(inputs=lstm_state6, num_outputs=lstm_state6.get_shape().as_list()[3][:FC_LSTM_LAYER_SIZE], activation_fn=tf.nn.tanh)
 
       # do reparamazerization trick to allow backprop flow through deterministic nodes sigma and mu
       z = mu + sigma * tf.random_normal(tf.shape(mu), mean=0., stddev=1.)

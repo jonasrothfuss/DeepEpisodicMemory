@@ -103,7 +103,7 @@ def encoder_model(frames, sequence_length, initializer, keep_prob_dropout=0.9, s
       # do reparamazerization trick to allow backprop flow through deterministic nodes sigma and mu
       z = mu + sigma * tf.random_normal(tf.shape(mu), mean=0., stddev=1.)
 
-  return [z, mu, sigma]
+  return z, mu, sigma
 
 
 def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, keep_prob_dropout=0.9, scope='decoder', fc_conv_layer=False):
@@ -218,4 +218,4 @@ def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst
                               scope='decoder_pred', fc_conv_layer=fc_conv_layer)
   frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, initializer, num_channels=num_channels, keep_prob_dropout=keep_prob_dropout,
                                  scope='decoder_reconst', fc_conv_layer=fc_conv_layer)
-  return frames_pred, frames_reconst, hidden_repr
+  return frames_pred, frames_reconst, [hidden_repr, mu, sigma]

@@ -187,6 +187,7 @@ def tower_operations(video_batch, train=True, compute_loss=True):
     hidden_repr = hidden_repr[0]
 
 
+
   if compute_loss:
     tower_loss = loss_functions.composite_loss(video_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,
                                   encoder_length=FLAGS.encoder_length,

@@ -123,16 +123,13 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, kee
   lstm_state1, lstm_state2, lstm_state3, lstm_state4, lstm_state5, lstm_state0 = None, None, None, None, None, None
   assert (not fc_conv_layer) or (hidden_repr.get_shape()[1] == hidden_repr.get_shape()[2] == 1)
 
-  lstm_state0 = hidden_repr
 
   for i in range(sequence_length):
     reuse = (i > 0) #reuse variables (recurrence) after first time step
 
     with tf.variable_scope(scope, reuse=reuse):
 
-      hidden0, lstm_state0 = conv_lstm_cell_no_input(lstm_state0, FC_LSTM_LAYER_SIZE, initializer, filter_size=1,
-                                                  scope='convlstm0')
-      hidden0 = tf.nn.dropout(hidden0, keep_prob_dropout)
+      hidden0 = tf.nn.dropout(hidden_repr, keep_prob_dropout)
 
       fc_conv = slim.layers.conv2d_transpose(hidden0, 64, [4, 4], stride=1, scope='fc_conv', padding='VALID', weights_initializer=initializer)
       fc_conv = tf.nn.dropout(fc_conv, keep_prob_dropout)

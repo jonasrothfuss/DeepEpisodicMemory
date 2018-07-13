@@ -52,13 +52,12 @@ def peak_signal_to_noise_ratio(true, pred):
 
 
 def vae_error(V):
-  def KL(a, b):
-    a = np.asarray(a, dtype=np.float)
-    b = np.asarray(b, dtype=np.float)
+  def KL(x, y):
+    X = tf.distributions.Categorical(probs=x)
+    Y = tf.distributions.Categorical(probs=y)
+    return tf.distributions.kl_divergence(X, Y)
 
-    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
-
-  N = np.random.normal(0, 1, size=np.shape(V))
+  N = tf.random_normal(shape=tf.shape(V), mean=0., stddev=1.)
 
   return KL(V, N)
 

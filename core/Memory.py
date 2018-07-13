@@ -70,7 +70,7 @@ class Memory:
     # TODO
     #pass
 
-  def matching(self, query_hidden_repr, n_closest_matches = 5, use_transform=True):
+  def matching(self, query_hidden_repr, n_closest_matches = 5, use_transform=False):
     '''
     finds the closest vector matches (cos_similarity) for a given query vector
     :param query_hidden_repr: the query vector

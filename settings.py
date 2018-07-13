@@ -6,44 +6,45 @@ import warnings
 FLAGS = flags.FLAGS
 
 """ Set Model From Model Zoo"""
-from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64 as model
+from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64_vae as model
 """"""
 
 # --- SPECIFY MANDATORY VARIABLES--- #
-OUT_DIR = '/common/homes/students/rothfuss/Documents/training_tests'
-#DUMP_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl/valid_run'
-DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/"
+#OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF'
+#DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF"
+DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/ArmarExperiences/tf_records/tf_records_query"
 #TF_RECORDS_DIR = "/localhome/rothfuss/data/activity_net/tf_records_train"
-TF_RECORDS_DIR = ''#'/localhome/rothfuss/data/20bn-something/tf_records_valid'
-#TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150_optical_flow"
+#TF_RECORDS_DIR = '/localhome/rothfuss/data/20bn-something/tf_records_valid'
+TF_RECORDS_DIR = "/localhome/rothfuss/segmented_armarkitchen/tfrecords_no_OF_with_id/"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/activity_net/tf_records_valid_150"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150"
-MODE = 'feeding_mode'
-VALID_MODE = 'psnr' #'data_frame gif'
+MODE = 'train_mode'
+VALID_MODE = 'data_frame' #'data_frame gif'
 
-NUM_IMAGES = 15
+NUM_IMAGES = 20
 NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
 NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
-#PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/4_actNet_gdl"
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse/"
+#PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
 #                       'train_model/encoder/fc_conv', 'train_model/encoder/convlstm6', 'train_model/decoder_pred/upconv4',
 #                       'train_model/decoder_pred/conv4', 'train_model/decoder_pred/convlstm5', 'train_model/decoder_pred/upconv5',
 #                       'train_model/decoder_reconst/conv4', 'train_model/decoder_reconst/convlstm5', 'train_model/decoder_reconst/upconv5',
-#                       'train_model/decoder_reconst/upconv4']
+#                       'train_model/decoder_reconst/upconv4', 'train_model/decoder_reconst/fc_conv']
 
 # FEEDING
 #INPUT_DIR = "/common/homes/students/rothfuss/Documents/example/input"
 INPUT_DIR = ""
 #MEMORY_PATH = "/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
-MEMORY_PATH = "/Users/fabioferreira/metadata_and_hidden_rep_df_07-09-18_15-59-00_all_samples.pickle"
+MEMORY_PATH = ""
 
 
 # --- INFORMAL LOCAL VARIABLES --- #
@@ -73,17 +74,17 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 
 
 # --- MODEL HYPERPARAMETERS --- #
-flags.DEFINE_integer('num_iterations', 100000, 'specify number of training iterations, defaults to 100000')
-flags.DEFINE_string('loss_function', 'mse', 'specify loss function to minimize, defaults to gdl')
+flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
+flags.DEFINE_string('loss_function', 'vae', 'specify loss function to minimize, defaults to gdl')
 flags.DEFINE_integer('batch_size', 1, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 20, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 1, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', len(helpers.get_available_gpus()), 'specifies the number of available GPUs of the machine')
 
-flags.DEFINE_integer('image_range_start', 0,
+flags.DEFINE_integer('image_range_start', 5,
                      'parameter that controls the index of the starting image for the train/valid batch')
-flags.DEFINE_integer('overall_images_count', 15,
+flags.DEFINE_integer('overall_images_count', 20,
                      'specifies the number of images that are available to create the train/valid batches')
 flags.DEFINE_integer('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_integer('decoder_future_length', 5,
@@ -102,9 +103,9 @@ flags.DEFINE_float('keep_prob_dopout', 0.85,
 
 
 # --- INTERVALS --- #
-flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
+flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
-flags.DEFINE_integer('save_interval', 500, 'number of training steps between session/model dumps')
+flags.DEFINE_integer('save_interval', 1000, 'number of training steps between session/model dumps')
 
 
 # --- MODE OF OPERATION --- #
@@ -132,13 +133,10 @@ flags.DEFINE_string('feeding_input_dir', INPUT_DIR, 'specify the path to where t
 flags.DEFINE_string('memory_path', MEMORY_PATH, 'specify the path to where the input frames are stored')
 
 
-#assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a
-# directory"
-#assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
-#assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model),
-# "pretrained_model must be a directory"
-#assert not FLAGS.dump_dir or os.path.isdir(FLAGS.dump_dir), "dump_dir must
-# be a directory"
+assert os.path.isdir(FLAGS.tf_records_dir), "tf_records_dir must be a directory"
+assert os.path.isdir(FLAGS.output_dir), "output_dir must be a directory"
+assert not FLAGS.pretrained_model or os.path.isdir(FLAGS.pretrained_model), "pretrained_model must be a directory"
+assert not FLAGS.dump_dir or os.path.isdir(FLAGS.dump_dir), "dump_dir must be a directory"
 
 assert any([mode in FLAGS.valid_mode for mode in VALID_MODES]), "valid_mode must contain at least one of the following" + str(VALID_MODES)
 assert FLAGS.mode in MODES, "mode must be one of " + str(MODES)

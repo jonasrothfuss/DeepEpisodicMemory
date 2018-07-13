@@ -56,13 +56,13 @@ def vae_error(V):
     prob_p = tf.nn.softmax(V)
     prob_q = N
 
-    tf.assert_equal(tf.reduce_sum(prob_p), 0)
-    tf.assert_equal(tf.reduce_sum(prob_q), 0)
+    tf.Assert(tf.less_equal(tf.reduce_sum(prob_p), 1.), [prob_p])
+    tf.Assert(tf.less_equal(tf.reduce_sum(prob_q), 1.), [prob_q])    
 
     X = tf.contrib.distributions.Categorical(p=prob_p)
     Y = tf.contrib.distributions.Categorical(p=prob_q)
 
-    return tf.contrib.distributions.kl.kl(X, Y)
+    return tf.contrib.distributions.kl(X, Y)
 
 
   N = tf.random_normal(shape=tf.shape(V), mean=0., stddev=1.)

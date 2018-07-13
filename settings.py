@@ -31,7 +31,8 @@ NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
 #PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF"
-PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
+#PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
+PRETRAINED_MODEL = ""
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -76,7 +77,7 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 # --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'vae', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_integer('batch_size', 1, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('batch_size', 25, 'specify the batch size, defaults to 50')
 flags.DEFINE_integer('valid_batch_size', 1, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')

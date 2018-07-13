@@ -52,7 +52,8 @@ def peak_signal_to_noise_ratio(true, pred):
 
 
 def kl_penalty(mu, sigma):
-  return 0.5 * tf.reduce_sum(tf.square(mu) + tf.square(sigma) - tf.log(1e-8 + tf.square(sigma)) - 1, 1)
+  x = tf.square(mu) + tf.square(sigma) - tf.log(1e-8 + tf.square(sigma)) - 1
+  return 0.5 * tf.reduce_sum(x)
 
 
 def decoder_loss(frames_gen, frames_original, loss_fun):
@@ -106,7 +107,7 @@ def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
 
   if loss_fun == 'vae':
     assert mu_latent is not None and mu_latent is not None
-    loss = pred_loss + reconst_loss + kl_penalty(mu_latent, sigm_latent)
+    loss = pred_loss + reconst_loss + kl_penalty(tf.squeeze(mu_latent), tf.squeeze(sigm_latent))
   else:
     loss = pred_loss + reconst_loss
   return loss

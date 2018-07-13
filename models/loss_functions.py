@@ -55,7 +55,7 @@ def kl_penalty(mu, sigma):
   return 0.5 * tf.reduce_sum(tf.square(mu) + tf.square(sigma) - tf.log(1e-8 + tf.square(sigma)) - 1, 1)
 
 
-def decoder_loss(frames_gen, frames_original, loss_fun, V=None):
+def decoder_loss(frames_gen, frames_original, loss_fun):
   """Sum of parwise loss between frames of frames_gen and frames_original
     Args:
     frames_gen: array of length=sequence_length of Tensors with each having the shape=(batch size, frame_height, frame_width, num_channels)
@@ -65,7 +65,7 @@ def decoder_loss(frames_gen, frames_original, loss_fun, V=None):
     loss: sum (specified) loss between ground truth and predicted frames of provided sequence.
   """
   loss = 0.0
-  if loss_fun == 'mse':
+  if loss_fun == 'mse' or loss_fun == 'vae':
     for i in range(len(frames_gen)):
       loss += mean_squared_error(frames_original[:, i, :, :, :], frames_gen[i])
   elif loss_fun == 'gdl':
@@ -79,7 +79,7 @@ def decoder_loss(frames_gen, frames_original, loss_fun, V=None):
   return loss
 
 
-def decoder_psnr(frames_gen, frames_original, loss_fun):
+def decoder_psnr(frames_gen, frames_original):
   """Sum of peak_signal_to_noise_ratio loss between frames of frames_gen and frames_original
      Args:
        frames_gen: array of length=sequence_length of Tensors with each having the shape=(batch size, frame_height, frame_width, num_channels)
@@ -96,15 +96,15 @@ def decoder_psnr(frames_gen, frames_original, loss_fun):
 
 def composite_loss(original_frames, frames_pred, frames_reconst, loss_fun='mse',
                    encoder_length=5, decoder_future_length=5,
-                   decoder_reconst_length=5, hidden_repr=None,
-                   vae=False, mu_latent=None, sigm_latent=None):
+                   decoder_reconst_length=5, mu_latent=None, sigm_latent=None):
 
   assert encoder_length <= decoder_reconst_length
   frames_original_future = original_frames[:, (encoder_length):(encoder_length + decoder_future_length), :, :, :]
   frames_original_reconst = original_frames[:, (encoder_length - decoder_reconst_length):encoder_length, :, :, :]
-  pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun, V=hidden_repr)
-  reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun, V=hidden_repr)
-  if vae:
+  pred_loss = decoder_loss(frames_pred, frames_original_future, loss_fun)
+  reconst_loss = decoder_loss(frames_reconst, frames_original_reconst, loss_fun)
+
+  if loss_fun == 'vae':
     assert mu_latent is not None and mu_latent is not None
     loss = pred_loss + reconst_loss + kl_penalty(mu_latent, sigm_latent)
   else:

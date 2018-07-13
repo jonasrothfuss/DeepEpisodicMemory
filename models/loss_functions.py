@@ -53,8 +53,8 @@ def peak_signal_to_noise_ratio(true, pred):
 
 def vae_error(V):
   def KL(x, y):
-    X = tf.distributions.Categorical(probs=x)
-    Y = tf.distributions.Categorical(probs=y)
+    X = tf.contrib.distributions.Categorical(probs=x)
+    Y = tf.contrib.distributions.Categorical(probs=y)
     return tf.distributions.kl_divergence(X, Y)
 
   N = tf.random_normal(shape=tf.shape(V), mean=0., stddev=1.)

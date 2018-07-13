@@ -55,7 +55,7 @@ def vae_error(V):
   def KL(x, y):
     X = tf.contrib.distributions.Categorical(p=x)
     Y = tf.contrib.distributions.Categorical(p=y)
-    return tf.contrib.distributions.kl_divergence(X, Y)
+    return tf.contrib.distributions.kullback_leibler.kl(X, Y)
 
   N = tf.random_normal(shape=tf.shape(V), mean=0., stddev=1.)
 

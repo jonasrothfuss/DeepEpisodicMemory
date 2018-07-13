@@ -9,6 +9,7 @@ from models.conv_lstm import basic_conv_lstm_cell, conv_lstm_cell_no_input
 RELU_SHIFT = 1e-12
 FC_LAYER_SIZE = 1000
 FC_LSTM_LAYER_SIZE = 1000
+VAE_REPR_SIZE = 1000
 
 # kernel size for DNA and CDNA.
 DNA_KERN_SIZE = 5
@@ -91,22 +92,18 @@ def encoder_model(frames, sequence_length, initializer, keep_prob_dropout=0.9, s
       fc_conv = slim.layers.conv2d(hidden5, FC_LAYER_SIZE, [4,4], stride=1, scope='fc_conv', padding='VALID', weights_initializer=initializer)
       fc_conv = tf.nn.dropout(fc_conv, keep_prob_dropout)
 
+      # LAYER 11: Fully Convolutional LSTM (1x1x256 -> 1x1x128)
+      hidden6, lstm_state6 = basic_conv_lstm_cell(fc_conv, lstm_state6, FC_LSTM_LAYER_SIZE, initializer, filter_size=1, scope='convlstm6')
+      #no dropout since its the last encoder layer --> hidden repr should be steady
 
-      # sigma gets hidden state
-      sigma = slim.layers.fully_connected(inputs=fc_conv, num_outputs=FC_LAYER_SIZE, activation_fn=tf.nn.softplus)
-      # mu gehts cell state (lstm_state6=[cellstate6, hidden6])
-      mu = slim.layers.fully_connected(inputs=fc_conv, num_outputs=FC_LAYER_SIZE, activation_fn=tf.nn.tanh)
+      # mu and sigma for sampling latent variable
+      sigma = slim.layers.fully_connected(inputs=lstm_state6, num_outputs=VAE_REPR_SIZE, activation_fn=tf.nn.softplus)
+      mu = slim.layers.fully_connected(inputs=lstm_state6, num_outputs=VAE_REPR_SIZE, activation_fn=None)
 
       # do reparamazerization trick to allow backprop flow through deterministic nodes sigma and mu
       z = mu + sigma * tf.random_normal(tf.shape(mu), mean=0., stddev=1.)
 
-      # LAYER 11: Fully Convolutional LSTM (1x1x256 -> 1x1x128)
-      # hidden6 = hidden state, lstm_state6=[cellstate6, hidden6]
-      hidden6, lstm_state6 = basic_conv_lstm_cell(z, lstm_state6, FC_LSTM_LAYER_SIZE, initializer, filter_size=1, scope='convlstm6')
-      # no dropout since its the last encoder layer --> hidden repr should be steady
-
-      hidden_repr = lstm_state6
-      return hidden_repr
+  return z, mu, sigma
 
 
 def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, keep_prob_dropout=0.9, scope='decoder', fc_conv_layer=False):
@@ -213,7 +210,7 @@ def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst
   """
   assert all([len > 0 for len in [encoder_len, decoder_future_len, decoder_reconst_len]])
   initializer = tf_layers.xavier_initializer(uniform=uniform_init)
-  hidden_repr = encoder_model(frames, encoder_len, initializer, fc_conv_layer=fc_conv_layer)
+  hidden_repr, mu, sigma = encoder_model(frames, encoder_len, initializer, fc_conv_layer=fc_conv_layer)
 
   # add noise
   if noise_std != 0.0:

@@ -218,4 +218,4 @@ def composite_model(frames, encoder_len=5, decoder_future_len=5, decoder_reconst
                               scope='decoder_pred', fc_conv_layer=fc_conv_layer)
   frames_reconst = decoder_model(hidden_repr, decoder_reconst_len, initializer, num_channels=num_channels, keep_prob_dropout=keep_prob_dropout,
                                  scope='decoder_reconst', fc_conv_layer=fc_conv_layer)
-  return frames_pred, frames_reconst, [hidden_repr, mu, sigma]
+  return frames_pred, frames_reconst, hidden_repr, mu, sigma

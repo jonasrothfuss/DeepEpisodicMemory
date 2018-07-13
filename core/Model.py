@@ -172,7 +172,14 @@ def tower_operations(video_batch, train=True, compute_loss=True):
   keep_prob_dropout = FLAGS.keep_prob_dopout if train else 1.0
   mu = sigma = None, None
 
-  frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
+  if FLAGS.loss_function == 'vae':
+    frames_pred, frames_reconst, hidden_repr, mu, sigma = model.composite_model(video_batch, FLAGS.encoder_length,
+                                                         FLAGS.decoder_future_length,
+                                                         FLAGS.decoder_reconst_length, keep_prob_dropout=keep_prob_dropout,
+                                                         noise_std=FLAGS.noise_std, uniform_init=FLAGS.uniform_init,
+                                                         num_channels=FLAGS.num_channels, fc_conv_layer=FLAGS.fc_layer)
+  else:
+    frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
                                                                    FLAGS.decoder_future_length,
                                                                    FLAGS.decoder_reconst_length,
                                                                    keep_prob_dropout=keep_prob_dropout,
@@ -181,10 +188,7 @@ def tower_operations(video_batch, train=True, compute_loss=True):
                                                                    num_channels=FLAGS.num_channels,
                                                                    fc_conv_layer=FLAGS.fc_layer)
 
-  if FLAGS.loss_function == 'vae':
-    mu = hidden_repr[1]
-    sigma = hidden_repr[2]
-    hidden_repr = hidden_repr[0]
+
 
 
 

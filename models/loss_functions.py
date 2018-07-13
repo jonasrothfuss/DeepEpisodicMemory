@@ -52,14 +52,22 @@ def peak_signal_to_noise_ratio(true, pred):
 
 
 def vae_error(V):
-  def KL(x, y):
-    X = tf.contrib.distributions.Categorical(p=x)
-    Y = tf.contrib.distributions.Categorical(p=y)
-    return tf.contrib.distributions.kullback_leibler.kl(X, Y)
+  def kl_divergence(V, N):
+    prob_p = tf.nn.softmax(V)
+    prob_q = N
+
+    tf.assert_equal(tf.reduce_sum(prob_p), 0)
+    tf.assert_equal(tf.reduce_sum(prob_q), 0)
+
+    X = tf.contrib.distributions.Categorical(p=prob_p)
+    Y = tf.contrib.distributions.Categorical(p=prob_q)
+
+    return tf.contrib.distributions.kl.kl(X, Y)
+
 
   N = tf.random_normal(shape=tf.shape(V), mean=0., stddev=1.)
 
-  return KL(V, N)
+  return kl_divergence(V, N)
 
 
 def decoder_loss(frames_gen, frames_original, loss_fun, V=None):

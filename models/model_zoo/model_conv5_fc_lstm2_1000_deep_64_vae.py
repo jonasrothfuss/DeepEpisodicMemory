@@ -128,9 +128,7 @@ def decoder_model(hidden_repr, sequence_length, initializer, num_channels=3, kee
     reuse = (i > 0) #reuse variables (recurrence) after first time step
 
     with tf.variable_scope(scope, reuse=reuse):
-
       hidden0 = tf.nn.dropout(hidden_repr, keep_prob_dropout)
-
       fc_conv = slim.layers.conv2d_transpose(hidden0, 64, [4, 4], stride=1, scope='fc_conv', padding='VALID', weights_initializer=initializer)
       fc_conv = tf.nn.dropout(fc_conv, keep_prob_dropout)
 

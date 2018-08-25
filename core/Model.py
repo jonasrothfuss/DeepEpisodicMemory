@@ -1,5 +1,6 @@
 import tensorflow as tf
 import math
+import numpy as np
 from pprint import pprint
 from settings import FLAGS, model
 
@@ -107,8 +108,7 @@ class ValidationModel(Model):
 
           with tf.device('/gpu:%d' % i):
             with tf.name_scope('%s_%d' % ('tower', i)):
-              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(
-                val_batch[:, FLAGS.image_range_start:, :, :, :], train=False)
+              tower_loss, frames_pred, frames_reconst, hidden_repr = tower_operations(val_batch[:, FLAGS.image_range_start:, :, :, :], train=False)
               tower_losses.append(tower_loss)
 
               frames_pred_list.append(tf.pack(frames_pred))
@@ -160,7 +160,7 @@ class FeedingValidationModel(Model):
 
 
 
-def tower_operations(video_batch, train=True, compute_loss=True):
+def tower_operations(video_batch, train=True, compute_loss=True, use_vae_mu=True):
   """
   Build the computation graph from input frame sequences till loss of batch
   :param device number for assining queue runner to CPU
@@ -178,6 +178,9 @@ def tower_operations(video_batch, train=True, compute_loss=True):
                                                          FLAGS.decoder_reconst_length, keep_prob_dropout=keep_prob_dropout,
                                                          noise_std=FLAGS.noise_std, uniform_init=FLAGS.uniform_init,
                                                          num_channels=FLAGS.num_channels, fc_conv_layer=FLAGS.fc_layer)
+    if use_vae_mu:
+      hidden_repr = mu
+
   else:
     frames_pred, frames_reconst, hidden_repr = model.composite_model(video_batch, FLAGS.encoder_length,
                                                                    FLAGS.decoder_future_length,
@@ -187,10 +190,7 @@ def tower_operations(video_batch, train=True, compute_loss=True):
                                                                    uniform_init=FLAGS.uniform_init,
                                                                    num_channels=FLAGS.num_channels,
                                                                    fc_conv_layer=FLAGS.fc_layer)
-
-
-
-
+    
 
   if compute_loss:
     tower_loss = loss_functions.composite_loss(video_batch, frames_pred, frames_reconst, loss_fun=FLAGS.loss_function,

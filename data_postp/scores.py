@@ -61,12 +61,18 @@ def get_query_matching_table(df_base, df_query, class_column='category', n_close
 
     row_data = dict(zip(columns, matching_results))
     query_matching_df = query_matching_df.append(row_data, ignore_index=True)
-
+  #print(query_matching_df.head())
   return query_matching_df
 
 
 def main():
-  valid_file="/common/homes/students/ferreira/Documents/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
+  #2.5% valid_file="/common/homes/students/rothfuss/Documents/selected_trainings/6_actNet_20bn_mse/valid_run/metadata_and_hidden_rep_df_08-04-17_19-28-16_valid.pickle"
+  #3.6% 
+  #valid_file="/PDFData/rothfuss/selected_trainings/7_20bn_mse/valid_run_backup/metadata_and_hidden_rep_df_07-26-17_16-52-09_valid.pickle"
+  #2.9% valid_file="/common/homes/students/rothfuss/Documents/selected_trainings/5_actNet_20bn_gdl/valid_run/metadata_and_hidden_rep_df_08-03-17_00-34-25_valid.pickle"
+  #0.014% valid_file="/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/08-06-18_10-21/metadata_and_hidden_rep_df_08-16-18_23-39-21.pickle"
+  #2.2% valid_file="/common/homes/students/rothfuss/Documents/selected_trainings/8_20bn_gdl_optical_flow/valid_run/metadata_and_hidden_rep_df_08-09-17_17-00-24_valid.pickle"
+  valid_file="/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/08-06-18_10-21/metadata_and_hidden_rep_df_08-25-18_15-50-39_mu.pickle"
   df = pd.read_pickle(valid_file)
 
   # create own train/test split
@@ -74,10 +80,12 @@ def main():
   test_df = df[~msk]
   print("number of test samples: ", np.shape(test_df)[0])
   train_df = df[msk]
+  #print(train_df.head())	
   print("number of train samples: ", np.shape(train_df)[0])
 
-  #df, df_val = similarity_computations.transform_vectors_with_inter_class_pca(train_df, test_df, class_column='category', n_components=50)
-  compute_mean_average_precision(train_df[:100], test_df[:100])
+  df, df_val = similarity_computations.transform_vectors_with_inter_class_pca(train_df, test_df, class_column='category', n_components=300)
+  print(compute_mean_average_precision(df, df_val, n_closest_matches=3))
+  #print(compute_mean_average_precision(train_df, test_df, n_closest_matches=3))
 
 
 

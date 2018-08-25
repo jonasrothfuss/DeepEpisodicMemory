@@ -3,7 +3,7 @@ import os
 import time
 import datetime
 import numpy as np
-
+import traceback
 import data_postp.metrics as metrics
 import data_postp.similarity_computations as similarity_computations
 import utils.helpers as helpers
@@ -89,7 +89,8 @@ def validate(output_dir, initializer, val_model):
   """
   assert val_model is not None and initializer is not None
 
-  initializer.start_saver()
+  if initializer.saver is None:
+    initializer.start_saver()
 
   # Calculate number of validation samples
   valid_filenames = file_paths_from_directory(FLAGS.tf_records_dir, 'valid*')
@@ -143,6 +144,7 @@ def validate(output_dir, initializer, val_model):
       store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata, video_file_paths=np.asarray(video_file_path))
 
     if 'data_frame' in FLAGS.valid_mode:
+      print(np.shape(hidden_representations))
       #evaluate multiple batches to cover all available validation samples
       for i in range(num_val_batches_required):
         hidden_representations_new, labels_new, metadata_new = initializer.sess.run([val_model.hidden_repr, val_model.label, val_model.metadata], feed_dict)
@@ -150,6 +152,7 @@ def validate(output_dir, initializer, val_model):
         labels = np.concatenate((labels, labels_new))
         metadata = np.concatenate((metadata, metadata_new))
 
+      print(np.shape(hidden_representations))
       store_latent_vectors_as_df(output_dir, hidden_representations, labels, metadata)
 
     if 'psnr' in FLAGS.valid_mode:
@@ -364,6 +367,7 @@ def validate(output_dir, initializer, val_model):
     tf.logging.info('Done producing validation results -- iterations limit reached')
   except Exception as e:
     print("Exception occured:", e)
+    print(traceback.format_exc())
   finally:
     # When done, ask the threads to stop.
     initializer.coord.request_stop()

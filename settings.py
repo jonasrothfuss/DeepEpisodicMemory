@@ -11,19 +11,19 @@ from models.model_zoo import model_conv5_fc_lstm2_1000_deep_64_vae as model
 
 # --- SPECIFY MANDATORY VARIABLES--- #
 #OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF'
-OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF'
+OUT_DIR = '/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/08-06-18_10-21'
 #DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF"
-DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
-#TF_RECORDS_DIR = "/PDFData/rothfuss/data/ArmarExperiences/tf_records/tf_records_query"
+DUMP_DIR = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/08-06-18_10-21"
+TF_RECORDS_DIR = "/localhome/rothfuss/data/20bn-something/tf_records_train"
 #TF_RECORDS_DIR = "/localhome/rothfuss/data/activity_net/tf_records_train"
 #TF_RECORDS_DIR = '/localhome/rothfuss/data/20bn-something/tf_records_valid'
-TF_RECORDS_DIR = "/localhome/rothfuss/segmented_armarkitchen/tfrecords_no_OF_with_id/"
+#TF_RECORDS_DIR = "/localhome/rothfuss/segmented_armarkitchen/tfrecords_no_OF_with_id/"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/activity_net/tf_records_valid_150"
 #TF_RECORDS_DIR = "/PDFData/rothfuss/data/20bn-something/tf_records_valid_150"
-MODE = 'train_mode'
+MODE = 'valid_mode'
 VALID_MODE = 'data_frame' #'data_frame gif'
 
-NUM_IMAGES = 20
+NUM_IMAGES = 15
 NUM_DEPTH = 3
 WIDTH = 128
 HEIGHT = 128
@@ -31,8 +31,9 @@ NUM_THREADS_QUEUERUNNER = 32 # specifies the number of pre-processing threads
 
 # PRETRAINING / FINETUNING
 #PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/7_20bn_mse_segmented_armarkitchen_no_OF"
-#PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_segmented_armarkitchen_no_OF"
-PRETRAINED_MODEL = ""
+#PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/07-19-18_14-08"
+PRETRAINED_MODEL = "/common/homes/students/rothfuss/Documents/selected_trainings/9_20bn_vae_no_OF/08-06-18_10-21"
+#PRETRAINED_MODEL = ""
 EXCLUDE_FROM_RESTORING = None
 FINE_TUNING_WEIGHTS_LIST = None
 # FINE_TUNING_WEIGHTS_LIST = [ 'train_model/encoder/conv4', 'train_model/encoder/convlstm4', 'train_model/encoder/conv5', 'train_model/encoder/convlstm5',
@@ -77,15 +78,15 @@ flags.DEFINE_integer('num_threads', NUM_THREADS_QUEUERUNNER, 'specifies the numb
 # --- MODEL HYPERPARAMETERS --- #
 flags.DEFINE_integer('num_iterations', 1000000, 'specify number of training iterations, defaults to 100000')
 flags.DEFINE_string('loss_function', 'vae', 'specify loss function to minimize, defaults to gdl')
-flags.DEFINE_integer('batch_size', 25, 'specify the batch size, defaults to 50')
-flags.DEFINE_integer('valid_batch_size', 1, 'specify the validation batch size, defaults to 50')
+flags.DEFINE_integer('batch_size', 50, 'specify the batch size, defaults to 50')
+flags.DEFINE_integer('valid_batch_size', 25, 'specify the validation batch size, defaults to 50')
 flags.DEFINE_bool('uniform_init', False,
                   'specifies if the weights should be drawn from gaussian(false) or uniform(true) distribution')
 flags.DEFINE_integer('num_gpus', len(helpers.get_available_gpus()), 'specifies the number of available GPUs of the machine')
 
 flags.DEFINE_integer('image_range_start', 5,
                      'parameter that controls the index of the starting image for the train/valid batch')
-flags.DEFINE_integer('overall_images_count', 20,
+flags.DEFINE_integer('overall_images_count', 15,
                      'specifies the number of images that are available to create the train/valid batches')
 flags.DEFINE_integer('encoder_length', 5, 'specifies how many images the encoder receives, defaults to 5')
 flags.DEFINE_integer('decoder_future_length', 5,
@@ -96,15 +97,15 @@ flags.DEFINE_integer('num_channels', 3, 'number of channels in the input frames'
 flags.DEFINE_bool('fc_layer', True,
                   'indicates whether fully connected layer shall be added between encoder and decoder')
 flags.DEFINE_float('learning_rate_decay', 0.000008, 'learning rate decay factor')
-flags.DEFINE_float('learning_rate', 0.00001, 'initial learning rate for Adam optimizer')
-flags.DEFINE_float('noise_std', 0.1,
+flags.DEFINE_float('learning_rate', 0.0001, 'initial learning rate for Adam optimizer')
+flags.DEFINE_float('noise_std', 0.001,
                    'defines standard deviation of gaussian noise to be added to the hidden representation during training')
 flags.DEFINE_float('keep_prob_dopout', 0.85,
                    'keep probability for dropout during training, for valid automatically 1')
 
 
 # --- INTERVALS --- #
-flags.DEFINE_integer('valid_interval', 200, 'number of training steps between each validation')
+flags.DEFINE_integer('valid_interval', 100, 'number of training steps between each validation')
 flags.DEFINE_integer('summary_interval', 100, 'number of training steps between summary is stored')
 flags.DEFINE_integer('save_interval', 1000, 'number of training steps between session/model dumps')
 
@@ -153,7 +154,7 @@ assert FLAGS.num_depth >= FLAGS.num_channels, "provided number of depth channels
 
 assert FLAGS.learning_rate_decay > 0.0 and FLAGS.learning_rate_decay < 1.0, 'learning rate decay should be in [0,1]'
 assert FLAGS.learning_rate > 0.0 and FLAGS.learning_rate < 1.0, 'learning rate should be in [0,1]'
-assert FLAGS.noise_std > 0.0 and FLAGS.noise_std < 1.0, 'noise_std should be in [0,1]'
+#assert FLAGS.noise_std > 0.0 and FLAGS.noise_std < 1.0, 'noise_std should be in [0,1]'
 assert FLAGS.keep_prob_dopout > 0.0 and FLAGS.keep_prob_dopout <= 1.0, 'keep_prob_dopout must be in [0,1]'
 
 

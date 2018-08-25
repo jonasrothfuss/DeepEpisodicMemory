@@ -238,7 +238,6 @@ def store_latent_vectors_as_df(output_dir, hidden_representations, labels, metad
   # create 2 column df including hidden representations and labels/ids
   hidden_representations = [hidden_representations[i] for i in
                             range(hidden_representations.shape[0])]  # converts 2d ndarray to list of 1d ndarrays
-
   if video_file_paths is not None:
     hidden_rep_df = pd.DataFrame({'label': labels, 'hidden_repr': hidden_representations, 'video_file_path': video_file_paths})
   else:

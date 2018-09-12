@@ -10,7 +10,8 @@ import os
 
 import cv2 as cv2
 import numpy as np
-# mpl.use('Agg')
+import matplotlib as mpl
+mpl.use('Agg')
 import tensorflow as tf
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
@@ -25,14 +26,14 @@ from utils.video import compute_dense_optical_flow, getVideoCapture, getNextFram
 NUM_CORES = multiprocessing.cpu_count()
 FLAGS = None
 FILE_FILTER = '*.avi'
-NUM_FRAMES_PER_VIDEO = 15
-NUM_CHANNELS_VIDEO = 4
+NUM_FRAMES_PER_VIDEO = 20
+NUM_CHANNELS_VIDEO = 3
 WIDTH_VIDEO = 128
 HEIGHT_VIDEO = 128
 ALLOWED_TYPES = [None, 'flyingshapes', 'activity_net', 'UCF101', 'youtube8m', '20bn_train', '20bn_valid']
 
-SOURCE = '/common/temp/toEren/4PdF_ArmarSampleImages/65_trials'
-DESTINATION = '/common/temp/toEren/4PdF_ArmarSampleImages/65_trials_tf_records/tf_records'
+SOURCE = '/PDFData/scrambled_eggs/augment/rgb/valid/'
+DESTINATION = '/localhome/rothfuss/data/segmented_scrambled_eggs_augmented/tfrecords_all'
 METADATA_SUBCLIPS_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata_subclips.json'
 METADATA_TAXONOMY_DICT = '/common/homes/students/rothfuss/Downloads/ucf101_prepared_clips/metadata.json'
 METADATA_y8m_027 = '/PDFData/rothfuss/data/youtube8m/videos/pc027/metadata.json'
@@ -44,13 +45,13 @@ METADATA_DICT_UCF101 = '/PDFData/rothfuss/data/UCF101/prepared_videos/metadata.j
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('num_videos', 1000, 'Number of videos stored in one single tfrecords file')
+flags.DEFINE_integer('num_video', 50, 'Number of videos stored in one single tfrecords file')
 flags.DEFINE_string('source', SOURCE, 'Directory with avi files')
 flags.DEFINE_string('file_path', '/tmp/data', 'Directory to numpy (train|valid|test) file')
 flags.DEFINE_string('output_path', DESTINATION, 'Directory for storing tf records')
-flags.DEFINE_boolean('use_meta', True, 'indicates whether meta-information shall be extracted from filename')
-flags.DEFINE_boolean('optical_flow', True, 'Indictes whether optical flow shall be computed and added as fourth channel')
-flags.DEFINE_string('type', 'None', 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
+flags.DEFINE_boolean('use_meta', False, 'indicates whether meta-information shall be extracted from filename')
+flags.DEFINE_boolean('optical_flow', False, 'Indictes whether optical flow shall be computed and added as fourth channel')
+flags.DEFINE_string('typ', None, 'Processing type for video data - Allowed values: ' + str(ALLOWED_TYPES))
 
 
 def _int64_feature(value):
@@ -101,18 +102,17 @@ def save_numpy_to_tfrecords(data, destination_path, meta_info, name, fragmentSiz
           feature['height'] = _int64_feature(height)
           feature['width'] = _int64_feature(width)
           feature['depth'] = _int64_feature(num_channels)
-          feature['id'] = _bytes_feature(meta_info_entry['id'])
+          feature['id'] = _bytes_feature(meta_info_entry['id'].encode())
 
           meta_info_entry.update({'height': height, 'width': width, 'depth': num_channels})
-
-          feature['metadata'] = _bytes_feature(json.dumps(meta_info_entry))
+          feature['metadata'] = _bytes_feature(json.dumps(meta_info_entry).encode())
 
       example = tf.train.Example(features=tf.train.Features(feature=feature))
       writer.write(example.SerializeToString())
   if writer is not None:
     writer.close()
 
-def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_flow=False):
+def convert_avi_to_numpy(filenames, typ=None, meta_dict = None, dense_optical_flow=False):
   """Generates an ndarray from multiple avi files given by filenames.
   Implementation chooses frame step size automatically for a equal separation distribution of the avi images.
 
@@ -122,7 +122,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
   :return if no optical flow is used: ndarray(uint32) of shape (v,i,h,w,c) with v=number of videos, i=number of images,
   (h,w)=height and width of image, c=channel, if optical flow is used: ndarray(uint32) of (v,i,h,w,
   c+1)"""
-  assert type in ALLOWED_TYPES
+  assert typ in ALLOWED_TYPES
   global NUM_CHANNELS_VIDEO
   if not filenames:
     raise RuntimeError('No data files found.')
@@ -150,7 +150,7 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
     assert cap is not None, "Couldn't load video capture:" + filename + ". Moving to next video."
 
     # compute meta data of video
-    frameCount = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
+    frameCount = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
     # returns nan, if fps needed a measurement must be implemented
     # frameRate = cap.get(cv2.cv.CV_CAP_PROP_FPS)
@@ -232,12 +232,12 @@ def convert_avi_to_numpy(filenames, type=None, meta_dict = None, dense_optical_f
       print(e)
 
     #get meta info and append to meta_info list
-    meta_info.append(get_meta_info(file, type, meta_dict=meta_dict).copy())
+    meta_info.append(get_meta_info(file, typ, meta_dict=meta_dict).copy())
 
   return np.array(data), meta_info
 
 
-def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.num_videos, type=FLAGS.type, video_filenames=None, dense_optical_flow=False):
+def save_avi_to_tfrecords(source_path, destination_path, videos_per_file, typ=None, video_filenames=None, dense_optical_flow=False):
   """calls sub-functions convert_avi_to_numpy and save_numpy_to_tfrecords in order to directly export tfrecords files
   :param source_path: directory where avi videos are stored
   :param destination_path: directory where tfrecords should be stored
@@ -246,7 +246,7 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
   """
   global NUM_CHANNELS_VIDEO
   assert (NUM_CHANNELS_VIDEO == 3 and (not dense_optical_flow)) or (NUM_CHANNELS_VIDEO == 4 and dense_optical_flow), "correct NUM_CHANNELS_VIDEO"
-  assert type in ALLOWED_TYPES, str(type) + " is not an allowed type"
+  assert typ in ALLOWED_TYPES, str(typ) + " is not an allowed type"
 
   if video_filenames is not None:
     filenames = video_filenames
@@ -259,21 +259,21 @@ def save_avi_to_tfrecords(source_path, destination_path, videos_per_file=FLAGS.n
 
   filenames_split = list(chunks(filenames, videos_per_file))
 
-  if type == 'activity_net':
+  if typ == 'activity_net':
     meta_dict = create_activity_net_metadata_dicts(FLAGS.source, METADATA_SUBCLIPS_DICT, METADATA_TAXONOMY_DICT, FILE_FILTER)
-  elif type == 'youtube8m':
+  elif typ == 'youtube8m':
     meta_dict = create_youtube8m_metadata_dicts(FLAGS.source, METADATA_DICT, FILE_FILTER)
-  elif type == '20bn_train':
+  elif typ == '20bn_train':
     meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_TRAIN, FILE_FILTER)
-  elif type == '20bn_valid':
+  elif typ == '20bn_valid':
     meta_dict = create_20bn_metadata_dicts(FLAGS.source, CSV_20BN_VALID, FILE_FILTER)
-  elif type == 'UCF101':
+  elif typ == 'UCF101':
     meta_dict = create_ucf101_metadata_dicts(FLAGS.source, METADATA_DICT_UCF101, FILE_FILTER)
   else:
     meta_dict = None
 
   for i, batch in enumerate(filenames_split):
-    data, meta_info = convert_avi_to_numpy(batch, type=type, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
+    data, meta_info = convert_avi_to_numpy(batch, typ=typ, meta_dict=meta_dict, dense_optical_flow=dense_optical_flow)
     total_batch_number = int(math.ceil(len(filenames)/videos_per_file))
     print('Batch ' + str(i+1) + '/' + str(total_batch_number))
     save_numpy_to_tfrecords(data, destination_path, meta_info, 'train_blobs_batch_', videos_per_file, i+1,
@@ -292,7 +292,7 @@ def main(argv):
   #print('Collected %i Video Files'%len(all_files_shuffled))
   #all_files_shuffled = all_files_shuffled[0:140000]
 
-  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_videos, type=FLAGS.type, dense_optical_flow=FLAGS.optical_flow)
+  save_avi_to_tfrecords(FLAGS.source, FLAGS.output_path, FLAGS.num_video, typ=None, video_filenames=None, dense_optical_flow=FLAGS.optical_flow)
 
 if __name__ == '__main__':
   app.run()
